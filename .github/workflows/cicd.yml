@@ -43,6 +43,8 @@ jobs:
   sonarqube:
     runs-on: ubuntu-latest
     needs: [test, ruff]
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
