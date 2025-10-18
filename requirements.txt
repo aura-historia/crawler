@@ -11,6 +11,7 @@ requests
 lxml
 pytest
 pytest-asyncio
+pytest-cov
 langdetect
 ruff
 pre-commit
