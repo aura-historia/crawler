@@ -4,12 +4,13 @@ from pathlib import Path
 import aiofiles
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
-from src.core.utils.url_filters import ExtensionExcludeBFSStrategy
+
+from src.core.algorithms.bfs_no_cycle_deep_crawl_strategy import BFSNoCycleDeepCrawlStrategy
 
 
 async def main(url: str):
-    strategy = ExtensionExcludeBFSStrategy(
-        max_depth=1,
+    strategy = BFSNoCycleDeepCrawlStrategy(
+        max_depth=1000,
         include_external=False,
         exclude_extensions=[
             "jpg",
@@ -39,6 +40,8 @@ async def main(url: str):
             "woff2",
             "ttf",  # Assets
         ],
+        exclude_patterns=[
+        ],
     )
 
     config = CrawlerRunConfig(
@@ -51,14 +54,11 @@ async def main(url: str):
 
     async with AsyncWebCrawler() as crawler:
         print("Starting deep crawl with extension filtering...")
-        print(f"   Excluded extensions: {', '.join(strategy._exclude_extensions)}")
-        print()
 
         # Use strategy directly to get all discovered URLs
         discovered = await strategy.arun(start_url=url, crawler=crawler, config=config)
 
         print(f"\n Done! {len(discovered)} unique URLs found")
-        print("   (Images, videos and other files were excluded)")
 
         script_dir = Path(__file__).resolve().parent
         project_root = script_dir.parent.parent.parent
@@ -82,4 +82,4 @@ async def main(url: str):
 
 
 if __name__ == "__main__":
-    asyncio.run(main(""))
+    asyncio.run(main("https://20thcenturymilitaria.com/"))
