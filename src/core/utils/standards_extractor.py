@@ -12,10 +12,7 @@ def is_valid_product(extracted) -> bool:
     if isinstance(extracted, list):
         return any(is_valid_product(item) for item in extracted)
     # Single product
-    if (
-        extracted.get("title", {}).get("text")
-        or extracted.get("price", {}).get("amount", 0) > 0
-    ):
+    if extracted.get("title", {}).get("text"):
         return True
     return False
 
