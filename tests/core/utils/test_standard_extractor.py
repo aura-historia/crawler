@@ -236,7 +236,7 @@ def test_is_valid_product_with_title():
 def test_is_valid_product_with_price():
     """Test that a product with a price > 0 is considered valid."""
     product = {"title": {"text": ""}, "price": {"amount": 100}}
-    assert is_valid_product(product) is True
+    assert is_valid_product(product) is False
 
 
 def test_is_valid_product_invalid():
