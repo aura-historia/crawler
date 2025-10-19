@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+import aiofiles
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 from src.core.utils.url_filters import ExtensionExcludeBFSStrategy
@@ -8,7 +9,7 @@ from src.core.utils.url_filters import ExtensionExcludeBFSStrategy
 
 async def main(url: str):
     strategy = ExtensionExcludeBFSStrategy(
-        max_depth=1000,
+        max_depth=1,
         include_external=False,
         exclude_extensions=[
             "jpg",
@@ -67,8 +68,8 @@ async def main(url: str):
 
         output_file = data_dir / "crawled_url_filtered.json"
 
-        with open(output_file, "w") as f:
-            json.dump(discovered, f, indent=4)
+        async with aiofiles.open(output_file, "w") as f:
+            await f.write(json.dumps(discovered, indent=4))
 
         print(f"\n URLs saved to: {output_file}")
 
@@ -81,4 +82,4 @@ async def main(url: str):
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(""))
