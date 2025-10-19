@@ -6,9 +6,7 @@ from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 from src.core.utils.url_filters import ExtensionExcludeBFSStrategy
 
 
-async def main():
-    # Create strategy with extension filtering
-    # Exclude all common image, video and document formats
+async def main(url: str):
     strategy = ExtensionExcludeBFSStrategy(
         max_depth=1000,
         include_external=False,
@@ -56,9 +54,7 @@ async def main():
         print()
 
         # Use strategy directly to get all discovered URLs
-        discovered = await strategy.arun(
-            start_url="https://furthof-antikmoebel.de/", crawler=crawler, config=config
-        )
+        discovered = await strategy.arun(start_url=url, crawler=crawler, config=config)
 
         print(f"\n Done! {len(discovered)} unique URLs found")
         print("   (Images, videos and other files were excluded)")
