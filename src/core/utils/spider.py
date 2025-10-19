@@ -5,7 +5,9 @@ import aiofiles
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 
-from src.core.algorithms.bfs_no_cycle_deep_crawl_strategy import BFSNoCycleDeepCrawlStrategy
+from src.core.algorithms.bfs_no_cycle_deep_crawl_strategy import (
+    BFSNoCycleDeepCrawlStrategy,
+)
 
 
 async def main(url: str):
@@ -40,8 +42,7 @@ async def main(url: str):
             "woff2",
             "ttf",  # Assets
         ],
-        exclude_patterns=[
-        ],
+        exclude_patterns=[],
     )
 
     config = CrawlerRunConfig(

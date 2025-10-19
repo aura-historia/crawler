@@ -181,7 +181,9 @@ class BFSNoCycleDeepCrawlStrategy(BFSDeepCrawlStrategy):
 
             # Process each result via helper to keep complexity low
             for result in batch_results:
-                await self._process_result_links(result, depths, visited, discovered, next_level)
+                await self._process_result_links(
+                    result, depths, visited, discovered, next_level
+                )
 
             current_level = next_level
 
