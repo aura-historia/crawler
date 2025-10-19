@@ -1,6 +1,6 @@
 import asyncio
 import json
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 import pytest
 from typing import Dict, List, Optional, Any
 
@@ -62,7 +62,38 @@ class MockCrawler:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        pass
+        # The mock crawler does not hold any real asynchronous resources
+        # (like open network connections or file descriptors) that require
+        # cleanup. The real AsyncWebCrawler would perform any necessary
+        # teardown; for tests we keep the mock lightweight.
+        #
+        # Return False so that any exception raised inside the async
+        # context is not suppressed by the context manager.
+        return False
+
+
+class MockAsyncFile:
+    """Mock async file object for aiofiles."""
+
+    def __init__(self):
+        self.written_data = []
+
+    async def write(self, data: str):
+        # Perform a tiny asynchronous no-op so this async method actually
+        # uses awaitable behavior. This avoids linter warnings while
+        # remaining functionally identical for tests (no real I/O).
+        await asyncio.sleep(0)
+        self.written_data.append(data)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # MockAsyncFile only records writes in-memory and doesn't manage
+        # real OS-level file handles. The real aiofiles context manager
+        # would close files; the mock doesn't need to. We still return
+        # False to avoid suppressing exceptions from the with-block.
+        return False
 
 
 @pytest.mark.asyncio
@@ -85,21 +116,16 @@ async def test_spider_main_excludes_image_extensions():
     }
 
     mock_crawler = MockCrawler(responses)
+    mock_file = MockAsyncFile()
 
     with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("builtins.open", mock_open()) as mock_file:
+        with patch("aiofiles.open", return_value=mock_file):
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.print"):
                     await main("https://example.com/")
 
-                    # Check that file was written
-                    mock_file.assert_called()
-                    handle = mock_file.return_value
-                    written_data = "".join(
-                        call.args[0] for call in handle.write.call_args_list
-                    )
-
                     # Parse the written JSON
+                    written_data = "".join(mock_file.written_data)
                     discovered = json.loads(written_data)
 
                     # Should include base URL and products
@@ -131,17 +157,15 @@ async def test_spider_main_excludes_video_extensions():
     }
 
     mock_crawler = MockCrawler(responses)
+    mock_file = MockAsyncFile()
 
     with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("builtins.open", mock_open()) as mock_file:
+        with patch("aiofiles.open", return_value=mock_file):
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.print"):
                     await main("https://example.com/")
 
-                    handle = mock_file.return_value
-                    written_data = "".join(
-                        call.args[0] for call in handle.write.call_args_list
-                    )
+                    written_data = "".join(mock_file.written_data)
                     discovered = json.loads(written_data)
 
                     # Should include base URL and about
@@ -173,17 +197,15 @@ async def test_spider_main_excludes_document_extensions():
     }
 
     mock_crawler = MockCrawler(responses)
+    mock_file = MockAsyncFile()
 
     with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("builtins.open", mock_open()) as mock_file:
+        with patch("aiofiles.open", return_value=mock_file):
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.print"):
                     await main("https://example.com/")
 
-                    handle = mock_file.return_value
-                    written_data = "".join(
-                        call.args[0] for call in handle.write.call_args_list
-                    )
+                    written_data = "".join(mock_file.written_data)
                     discovered = json.loads(written_data)
 
                     # Should include base URL and contact
@@ -215,17 +237,15 @@ async def test_spider_main_excludes_archive_extensions():
     }
 
     mock_crawler = MockCrawler(responses)
+    mock_file = MockAsyncFile()
 
     with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("builtins.open", mock_open()) as mock_file:
+        with patch("aiofiles.open", return_value=mock_file):
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.print"):
                     await main("https://example.com/")
 
-                    handle = mock_file.return_value
-                    written_data = "".join(
-                        call.args[0] for call in handle.write.call_args_list
-                    )
+                    written_data = "".join(mock_file.written_data)
                     discovered = json.loads(written_data)
 
                     # Should include base URL and shop
@@ -258,17 +278,15 @@ async def test_spider_main_excludes_asset_extensions():
     }
 
     mock_crawler = MockCrawler(responses)
+    mock_file = MockAsyncFile()
 
     with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("builtins.open", mock_open()) as mock_file:
+        with patch("aiofiles.open", return_value=mock_file):
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.print"):
                     await main("https://example.com/")
 
-                    handle = mock_file.return_value
-                    written_data = "".join(
-                        call.args[0] for call in handle.write.call_args_list
-                    )
+                    written_data = "".join(mock_file.written_data)
                     discovered = json.loads(written_data)
 
                     # Should include base URL and services
@@ -297,9 +315,10 @@ async def test_spider_main_saves_to_correct_file():
     }
 
     mock_crawler = MockCrawler(responses)
+    mock_file = MockAsyncFile()
 
     with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("builtins.open", mock_open()) as mock_file:
+        with patch("aiofiles.open", return_value=mock_file) as mock_aiofiles:
             with patch("pathlib.Path.mkdir") as mock_mkdir:
                 with patch("builtins.print"):
                     await main("https://example.com/")
@@ -308,7 +327,8 @@ async def test_spider_main_saves_to_correct_file():
                     mock_mkdir.assert_called_once_with(exist_ok=True)
 
                     # Check that file was opened with correct path
-                    call_args = mock_file.call_args[0]
+                    mock_aiofiles.assert_called_once()
+                    call_args = mock_aiofiles.call_args[0]
                     output_path = call_args[0]
                     assert str(output_path).endswith("crawled_url_filtered.json")
 
@@ -323,9 +343,10 @@ async def test_spider_main_prints_status_messages():
     }
 
     mock_crawler = MockCrawler(responses)
+    mock_file = MockAsyncFile()
 
     with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("builtins.open", mock_open()):
+        with patch("aiofiles.open", return_value=mock_file):
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.print") as mock_print:
                     await main("https://example.com/")
@@ -366,17 +387,15 @@ async def test_spider_main_handles_multiple_pages():
     }
 
     mock_crawler = MockCrawler(responses)
+    mock_file = MockAsyncFile()
 
     with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("builtins.open", mock_open()) as mock_file:
+        with patch("aiofiles.open", return_value=mock_file):
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.print"):
                     await main("https://example.com/")
 
-                    handle = mock_file.return_value
-                    written_data = "".join(
-                        call.args[0] for call in handle.write.call_args_list
-                    )
+                    written_data = "".join(mock_file.written_data)
                     discovered = json.loads(written_data)
 
                     # Should have found all 4 pages
@@ -407,17 +426,15 @@ async def test_spider_main_case_insensitive_extension_filtering():
     }
 
     mock_crawler = MockCrawler(responses)
+    mock_file = MockAsyncFile()
 
     with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("builtins.open", mock_open()) as mock_file:
+        with patch("aiofiles.open", return_value=mock_file):
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.print"):
                     await main("https://example.com/")
 
-                    handle = mock_file.return_value
-                    written_data = "".join(
-                        call.args[0] for call in handle.write.call_args_list
-                    )
+                    written_data = "".join(mock_file.written_data)
                     discovered = json.loads(written_data)
 
                     # Should include only base and page
