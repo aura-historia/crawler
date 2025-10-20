@@ -169,5 +169,5 @@ async def main(start_url: str):
 
 
 if __name__ == "__main__":
-    test_url = "https://20thcenturymilitaria.com/"
+    test_url = ""
     asyncio.run(main(test_url))
