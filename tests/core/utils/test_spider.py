@@ -6,16 +6,18 @@ import pytest
 from src.core.utils.spider import crawl_urls, evaluate_urls
 
 
-@patch("src.core.utils.spider.client")
-def test_evaluate_urls_single_url(mock_client):
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_single_url(mock_get_client):
     """Test evaluating a single URL returns correct structure."""
     # Mock the API response
+    mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
     mock_response.choices[0].message.content = json.dumps(
         {"evaluations": [{"url": "https://example.com/item1", "confidence": 85}]}
     )
     mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
 
     urls = ["https://example.com/item1"]
     result = evaluate_urls(urls)
@@ -28,9 +30,10 @@ def test_evaluate_urls_single_url(mock_client):
     assert isinstance(result["evaluations"][0]["confidence"], int)
 
 
-@patch("src.core.utils.spider.client")
-def test_evaluate_urls_multiple_urls(mock_client):
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_multiple_urls(mock_get_client):
     """Test evaluating multiple URLs returns all evaluations."""
+    mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
     mock_response.choices[0].message.content = json.dumps(
@@ -43,6 +46,7 @@ def test_evaluate_urls_multiple_urls(mock_client):
         }
     )
     mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
 
     urls = [
         "https://example.com/item1",
@@ -57,15 +61,17 @@ def test_evaluate_urls_multiple_urls(mock_client):
     assert all(1 <= item["confidence"] <= 100 for item in result["evaluations"])
 
 
-@patch("src.core.utils.spider.client")
-def test_evaluate_urls_calls_api_with_correct_params(mock_client):
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_calls_api_with_correct_params(mock_get_client):
     """Test that the Groq API is called with correct parameters."""
+    mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
     mock_response.choices[0].message.content = json.dumps(
         {"evaluations": [{"url": "https://example.com/item", "confidence": 75}]}
     )
     mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
 
     urls = ["https://example.com/item"]
     evaluate_urls(urls)
@@ -90,9 +96,10 @@ def test_evaluate_urls_calls_api_with_correct_params(mock_client):
     assert call_args.kwargs["response_format"]["type"] == "json_schema"
 
 
-@patch("src.core.utils.spider.client")
-def test_evaluate_urls_confidence_boundaries(mock_client):
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_confidence_boundaries(mock_get_client):
     """Test that confidence scores are within valid range (1-100)."""
+    mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
     mock_response.choices[0].message.content = json.dumps(
@@ -105,6 +112,7 @@ def test_evaluate_urls_confidence_boundaries(mock_client):
         }
     )
     mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
 
     urls = [
         "https://example.com/low",
@@ -117,10 +125,11 @@ def test_evaluate_urls_confidence_boundaries(mock_client):
         assert 1 <= item["confidence"] <= 100
 
 
-@patch("src.core.utils.spider.client")
-def test_evaluate_urls_handles_json_string_response(mock_client):
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_handles_json_string_response(mock_get_client):
     """Test that the function handles JSON string responses correctly."""
     # Simulate API returning a JSON string (most common case)
+    mock_client = MagicMock()
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
     json_string = (
@@ -128,6 +137,7 @@ def test_evaluate_urls_handles_json_string_response(mock_client):
     )
     mock_response.choices[0].message.content = json_string
     mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
 
     result = evaluate_urls(["https://example.com/test"])
 
@@ -228,7 +238,9 @@ async def test_crawl_and_evaluate_workflow():
         "src.core.utils.spider.BFSNoCycleDeepCrawlStrategy", return_value=mock_strategy
     ):
         with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-            with patch("src.core.utils.spider.client", mock_client):
+            with patch(
+                "src.core.utils.spider.groq_client.get_client", return_value=mock_client
+            ):
                 # Step 1: Crawl
                 crawled = await crawl_urls("https://example.com/")
                 assert len(crawled) == 4
@@ -254,7 +266,9 @@ async def test_batch_evaluation():
         "src.core.utils.spider.BFSNoCycleDeepCrawlStrategy", return_value=mock_strategy
     ):
         with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-            with patch("src.core.utils.spider.client", mock_client):
+            with patch(
+                "src.core.utils.spider.groq_client.get_client", return_value=mock_client
+            ):
                 crawled = await crawl_urls("https://example.com/")
 
                 # Simulate batching (like in main)

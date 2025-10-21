@@ -10,7 +10,7 @@ from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 from src.core.algorithm.bfs_no_cycle_deep_crawl_strategy import (
     BFSNoCycleDeepCrawlStrategy,
 )
-from src.core.llm.groq.client import client
+from src.core.llm.groq import client as groq_client
 
 
 def evaluate_urls(urls: list[str]) -> dict[str, Any]:
@@ -70,6 +70,8 @@ def evaluate_urls(urls: list[str]) -> dict[str, Any]:
             },
         },
     }
+
+    client = groq_client.get_client()
 
     # Call the Groq Structured Output API
     chat_completion = client.chat.completions.create(
