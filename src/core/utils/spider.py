@@ -7,10 +7,10 @@ import aiofiles
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 
-from src.core.algorithm.bfs_no_cycle_deep_crawl_strategy import (
+from src.core.algorithms.bfs_no_cycle_deep_crawl_strategy import (
     BFSNoCycleDeepCrawlStrategy,
 )
-from src.core.llm.groq import client as groq_client
+from src.core.llms.groq import client as groq_client
 
 
 def evaluate_urls(urls: list[str]) -> dict[str, Any]:
