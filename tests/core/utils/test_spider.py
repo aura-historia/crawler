@@ -202,8 +202,96 @@ async def test_crawl_urls_returns_unique_urls():
         with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
             result = await crawl_urls("https://example.com/")
 
-    # Verify all URLs are unique
+    # Check that all URLs are unique
     assert len(result) == len(set(result))
+
+
+@pytest.mark.asyncio
+async def test_main_saves_crawled_urls():
+    """Test that main saves crawled URLs to JSON file."""
+    from src.core.utils.spider import main
+
+    mock_urls = ["https://example.com/page1", "https://example.com/page2"]
+    mock_evaluations = {
+        "evaluations": [
+            {"url": "https://example.com/page1", "confidence": 80},
+            {"url": "https://example.com/page2", "confidence": 85},
+        ]
+    }
+
+    written_data = []
+
+    def mock_aiofiles_write(content):
+        written_data.append(content)
+
+    mock_file = MagicMock()
+    mock_file.write = mock_aiofiles_write
+    mock_file.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_file.__aexit__ = AsyncMock()
+
+    with patch("src.core.utils.spider.crawl_urls", return_value=mock_urls):
+        with patch(
+            "src.core.utils.spider.evaluate_urls", return_value=mock_evaluations
+        ):
+            with patch("src.core.utils.spider.aiofiles.open", return_value=mock_file):
+                await main("https://example.com/")
+
+    # Verify that data was written (first call saves URLs, second saves evaluations)
+    assert len(written_data) == 2
+    saved_urls = json.loads(written_data[0])
+    assert saved_urls == mock_urls
+    saved_evaluations = json.loads(written_data[1])
+    assert len(saved_evaluations) == 2
+
+
+@pytest.mark.asyncio
+async def test_main_processes_urls_in_batches():
+    """Test that main processes URLs in batches of 20."""
+    from src.core.utils.spider import main
+
+    # Create 45 URLs to test batching (should be 3 batches: 20, 20, 5)
+    mock_urls = [f"https://example.com/page{i}" for i in range(45)]
+
+    call_count = 0
+
+    def mock_evaluate(urls_batch):
+        nonlocal call_count
+        call_count += 1
+        return {"evaluations": [{"url": url, "confidence": 80} for url in urls_batch]}
+
+    mock_file = MagicMock()
+    mock_file.write = AsyncMock()
+    mock_file.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_file.__aexit__ = AsyncMock()
+
+    with patch("src.core.utils.spider.crawl_urls", return_value=mock_urls):
+        with patch("src.core.utils.spider.evaluate_urls", side_effect=mock_evaluate):
+            with patch("src.core.utils.spider.aiofiles.open", return_value=mock_file):
+                await main("https://example.com/")
+
+    # Should have been called 3 times: 20 + 20 + 5 = 45
+    assert call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_main_handles_empty_crawl_result():
+    """Test that main handles the case where no URLs are crawled."""
+    from src.core.utils.spider import main
+
+    mock_urls = []
+
+    mock_file = MagicMock()
+    mock_file.write = AsyncMock()
+    mock_file.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_file.__aexit__ = AsyncMock()
+
+    with patch("src.core.utils.spider.crawl_urls", return_value=mock_urls):
+        with patch("src.core.utils.spider.evaluate_urls") as mock_evaluate:
+            with patch("src.core.utils.spider.aiofiles.open", return_value=mock_file):
+                await main("https://example.com/")
+
+    # evaluate_urls should not be called if there are no URLs
+    assert mock_evaluate.call_count == 0
 
 
 @pytest.mark.asyncio
