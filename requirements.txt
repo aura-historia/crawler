@@ -16,3 +16,4 @@ langdetect
 ruff
 pre-commit
 aiofiles
+groq

@@ -1,447 +1,389 @@
-import asyncio
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from typing import Dict, List, Optional, Any
 
-from crawl4ai.utils import normalize_url_for_deep_crawl
-from src.core.utils.spider import main
+from src.core.utils.spider import crawl_urls, evaluate_urls
 
 
-class DummyResult:
-    def __init__(
-        self,
-        url: str,
-        success: bool = True,
-        internal_links: Optional[List[Dict]] = None,
-        external_links: Optional[List[Dict]] = None,
-    ):
-        self.url = url
-        self.success = success
-        self.links = {
-            "internal": internal_links or [],
-            "external": external_links or [],
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_single_url(mock_get_client):
+    """Test evaluating a single URL returns correct structure."""
+    # Mock the API response
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = json.dumps(
+        {"evaluations": [{"url": "https://example.com/item1", "confidence": 85}]}
+    )
+    mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
+
+    urls = ["https://example.com/item1"]
+    result = evaluate_urls(urls)
+
+    # Verify the result structure
+    assert "evaluations" in result
+    assert len(result["evaluations"]) == 1
+    assert result["evaluations"][0]["url"] == "https://example.com/item1"
+    assert result["evaluations"][0]["confidence"] == 85
+    assert isinstance(result["evaluations"][0]["confidence"], int)
+
+
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_multiple_urls(mock_get_client):
+    """Test evaluating multiple URLs returns all evaluations."""
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = json.dumps(
+        {
+            "evaluations": [
+                {"url": "https://example.com/item1", "confidence": 85},
+                {"url": "https://example.com/item2", "confidence": 92},
+                {"url": "https://example.com/item3", "confidence": 45},
+            ]
         }
-        self.metadata = {}
+    )
+    mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
+
+    urls = [
+        "https://example.com/item1",
+        "https://example.com/item2",
+        "https://example.com/item3",
+    ]
+    result = evaluate_urls(urls)
+
+    assert len(result["evaluations"]) == 3
+    assert all("url" in item for item in result["evaluations"])
+    assert all("confidence" in item for item in result["evaluations"])
+    assert all(1 <= item["confidence"] <= 100 for item in result["evaluations"])
 
 
-class MockCrawler:
-    """Mock AsyncWebCrawler for testing."""
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_calls_api_with_correct_params(mock_get_client):
+    """Test that the Groq API is called with correct parameters."""
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = json.dumps(
+        {"evaluations": [{"url": "https://example.com/item", "confidence": 75}]}
+    )
+    mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
 
-    def __init__(self, responses: Dict[str, DummyResult]):
-        self.responses = responses
+    urls = ["https://example.com/item"]
+    evaluate_urls(urls)
 
-    async def arun_many(self, urls: List[str], config: Any = None) -> List[DummyResult]:
-        await asyncio.sleep(0)
-        results = []
-        for url in urls:
-            if url in self.responses:
-                results.append(self.responses[url])
-                continue
+    # Verify API was called once
+    assert mock_client.chat.completions.create.call_count == 1
 
-            try:
-                norm = normalize_url_for_deep_crawl(url, url)
-                if norm in self.responses:
-                    results.append(self.responses[norm])
-                    continue
-            except (ValueError, TypeError, KeyError):
-                pass
+    # Get the call arguments
+    call_args = mock_client.chat.completions.create.call_args
 
-            if url.endswith("/"):
-                alt = url.rstrip("/")
-            else:
-                alt = url + "/"
+    # Verify model
+    assert call_args.kwargs["model"] == "moonshotai/kimi-k2-instruct-0905"
 
-            if alt in self.responses:
-                results.append(self.responses[alt])
-            else:
-                results.append(DummyResult(url, success=False))
-        return results
+    # Verify messages structure
+    messages = call_args.kwargs["messages"]
+    assert len(messages) == 2
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
+    assert "https://example.com/item" in messages[1]["content"]
 
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        # The mock crawler does not hold any real asynchronous resources
-        # (like open network connections or file descriptors) that require
-        # cleanup. The real AsyncWebCrawler would perform any necessary
-        # teardown; for tests we keep the mock lightweight.
-        #
-        # Return False so that any exception raised inside the async
-        # context is not suppressed by the context manager.
-        return False
+    # Verify response_format is a json_schema
+    assert call_args.kwargs["response_format"]["type"] == "json_schema"
 
 
-class MockAsyncFile:
-    """Mock async file object for aiofiles."""
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_confidence_boundaries(mock_get_client):
+    """Test that confidence scores are within valid range (1-100)."""
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = json.dumps(
+        {
+            "evaluations": [
+                {"url": "https://example.com/low", "confidence": 1},
+                {"url": "https://example.com/high", "confidence": 100},
+                {"url": "https://example.com/mid", "confidence": 50},
+            ]
+        }
+    )
+    mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
 
-    def __init__(self):
-        self.written_data = []
+    urls = [
+        "https://example.com/low",
+        "https://example.com/high",
+        "https://example.com/mid",
+    ]
+    result = evaluate_urls(urls)
 
-    async def write(self, data: str):
-        # Perform a tiny asynchronous no-op so this async method actually
-        # uses awaitable behavior. This avoids linter warnings while
-        # remaining functionally identical for tests (no real I/O).
-        await asyncio.sleep(0)
-        self.written_data.append(data)
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        # MockAsyncFile only records writes in-memory and doesn't manage
-        # real OS-level file handles. The real aiofiles context manager
-        # would close files; the mock doesn't need to. We still return
-        # False to avoid suppressing exceptions from the with-block.
-        return False
+    for item in result["evaluations"]:
+        assert 1 <= item["confidence"] <= 100
 
 
-@pytest.mark.asyncio
-async def test_spider_main_excludes_image_extensions():
-    """Test that spider excludes common image file extensions."""
-    responses = {
-        "https://example.com/": DummyResult(
-            "https://example.com/",
-            success=True,
-            internal_links=[
-                {"href": "https://example.com/products"},
-                {"href": "https://example.com/image.jpg"},
-                {"href": "https://example.com/photo.png"},
-                {"href": "https://example.com/logo.svg"},
-            ],
-        ),
-        "https://example.com/products": DummyResult(
-            "https://example.com/products", success=True
-        ),
-    }
+@patch("src.core.utils.spider.groq_client.get_client")
+def test_evaluate_urls_handles_json_string_response(mock_get_client):
+    """Test that the function handles JSON string responses correctly."""
+    # Simulate API returning a JSON string (most common case)
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    json_string = (
+        '{"evaluations": [{"url": "https://example.com/test", "confidence": 88}]}'
+    )
+    mock_response.choices[0].message.content = json_string
+    mock_client.chat.completions.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
 
-    mock_crawler = MockCrawler(responses)
-    mock_file = MockAsyncFile()
+    result = evaluate_urls(["https://example.com/test"])
 
-    with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("aiofiles.open", return_value=mock_file):
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.print"):
-                    await main("https://example.com/")
-
-                    # Parse the written JSON
-                    written_data = "".join(mock_file.written_data)
-                    discovered = json.loads(written_data)
-
-                    # Should include base URL and products
-                    assert "https://example.com" in discovered
-                    assert "https://example.com/products" in discovered
-
-                    # Should NOT include images
-                    assert "https://example.com/image.jpg" not in discovered
-                    assert "https://example.com/photo.png" not in discovered
-                    assert "https://example.com/logo.svg" not in discovered
+    assert result["evaluations"][0]["confidence"] == 88
 
 
 @pytest.mark.asyncio
-async def test_spider_main_excludes_video_extensions():
-    """Test that spider excludes common video file extensions."""
-    responses = {
-        "https://example.com/": DummyResult(
-            "https://example.com/",
-            success=True,
-            internal_links=[
-                {"href": "https://example.com/about"},
-                {"href": "https://example.com/video.mp4"},
-                {"href": "https://example.com/promo.avi"},
-            ],
-        ),
-        "https://example.com/about": DummyResult(
-            "https://example.com/about", success=True
-        ),
-    }
+async def test_crawl_urls_returns_list():
+    """Test that crawl_urls returns a list of URLs."""
+    mock_strategy = AsyncMock()
+    mock_strategy.arun.return_value = [
+        "https://example.com/",
+        "https://example.com/page1",
+        "https://example.com/page2",
+    ]
 
-    mock_crawler = MockCrawler(responses)
-    mock_file = MockAsyncFile()
+    mock_crawler = AsyncMock()
 
-    with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("aiofiles.open", return_value=mock_file):
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.print"):
-                    await main("https://example.com/")
+    with patch(
+        "src.core.utils.spider.BFSNoCycleDeepCrawlStrategy", return_value=mock_strategy
+    ):
+        with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
+            result = await crawl_urls("https://example.com/")
 
-                    written_data = "".join(mock_file.written_data)
-                    discovered = json.loads(written_data)
-
-                    # Should include base URL and about
-                    assert "https://example.com" in discovered
-                    assert "https://example.com/about" in discovered
-
-                    # Should NOT include videos
-                    assert "https://example.com/video.mp4" not in discovered
-                    assert "https://example.com/promo.avi" not in discovered
+    assert isinstance(result, list)
+    assert len(result) == 3
+    assert all(isinstance(url, str) for url in result)
 
 
 @pytest.mark.asyncio
-async def test_spider_main_excludes_document_extensions():
-    """Test that spider excludes common document file extensions."""
-    responses = {
-        "https://example.com/": DummyResult(
-            "https://example.com/",
-            success=True,
-            internal_links=[
-                {"href": "https://example.com/contact"},
-                {"href": "https://example.com/manual.pdf"},
-                {"href": "https://example.com/catalog.docx"},
-                {"href": "https://example.com/prices.xlsx"},
-            ],
-        ),
-        "https://example.com/contact": DummyResult(
-            "https://example.com/contact", success=True
-        ),
-    }
+async def test_crawl_urls_handles_empty_result():
+    """Test that crawl_urls handles cases where no URLs are discovered."""
+    mock_strategy = AsyncMock()
+    mock_strategy.arun.return_value = []
+    mock_crawler = AsyncMock()
 
-    mock_crawler = MockCrawler(responses)
-    mock_file = MockAsyncFile()
+    with patch(
+        "src.core.utils.spider.BFSNoCycleDeepCrawlStrategy", return_value=mock_strategy
+    ):
+        with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
+            result = await crawl_urls("https://example.com/")
 
-    with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("aiofiles.open", return_value=mock_file):
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.print"):
-                    await main("https://example.com/")
-
-                    written_data = "".join(mock_file.written_data)
-                    discovered = json.loads(written_data)
-
-                    # Should include base URL and contact
-                    assert "https://example.com" in discovered
-                    assert "https://example.com/contact" in discovered
-
-                    # Should NOT include documents
-                    assert "https://example.com/manual.pdf" not in discovered
-                    assert "https://example.com/catalog.docx" not in discovered
-                    assert "https://example.com/prices.xlsx" not in discovered
+    assert isinstance(result, list)
+    assert len(result) == 0
 
 
 @pytest.mark.asyncio
-async def test_spider_main_excludes_archive_extensions():
-    """Test that spider excludes common archive file extensions."""
-    responses = {
-        "https://example.com/": DummyResult(
-            "https://example.com/",
-            success=True,
-            internal_links=[
-                {"href": "https://example.com/shop"},
-                {"href": "https://example.com/backup.zip"},
-                {"href": "https://example.com/data.tar.gz"},
-            ],
-        ),
-        "https://example.com/shop": DummyResult(
-            "https://example.com/shop", success=True
-        ),
-    }
+async def test_crawl_urls_returns_unique_urls():
+    """Test that crawl_urls returns unique URLs (via BFS strategy)."""
+    # The BFSNoCycleDeepCrawlStrategy should already handle uniqueness
+    mock_strategy = AsyncMock()
+    mock_strategy.arun.return_value = [
+        "https://example.com/",
+        "https://example.com/page1",
+        "https://example.com/page2",
+    ]
+    mock_crawler = AsyncMock()
 
-    mock_crawler = MockCrawler(responses)
-    mock_file = MockAsyncFile()
+    with patch(
+        "src.core.utils.spider.BFSNoCycleDeepCrawlStrategy", return_value=mock_strategy
+    ):
+        with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
+            result = await crawl_urls("https://example.com/")
 
-    with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("aiofiles.open", return_value=mock_file):
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.print"):
-                    await main("https://example.com/")
-
-                    written_data = "".join(mock_file.written_data)
-                    discovered = json.loads(written_data)
-
-                    # Should include base URL and shop
-                    assert "https://example.com" in discovered
-                    assert "https://example.com/shop" in discovered
-
-                    # Should NOT include archives
-                    assert "https://example.com/backup.zip" not in discovered
-                    assert "https://example.com/data.tar.gz" not in discovered
+    # Check that all URLs are unique
+    assert len(result) == len(set(result))
 
 
 @pytest.mark.asyncio
-async def test_spider_main_excludes_asset_extensions():
-    """Test that spider excludes common asset file extensions (CSS, JS, fonts)."""
-    responses = {
-        "https://example.com/": DummyResult(
-            "https://example.com/",
-            success=True,
-            internal_links=[
-                {"href": "https://example.com/services"},
-                {"href": "https://example.com/style.css"},
-                {"href": "https://example.com/app.js"},
-                {"href": "https://example.com/font.woff2"},
-                {"href": "https://example.com/favicon.ico"},
-            ],
-        ),
-        "https://example.com/services": DummyResult(
-            "https://example.com/services", success=True
-        ),
+async def test_main_saves_crawled_urls():
+    """Test that main saves crawled URLs to JSON file."""
+    from src.core.utils.spider import main
+
+    mock_urls = ["https://example.com/page1", "https://example.com/page2"]
+    mock_evaluations = {
+        "evaluations": [
+            {"url": "https://example.com/page1", "confidence": 80},
+            {"url": "https://example.com/page2", "confidence": 85},
+        ]
     }
 
-    mock_crawler = MockCrawler(responses)
-    mock_file = MockAsyncFile()
+    written_data = []
 
-    with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("aiofiles.open", return_value=mock_file):
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.print"):
-                    await main("https://example.com/")
+    def mock_aiofiles_write(content):
+        written_data.append(content)
 
-                    written_data = "".join(mock_file.written_data)
-                    discovered = json.loads(written_data)
+    mock_file = MagicMock()
+    mock_file.write = mock_aiofiles_write
+    mock_file.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_file.__aexit__ = AsyncMock()
 
-                    # Should include base URL and services
-                    assert "https://example.com" in discovered
-                    assert "https://example.com/services" in discovered
+    with patch("src.core.utils.spider.crawl_urls", return_value=mock_urls):
+        with patch(
+            "src.core.utils.spider.evaluate_urls", return_value=mock_evaluations
+        ):
+            with patch("src.core.utils.spider.aiofiles.open", return_value=mock_file):
+                await main("https://example.com/")
 
-                    # Should NOT include assets
-                    assert "https://example.com/style.css" not in discovered
-                    assert "https://example.com/app.js" not in discovered
-                    assert "https://example.com/font.woff2" not in discovered
-                    assert "https://example.com/favicon.ico" not in discovered
+    # Verify that data was written (first call saves URLs, second saves evaluations)
+    assert len(written_data) == 2
+    saved_urls = json.loads(written_data[0])
+    assert saved_urls == mock_urls
+    saved_evaluations = json.loads(written_data[1])
+    assert len(saved_evaluations) == 2
 
 
 @pytest.mark.asyncio
-async def test_spider_main_saves_to_correct_file():
-    """Test that spider saves discovered URLs to the correct output file."""
-    responses = {
-        "https://example.com/": DummyResult(
-            "https://example.com/",
-            success=True,
-            internal_links=[{"href": "https://example.com/page1"}],
-        ),
-        "https://example.com/page1": DummyResult(
-            "https://example.com/page1", success=True
-        ),
-    }
+async def test_main_processes_urls_in_batches():
+    """Test that main processes URLs in batches of 20."""
+    from src.core.utils.spider import main
 
-    mock_crawler = MockCrawler(responses)
-    mock_file = MockAsyncFile()
+    # Create 45 URLs to test batching (should be 3 batches: 20, 20, 5)
+    mock_urls = [f"https://example.com/page{i}" for i in range(45)]
 
-    with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("aiofiles.open", return_value=mock_file) as mock_aiofiles:
-            with patch("pathlib.Path.mkdir") as mock_mkdir:
-                with patch("builtins.print"):
-                    await main("https://example.com/")
+    call_count = 0
 
-                    # Check that data directory was created
-                    mock_mkdir.assert_called_once_with(exist_ok=True)
+    def mock_evaluate(urls_batch):
+        nonlocal call_count
+        call_count += 1
+        return {"evaluations": [{"url": url, "confidence": 80} for url in urls_batch]}
 
-                    # Check that file was opened with correct path
-                    mock_aiofiles.assert_called_once()
-                    call_args = mock_aiofiles.call_args[0]
-                    output_path = call_args[0]
-                    assert str(output_path).endswith("crawled_url_filtered.json")
+    mock_file = MagicMock()
+    mock_file.write = AsyncMock()
+    mock_file.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_file.__aexit__ = AsyncMock()
+
+    with patch("src.core.utils.spider.crawl_urls", return_value=mock_urls):
+        with patch("src.core.utils.spider.evaluate_urls", side_effect=mock_evaluate):
+            with patch("src.core.utils.spider.aiofiles.open", return_value=mock_file):
+                await main("https://example.com/")
+
+    # Should have been called 3 times: 20 + 20 + 5 = 45
+    assert call_count == 3
 
 
 @pytest.mark.asyncio
-async def test_spider_main_prints_status_messages():
-    """Test that spider prints appropriate status messages during execution."""
-    responses = {
-        "https://example.com/": DummyResult(
-            "https://example.com/", success=True, internal_links=[]
-        ),
-    }
+async def test_main_handles_empty_crawl_result():
+    """Test that main handles the case where no URLs are crawled."""
+    from src.core.utils.spider import main
 
-    mock_crawler = MockCrawler(responses)
-    mock_file = MockAsyncFile()
+    mock_urls = []
 
-    with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("aiofiles.open", return_value=mock_file):
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.print") as mock_print:
-                    await main("https://example.com/")
+    mock_file = MagicMock()
+    mock_file.write = AsyncMock()
+    mock_file.__aenter__ = AsyncMock(return_value=mock_file)
+    mock_file.__aexit__ = AsyncMock()
 
-                    # Check that key messages were printed
-                    print_calls = [str(call) for call in mock_print.call_args_list]
-                    printed_text = " ".join(print_calls)
+    with patch("src.core.utils.spider.crawl_urls", return_value=mock_urls):
+        with patch("src.core.utils.spider.evaluate_urls") as mock_evaluate:
+            with patch("src.core.utils.spider.aiofiles.open", return_value=mock_file):
+                await main("https://example.com/")
 
-                    assert "Starting deep crawl" in printed_text or any(
-                        "Starting" in str(call) for call in print_calls
+    # evaluate_urls should not be called if there are no URLs
+    assert mock_evaluate.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_crawl_and_evaluate_workflow():
+    """Test the complete workflow: crawl URLs then evaluate them."""
+    # Mock crawl_urls to return some URLs
+    mock_strategy = AsyncMock()
+    discovered_urls = [
+        "https://example.com/",
+        "https://example.com/item1",
+        "https://example.com/item2",
+        "https://example.com/about",
+    ]
+    mock_strategy.arun.return_value = discovered_urls
+    mock_crawler = AsyncMock()
+
+    # Mock evaluate_urls API response
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = json.dumps(
+        {
+            "evaluations": [
+                {"url": url, "confidence": 50 + i * 10}
+                for i, url in enumerate(discovered_urls)
+            ]
+        }
+    )
+    mock_client.chat.completions.create.return_value = mock_response
+
+    with patch(
+        "src.core.utils.spider.BFSNoCycleDeepCrawlStrategy", return_value=mock_strategy
+    ):
+        with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
+            with patch(
+                "src.core.utils.spider.groq_client.get_client", return_value=mock_client
+            ):
+                # Step 1: Crawl
+                crawled = await crawl_urls("https://example.com/")
+                assert len(crawled) == 4
+
+                # Step 2: Evaluate
+                evaluation = evaluate_urls(crawled)
+                assert len(evaluation["evaluations"]) == 4
+                assert all("confidence" in item for item in evaluation["evaluations"])
+
+
+@pytest.mark.asyncio
+async def test_batch_evaluation():
+    """Test evaluating URLs in batches (as done in main function)."""
+    # Simulate discovering many URLs
+    mock_strategy = AsyncMock()
+    discovered_urls = [f"https://example.com/item{i}" for i in range(50)]
+    mock_strategy.arun.return_value = discovered_urls
+    mock_crawler = AsyncMock()
+
+    mock_client = MagicMock()
+
+    with patch(
+        "src.core.utils.spider.BFSNoCycleDeepCrawlStrategy", return_value=mock_strategy
+    ):
+        with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
+            with patch(
+                "src.core.utils.spider.groq_client.get_client", return_value=mock_client
+            ):
+                crawled = await crawl_urls("https://example.com/")
+
+                # Simulate batching (like in main)
+                batch_size = 20
+                all_evaluations = []
+
+                for i in range(0, len(crawled), batch_size):
+                    batch = crawled[i : i + batch_size]
+
+                    # Mock response for each batch
+                    mock_response = MagicMock()
+                    mock_response.choices = [MagicMock()]
+                    mock_response.choices[0].message.content = json.dumps(
+                        {
+                            "evaluations": [
+                                {"url": url, "confidence": 75} for url in batch
+                            ]
+                        }
                     )
-                    assert any("Done" in str(call) for call in print_calls)
-                    assert any("URLs saved" in str(call) for call in print_calls)
+                    mock_client.chat.completions.create.return_value = mock_response
 
+                    result = evaluate_urls(batch)
+                    all_evaluations.extend(result["evaluations"])
 
-@pytest.mark.asyncio
-async def test_spider_main_handles_multiple_pages():
-    """Test that spider correctly crawls and saves multiple pages."""
-    responses = {
-        "https://example.com/": DummyResult(
-            "https://example.com/",
-            success=True,
-            internal_links=[
-                {"href": "https://example.com/page1"},
-                {"href": "https://example.com/page2"},
-                {"href": "https://example.com/page3"},
-            ],
-        ),
-        "https://example.com/page1": DummyResult(
-            "https://example.com/page1", success=True
-        ),
-        "https://example.com/page2": DummyResult(
-            "https://example.com/page2", success=True
-        ),
-        "https://example.com/page3": DummyResult(
-            "https://example.com/page3", success=True
-        ),
-    }
-
-    mock_crawler = MockCrawler(responses)
-    mock_file = MockAsyncFile()
-
-    with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("aiofiles.open", return_value=mock_file):
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.print"):
-                    await main("https://example.com/")
-
-                    written_data = "".join(mock_file.written_data)
-                    discovered = json.loads(written_data)
-
-                    # Should have found all 4 pages
-                    assert len(discovered) == 4
-                    assert "https://example.com" in discovered
-                    assert "https://example.com/page1" in discovered
-                    assert "https://example.com/page2" in discovered
-                    assert "https://example.com/page3" in discovered
-
-
-@pytest.mark.asyncio
-async def test_spider_main_case_insensitive_extension_filtering():
-    """Test that extension filtering is case-insensitive."""
-    responses = {
-        "https://example.com/": DummyResult(
-            "https://example.com/",
-            success=True,
-            internal_links=[
-                {"href": "https://example.com/page"},
-                {"href": "https://example.com/IMAGE.JPG"},
-                {"href": "https://example.com/photo.PNG"},
-                {"href": "https://example.com/Doc.PDF"},
-            ],
-        ),
-        "https://example.com/page": DummyResult(
-            "https://example.com/page", success=True
-        ),
-    }
-
-    mock_crawler = MockCrawler(responses)
-    mock_file = MockAsyncFile()
-
-    with patch("src.core.utils.spider.AsyncWebCrawler", return_value=mock_crawler):
-        with patch("aiofiles.open", return_value=mock_file):
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.print"):
-                    await main("https://example.com/")
-
-                    written_data = "".join(mock_file.written_data)
-                    discovered = json.loads(written_data)
-
-                    # Should include only base and page
-                    assert "https://example.com" in discovered
-                    assert "https://example.com/page" in discovered
-
-                    # Should exclude files regardless of case
-                    assert "https://example.com/IMAGE.JPG" not in discovered
-                    assert "https://example.com/photo.PNG" not in discovered
-                    assert "https://example.com/Doc.PDF" not in discovered
+                # Verify we evaluated all URLs in batches
+                assert len(all_evaluations) == 50
+                # Verify we made multiple API calls (one per batch)
+                assert (
+                    mock_client.chat.completions.create.call_count == 3
+                )  # 50/20 = 3 batches
