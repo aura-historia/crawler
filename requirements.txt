@@ -17,3 +17,6 @@ ruff
 pre-commit
 aiofiles
 groq
+boto3
+python-dotenv
+pydantic_settings
