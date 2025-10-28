@@ -237,8 +237,8 @@ class TestCreateTables:
         # Assert - verify provisioned throughput
         call_kwargs = mock_client.create_table.call_args[1]
         assert call_kwargs["ProvisionedThroughput"] == {
-            "ReadCapacityUnits": 5,
-            "WriteCapacityUnits": 5,
+            "ReadCapacityUnits": 25,
+            "WriteCapacityUnits": 25,
         }
 
     @patch("src.core.database.migrations.get_dynamodb_client")
