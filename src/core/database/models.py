@@ -9,8 +9,8 @@ import boto3
 load_dotenv()
 
 
-def get_dynamodb_client():
-    """Get boto3 DynamoDB client with configuration from environment."""
+def _get_dynamodb_config() -> Dict[str, Any]:
+    """Build DynamoDB configuration from environment variables."""
     config = {
         "region_name": os.getenv("AWS_REGION"),
     }
@@ -27,28 +27,17 @@ def get_dynamodb_client():
         config["aws_access_key_id"] = access_key
         config["aws_secret_access_key"] = secret_key
 
-    return boto3.client("dynamodb", **config)
+    return config
+
+
+def get_dynamodb_client():
+    """Get boto3 DynamoDB client with configuration from environment."""
+    return boto3.client("dynamodb", **_get_dynamodb_config())
 
 
 def get_dynamodb_resource():
     """Get boto3 DynamoDB resource with configuration from environment."""
-    config = {
-        "region_name": os.getenv("AWS_REGION"),
-    }
-
-    # Add endpoint URL if specified (for local DynamoDB)
-    endpoint_url = os.getenv("DYNAMODB_ENDPOINT_URL")
-    if endpoint_url:
-        config["endpoint_url"] = endpoint_url
-
-    # Add credentials if specified
-    access_key = os.getenv("AWS_ACCESS_KEY_ID")
-    secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    if access_key and secret_key:
-        config["aws_access_key_id"] = access_key
-        config["aws_secret_access_key"] = secret_key
-
-    return boto3.resource("dynamodb", **config)
+    return boto3.resource("dynamodb", **_get_dynamodb_config())
 
 
 @dataclass
@@ -66,7 +55,7 @@ class ShopMetadata:
     def __post_init__(self):
         """Set pk to domain if not provided."""
         if self.pk is None:
-            self.pk = self.domain
+            self.pk = f"SHOP#{self.domain}"
 
     def to_dynamodb_item(self) -> Dict[str, Any]:
         """Convert to DynamoDB item format."""
@@ -106,7 +95,7 @@ class URLEntry:
     def __post_init__(self):
         """Set pk and sk if not provided."""
         if self.pk is None:
-            self.pk = self.domain
+            self.pk = f"SHOP#{self.domain}"
         if self.sk is None:
             self.sk = f"URL#{self.url}"
 
@@ -131,10 +120,13 @@ class URLEntry:
     @classmethod
     def from_dynamodb_item(cls, item: Dict[str, Any]) -> "URLEntry":
         """Create instance from DynamoDB item."""
+        pk = item["PK"]["S"]
+        # Extract domain from PK (remove SHOP# prefix if present)
+        domain = pk.replace("SHOP#", "", 1) if pk.startswith("SHOP#") else pk
         return cls(
-            pk=item["PK"]["S"],
+            pk=pk,
             sk=item["SK"]["S"],
-            domain=item["PK"]["S"],  # domain is same as pk
+            domain=domain,
             url=item["url"]["S"],
             standards_used=[
                 s["S"] for s in item.get("standards_used", {}).get("L", [])
@@ -156,6 +148,6 @@ class URLEntry:
         Returns:
             MD5 hash string
         """
-        price_str = str(price)
+        price_str = "" if price is None else str(price)
         hash_input = f"{status}|{price_str}"
         return hashlib.md5(hash_input.encode()).hexdigest()

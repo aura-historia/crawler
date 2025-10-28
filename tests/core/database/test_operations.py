@@ -18,7 +18,7 @@ class TestGetOperations:
 
         mock_client.get_item.return_value = {
             "Item": {
-                "PK": {"S": "example.com"},
+                "PK": {"S": "SHOP#example.com"},
                 "SK": {"S": "META#"},
                 "domain": {"S": "example.com"},
                 "standards_used": {"L": [{"S": "json-ld"}]},
@@ -78,7 +78,7 @@ class TestGetOperations:
         test_url = "https://example.com/product/123"
         mock_client.get_item.return_value = {
             "Item": {
-                "PK": {"S": "example.com"},
+                "PK": {"S": "SHOP#example.com"},
                 "SK": {"S": f"URL#{test_url}"},
                 "url": {"S": test_url},
                 "standards_used": {"L": []},
@@ -284,14 +284,14 @@ class TestQueryOperations:
         mock_client.query.return_value = {
             "Items": [
                 {
-                    "PK": {"S": "example.com"},
+                    "PK": {"S": "SHOP#example.com"},
                     "SK": {"S": "URL#https://example.com/page1"},
                     "url": {"S": "https://example.com/page1"},
                     "standards_used": {"L": []},
                     "is_product": {"BOOL": False},
                 },
                 {
-                    "PK": {"S": "example.com"},
+                    "PK": {"S": "SHOP#example.com"},
                     "SK": {"S": "URL#https://example.com/page2"},
                     "url": {"S": "https://example.com/page2"},
                     "standards_used": {"L": []},
@@ -338,7 +338,7 @@ class TestQueryOperations:
             {
                 "Items": [
                     {
-                        "PK": {"S": "example.com"},
+                        "PK": {"S": "SHOP#example.com"},
                         "SK": {"S": "URL#https://example.com/page1"},
                         "url": {"S": "https://example.com/page1"},
                         "standards_used": {"L": []},
@@ -346,7 +346,7 @@ class TestQueryOperations:
                     }
                 ],
                 "LastEvaluatedKey": {
-                    "PK": {"S": "example.com"},
+                    "PK": {"S": "SHOP#example.com"},
                     "SK": {"S": "URL#https://example.com/page1"},
                 },
             },
@@ -354,7 +354,7 @@ class TestQueryOperations:
             {
                 "Items": [
                     {
-                        "PK": {"S": "example.com"},
+                        "PK": {"S": "SHOP#example.com"},
                         "SK": {"S": "URL#https://example.com/page2"},
                         "url": {"S": "https://example.com/page2"},
                         "standards_used": {"L": []},

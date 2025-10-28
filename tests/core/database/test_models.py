@@ -4,10 +4,10 @@ from src.core.database.models import ShopMetadata, URLEntry
 def test_shop_metadata_creation():
     """Test creating a ShopMetadata instance."""
     metadata = ShopMetadata(
-        pk="example.com", domain="example.com", standards_used=["json-ld", "microdata"]
+        domain="example.com", standards_used=["json-ld", "microdata"]
     )
 
-    assert metadata.pk == "example.com"
+    assert metadata.pk == "SHOP#example.com"
     assert metadata.sk == "META#"
     assert metadata.domain == "example.com"
     assert metadata.standards_used == ["json-ld", "microdata"]
@@ -26,7 +26,7 @@ def test_shop_metadata_to_dynamodb_item():
 
     item = metadata.to_dynamodb_item()
 
-    assert item["PK"]["S"] == "example.com"
+    assert item["PK"]["S"] == "SHOP#example.com"
     assert item["SK"]["S"] == "META#"
     assert item["domain"]["S"] == "example.com"
     assert len(item["standards_used"]["L"]) == 1
@@ -36,7 +36,7 @@ def test_shop_metadata_to_dynamodb_item():
 def test_shop_metadata_from_dynamodb_item():
     """Test creating ShopMetadata from DynamoDB item format."""
     item = {
-        "PK": {"S": "example.com"},
+        "PK": {"S": "SHOP#example.com"},
         "SK": {"S": "META#"},
         "domain": {"S": "example.com"},
         "standards_used": {"L": [{"S": "json-ld"}, {"S": "microdata"}]},
@@ -45,7 +45,7 @@ def test_shop_metadata_from_dynamodb_item():
     metadata = ShopMetadata.from_dynamodb_item(item)
 
     assert metadata.domain == "example.com"
-    assert metadata.pk == "example.com"
+    assert metadata.pk == "SHOP#example.com"
     assert metadata.sk == "META#"
     assert metadata.standards_used == ["json-ld", "microdata"]
 
@@ -61,7 +61,7 @@ def test_url_entry_creation():
         hash="some_hash_value",
     )
 
-    assert url_entry.pk == "example.com"
+    assert url_entry.pk == "SHOP#example.com"
     assert url_entry.sk == "URL#https://example.com/product/123"
     assert url_entry.url == "https://example.com/product/123"
     assert url_entry.standards_used == ["json-ld"]
@@ -76,7 +76,7 @@ def test_url_entry_domain_property():
     url_entry = URLEntry(domain="test.com", url="https://test.com/page")
 
     assert url_entry.domain == "test.com"
-    assert url_entry.pk == "test.com"
+    assert url_entry.pk == "SHOP#test.com"
 
 
 def test_url_entry_defaults():
@@ -102,7 +102,7 @@ def test_url_entry_to_dynamodb_item():
 
     item = url_entry.to_dynamodb_item()
 
-    assert item["PK"]["S"] == "example.com"
+    assert item["PK"]["S"] == "SHOP#example.com"
     assert item["SK"]["S"] == "URL#https://example.com/product/123"
     assert item["url"]["S"] == "https://example.com/product/123"
     assert item["is_product"]["BOOL"] is True
@@ -114,7 +114,7 @@ def test_url_entry_to_dynamodb_item():
 def test_url_entry_from_dynamodb_item():
     """Test creating URLEntry from DynamoDB item format."""
     item = {
-        "PK": {"S": "example.com"},
+        "PK": {"S": "SHOP#example.com"},
         "SK": {"S": "URL#https://example.com/product/123"},
         "url": {"S": "https://example.com/product/123"},
         "standards_used": {"L": [{"S": "json-ld"}]},
@@ -159,7 +159,7 @@ def test_calculate_hash_without_price():
     status = "out_of_stock"
     price = None
     # Expected hash for "out_of_stock|None"
-    expected_hash = "4ad08a62199da0f7a6d89e5d06d72895"
+    expected_hash = "447e2ccd0cf0d38fc66e3e4a86c2e90d"
     assert URLEntry.calculate_hash(status, price) == expected_hash
 
 

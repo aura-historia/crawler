@@ -34,7 +34,7 @@ class DynamoDBOperations:
         try:
             response = self.client.get_item(
                 TableName=self.table_name,
-                Key={"PK": {"S": domain}, "SK": {"S": "META#"}},
+                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": "META#"}},
             )
 
             if "Item" not in response:
@@ -64,7 +64,7 @@ class DynamoDBOperations:
         try:
             response = self.client.get_item(
                 TableName=self.table_name,
-                Key={"PK": {"S": domain}, "SK": {"S": f"URL#{url}"}},
+                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": f"URL#{url}"}},
             )
 
             if "Item" not in response:
@@ -157,6 +157,21 @@ class DynamoDBOperations:
 
     # ==================== Helper Operations ====================
 
+    def _upsert_item(self, item: dict, context: str) -> None:
+        """
+        Generic upsert operation for DynamoDB items.
+
+        Args:
+            item: DynamoDB item dict
+            context: Contextual description for logging
+        """
+        try:
+            self.client.put_item(TableName=self.table_name, Item=item)
+            logger.info(f"Upserted {context}")
+        except Exception as e:
+            logger.error(f"Error upserting {context}: {e}")
+            raise
+
     def upsert_shop_metadata(self, metadata: ShopMetadata) -> None:
         """
         Insert or update shop metadata.
@@ -164,18 +179,9 @@ class DynamoDBOperations:
         Args:
             metadata: ShopMetadata object
         """
-        try:
-            self.client.put_item(
-                TableName=self.table_name, Item=metadata.to_dynamodb_item()
-            )
-            logger.info(f"Upserted shop metadata for {metadata.domain}")
-
-        except ClientError as e:
-            logger.error(f"Error upserting shop metadata: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error upserting shop metadata: {e}")
-            raise
+        self._upsert_item(
+            metadata.to_dynamodb_item(), f"shop metadata for {metadata.domain}"
+        )
 
     def upsert_url_entry(self, entry: URLEntry) -> None:
         """
@@ -184,18 +190,7 @@ class DynamoDBOperations:
         Args:
             entry: URLEntry object
         """
-        try:
-            self.client.put_item(
-                TableName=self.table_name, Item=entry.to_dynamodb_item()
-            )
-            logger.info(f"Upserted URL entry for {entry.url}")
-
-        except ClientError as e:
-            logger.error(f"Error upserting URL entry: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error upserting URL entry: {e}")
-            raise
+        self._upsert_item(entry.to_dynamodb_item(), f"URL entry for {entry.url}")
 
     def query_all_urls_for_domain(self, domain: str) -> List[URLEntry]:
         """
@@ -216,7 +211,7 @@ class DynamoDBOperations:
                     "TableName": self.table_name,
                     "KeyConditionExpression": "PK = :pk AND begins_with(SK, :sk_prefix)",
                     "ExpressionAttributeValues": {
-                        ":pk": {"S": domain},
+                        ":pk": {"S": f"SHOP#{domain}"},
                         ":sk_prefix": {"S": "URL#"},
                     },
                 }

@@ -10,8 +10,8 @@
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `pk` | String (HASH) | Partition key: domain (e.g., 'example.com') |
-| `sk` | String (RANGE) | Sort key: 'META#' or 'URL#<full_url>' |
+| `PK` | String (HASH) | Partition key: 'SHOP#' + domain (e.g., 'SHOP#example.com') |
+| `SK` | String (RANGE) | Sort key: 'META#' or 'URL#<full_url>' |
 
 ## Item Types
 
@@ -24,8 +24,8 @@ Stores information about a shop/domain and the standards it uses.
 **Attributes:**
 ```json
 {
-  "pk": "example.com",
-  "sk": "META#",
+  "PK": "SHOP#example.com",
+  "SK": "META#",
   "domain": "example.com",
   "standards_used": ["json-ld", "microdata"]
 }
@@ -33,8 +33,8 @@ Stores information about a shop/domain and the standards it uses.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `pk` | String | Domain name |
-| `sk` | String | Fixed value: "META#" |
+| `PK` | String | "SHOP#" + domain name |
+| `SK` | String | Fixed value: "META#" |
 | `domain` | String | Domain name (duplicate for convenience) |
 | `standards_used` | List[String] | List of standards used by this shop (e.g., json-ld, microdata, opengraph) |
 
@@ -47,8 +47,8 @@ Stores information about individual URLs from a domain.
 **Attributes:**
 ```json
 {
-  "pk": "example.com",
-  "sk": "URL#https://example.com/products/item-123",
+  "PK": "SHOP#example.com",
+  "SK": "URL#https://example.com/products/item-123",
   "url": "https://example.com/products/item-123",
   "standards_used": ["json-ld", "microdata"],
   "type": "product",
@@ -59,10 +59,17 @@ Stores information about individual URLs from a domain.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `pk` | String | Domain name |
-| `sk` | String | "URL#" + full URL |
+| `PK` | String | "SHOP#" + domain name |
+| `SK` | String | "URL#" + full URL |
 | `url` | String | Full URL |
 | `standards_used` | List[String] | List of standards used for this URL (json-ld, microdata, etc.) |
 | `type` | String | Type of page (category, product, listing, etc.) |
 | `is_product` | Boolean | Whether this is a product page |
 | `hash` | String | MD5 hash of status+price to detect changes |
+
+## How to start local DynamoDB + DynamoDB Admin
+
+```bash
+docker-compose up
+```
+This will start DynamoDB Local on `http://localhost:8000` and DynamoDB Admin on `http://localhost:8001`.
