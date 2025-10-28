@@ -3,10 +3,7 @@ from dataclasses import dataclass, field
 import hashlib
 import os
 
-from dotenv import load_dotenv
 import boto3
-
-load_dotenv()
 
 
 def _get_dynamodb_config() -> Dict[str, Any]:

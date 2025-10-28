@@ -2,14 +2,11 @@ import logging
 import os
 from typing import List, Optional
 
-from dotenv import load_dotenv
 from botocore.exceptions import ClientError
 
 from src.core.database.models import ShopMetadata, URLEntry, get_dynamodb_client
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 
 class DynamoDBOperations:
