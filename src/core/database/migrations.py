@@ -18,7 +18,7 @@ def create_tables():
     This is an idempotent operation.
 
     Table structure:
-    - PK: domain (e.g., 'example.com')
+    - PK: 'SHOP#' + domain (e.g., 'SHOP#example.com')
     - SK: Two types:
         1. 'META#' - Shop metadata
            Attributes: domain, standards_used (list)
@@ -55,7 +55,7 @@ def create_tables():
                 {"AttributeName": "SK", "AttributeType": "S"},
             ],
             BillingMode="PROVISIONED",
-            ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
+            ProvisionedThroughput={"ReadCapacityUnits": 25, "WriteCapacityUnits": 25},
         )
 
         # Wait for table to be created
