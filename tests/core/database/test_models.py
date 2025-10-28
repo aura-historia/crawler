@@ -150,7 +150,7 @@ def test_calculate_hash_with_price():
     status = "in_stock"
     price = 99.99
     # Expected hash for "in_stock|99.99"
-    expected_hash = "559ceaf45a28778f6e88c3301ecd7d93"
+    expected_hash = "6e74ec8d33d1c00ffc74de5cff6ea992a58a7cdad3bad329a3cccaf89e788801"
     assert URLEntry.calculate_hash(status, price) == expected_hash
 
 
@@ -159,7 +159,7 @@ def test_calculate_hash_without_price():
     status = "out_of_stock"
     price = None
     # Expected hash for "out_of_stock|None"
-    expected_hash = "447e2ccd0cf0d38fc66e3e4a86c2e90d"
+    expected_hash = "2c7d77ebe2c94ec6ac66eae99fd760393d37651cd6dfd1fc003c51e6ef1e5836"
     assert URLEntry.calculate_hash(status, price) == expected_hash
 
 

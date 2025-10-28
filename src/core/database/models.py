@@ -143,8 +143,8 @@ class URLEntry:
             price: Product price
 
         Returns:
-            MD5 hash string
+            SHA256 hash string
         """
         price_str = "" if price is None else str(price)
         hash_input = f"{status}|{price_str}"
-        return hashlib.md5(hash_input.encode()).hexdigest()
+        return hashlib.sha256(hash_input.encode()).hexdigest()
