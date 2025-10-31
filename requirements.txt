@@ -15,7 +15,7 @@ pytest-cov
 langdetect
 ruff
 pre-commit
-aiofiles
+
 groq
 boto3
 python-dotenv
@@ -27,3 +27,4 @@ datasets
 scikit-learn
 crawl4ai
 extruct
+google-search-results
