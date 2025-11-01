@@ -120,7 +120,7 @@ async def crawl_urls(url: str):
             "woff2",
             "ttf",  # Assets
         ],
-        exclude_patterns=[],
+        exclude_patterns=["*wishlist*", "*cart*", "*login*", "*signup*"],
     )
 
     config = CrawlerRunConfig(
@@ -129,6 +129,9 @@ async def crawl_urls(url: str):
         verbose=True,
         stream=False,
         check_robots_txt=True,
+        delay_before_return_html=2.0,  # Wait 2 seconds for page to fully load
+        mean_delay=3.0,  # Average 3 seconds delay between requests
+        max_range=2.0,  # Random delay between 1-5 seconds
     )
 
     async with AsyncWebCrawler() as crawler:

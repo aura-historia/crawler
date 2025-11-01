@@ -15,8 +15,16 @@ pytest-cov
 langdetect
 ruff
 pre-commit
-aiofiles
+
 groq
 boto3
 python-dotenv
 pydantic_settings
+torch
+transformers
+pandas
+datasets
+scikit-learn
+crawl4ai
+extruct
+google-search-results
