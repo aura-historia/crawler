@@ -103,21 +103,89 @@ def _deduplicate_by_domain(results):
     return list(unique_results_by_domain.values())
 
 
-async def _analyze_pages_in_batches(search_results, batch_size: int = 5):
-    """Analyze pages in batches using DeepSeek."""
+async def _load_progress_from_file(progress_path: str):
+    """Load previously saved analysis progress from file.
+
+    Returns:
+        Tuple of (analysis_results, processed_domains)
+    """
+    analysis_results = []
+    processed_domains = set()
+
+    if not os.path.exists(progress_path):
+        return analysis_results, processed_domains
+
+    try:
+        async with aiofiles.open(progress_path, "r", encoding="utf-8") as f:
+            content = await f.read()
+        if content and content.strip():
+            saved = json.loads(content)
+            analysis_results = saved[:]
+            processed_domains = {
+                r.get("domain") for r in analysis_results if r.get("domain")
+            }
+            print(
+                f"Resuming from saved progress: {len(processed_domains)} domains already processed."
+            )
+    except Exception as e:
+        print(f"Warning: Could not load progress file: {e}")
+
+    return analysis_results, processed_domains
+
+
+async def _save_progress_to_file(
+    progress_path: str, analysis_results: List[Dict], batch_num: int
+):
+    """Save current analysis progress to file."""
+    try:
+        to_save = _deduplicate_by_domain(analysis_results)
+        async with aiofiles.open(progress_path, "w", encoding="utf-8") as f:
+            await f.write(json.dumps(to_save, indent=2, ensure_ascii=False))
+        print(f"Progress saved after batch {batch_num} to: {progress_path}")
+    except Exception as e:
+        print(f"Error saving progress: {e}")
+
+
+async def _analyze_pages_in_batches(search_results, batch_size: int = 9):
+    """Analyze pages in batches using DeepSeek and resume from saved progress if available."""
     from src.core.llms.deepseek.client import analyze_antique_shops_batch
 
     print("\n=== Phase 2: Analyzing pages with DeepSeek (batched) ===\n")
-    analysis_results = []
+    os.makedirs("data", exist_ok=True)
+    progress_path = os.path.join("data", "analysis_progress.json")
+
+    # Load any previously saved results to resume from where we left off
+    analysis_results, processed_domains = await _load_progress_from_file(progress_path)
 
     for start in range(0, len(search_results), batch_size):
+        batch_num = start // batch_size + 1
         batch = search_results[start : start + batch_size]
-        print(f"\nAnalyzing batch {start // batch_size + 1} ({len(batch)} URLs)...")
+        print(f"\nAnalyzing batch {batch_num} ({len(batch)} URLs)...")
 
         pages_to_analyze = _prepare_batch_for_analysis(batch)
-        batch_analysis = analyze_antique_shops_batch(pages_to_analyze)
 
-        analysis_results.extend(_enrich_analysis_results(batch_analysis))
+        # Skip pages whose domain has already been processed
+        pages_to_analyze = [
+            p
+            for p in pages_to_analyze
+            if extract_domain(p["url"]) not in processed_domains
+        ]
+
+        if not pages_to_analyze:
+            print(f"Batch {batch_num}: All URLs already processed, skipping.")
+            continue
+
+        batch_analysis = analyze_antique_shops_batch(pages_to_analyze)
+        enriched = _enrich_analysis_results(batch_analysis)
+        analysis_results.extend(enriched)
+
+        # Update processed domains set
+        for r in enriched:
+            if r.get("domain"):
+                processed_domains.add(r["domain"])
+
+        # Save progress after each batch
+        await _save_progress_to_file(progress_path, analysis_results, batch_num)
         await asyncio.sleep(1)
 
     return analysis_results
@@ -344,29 +412,10 @@ class AntiqueShopFinder:
                 f"Success rate: {len(antique_shops) / len(self.results) * 100:.1f}%\n"
             )
 
-    def save_results(self, filename: str = "antique_shops_found.json"):
+    def save_results(self):
         """Save results to JSON files."""
         # Ensure data directory exists
         os.makedirs("data", exist_ok=True)
-
-        # Save full results
-        output_path = os.path.join("data", filename)
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "timestamp": datetime.now().isoformat(),
-                    "total_analyzed": len(self.results),
-                    "antique_shops_found": len(
-                        [r for r in self.results if r["is_antique_shop"]]
-                    ),
-                    "results": self.results,
-                },
-                f,
-                indent=2,
-                ensure_ascii=False,
-            )
-
-        print(f"\n✓ Full results saved to: {output_path}")
 
         # Save URLs and domains only
         urls_domains_path = os.path.join("data", "antique_shops_urls_domains.json")
@@ -398,7 +447,7 @@ class AntiqueShopFinder:
 
         print(f"URLs and domains saved to: {urls_domains_path}")
 
-        return output_path, urls_domains_path
+        return urls_domains_path
 
 
 async def main():
@@ -416,14 +465,13 @@ async def main():
         # Initialize finder
         finder = AntiqueShopFinder()
 
-        await finder.process_searches(num_pages_per_query=4, max_urls_to_analyze=1)
+        await finder.process_searches(num_pages_per_query=4, max_urls_to_analyze=800)
 
         # Save results
         finder.save_results()
 
         print("\n" + "=" * 80)
         print("Done! Check the following files:")
-        print("  - data/antique_shops_found.json (full results)")
         print("  - data/antique_shops_urls_domains.json (URLs and domains)")
         print("=" * 80)
 

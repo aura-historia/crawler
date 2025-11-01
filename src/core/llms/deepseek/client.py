@@ -94,7 +94,7 @@ def analyze_antique_shops_batch(
     prompt = """You are an expert at analyzing multiple webpages to determine which are antique online shops.
         An antique online shop should:
         1. Sell antiques, collectibles, militaria, or vintage items.
-        3. Not just be informational or historical content.
+        2. Not just be informational or historical content.
         
         For EACH of the following webpages, analyze and return a JSON array with one object per URL:
         [
