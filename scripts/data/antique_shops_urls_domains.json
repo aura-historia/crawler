@@ -1,0 +1,2652 @@
+{
+  "timestamp": "2025-11-01T11:40:37.799423",
+  "total_analyzed": 529,
+  "antique_shops_found": 382,
+  "urls_and_domains": [
+    {
+      "url": "https://www.antik-shop.de/shop/",
+      "domain": "antik-shop.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://nostalgie-palast.de/?srsltid=AfmBOopcnqk0UksAY_nkRKeUNwucw6ERx19oEfU8eIh1AGIPr5LaD07C",
+      "domain": "nostalgie-palast.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://antik-und-stil.com/antike-moebel-kaufen/?srsltid=AfmBOooZkfVwyOcsdTvvvlFfQ5Bh0bX8vllP-9SasvPrbhGPov4k7hRu",
+      "domain": "antik-und-stil.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiquitaeten-tuebingen.de/shop/",
+      "domain": "antiquitaeten-tuebingen.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://vintage-treasure.de/",
+      "domain": "vintage-treasure.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://unikat-depot.de/",
+      "domain": "unikat-depot.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://morris-antikshop.de/",
+      "domain": "morris-antikshop.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://wandel-antik.de/",
+      "domain": "wandel-antik.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.antikmoebel.de/",
+      "domain": "antikmoebel.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.hofer-antikschmuck.de/?srsltid=AfmBOooDDZG7G59lGZJOMcDgOVLAmw2AXbShWAhH0GHEnPhekXgEuAPj",
+      "domain": "hofer-antikschmuck.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antik-im-hof.de/katalog/",
+      "domain": "antik-im-hof.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.pamono.de/antike-moebel?srsltid=AfmBOoqrHkK2B0HCfD3_Ij45u0UcnJ-AnRMyrVSzeptQECJxyyRR6i5T",
+      "domain": "pamono.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antik-moebel-zentrum.de/",
+      "domain": "antik-moebel-zentrum.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.loberon.de/Moebel/",
+      "domain": "loberon.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.zweitedel.de/?srsltid=AfmBOoohiZir-ir48hiC003whW5tn6bADpYTgQL6WJ0ufIMFdMpp6TRu",
+      "domain": "zweitedel.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.wohnpalast.de/antikmoebel/",
+      "domain": "wohnpalast.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://marx-antik.de/shop/",
+      "domain": "marx-antik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://annodazumal-antikschmuck.de/?srsltid=AfmBOorjPzHoAN0spefM4BeuLyBwPKuJan28-xCbhp8TYvVoBZnGyR7c",
+      "domain": "annodazumal-antikschmuck.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://vintage-antik-store.de/",
+      "domain": "vintage-antik-store.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://furthof-antikmoebel.de/antiquitaeten-online-shop",
+      "domain": "furthof-antikmoebel.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.ms-antik.de/angebote.html",
+      "domain": "ms-antik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://berlin-vintage-antik.de/",
+      "domain": "berlin-vintage-antik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antikundmore.de/",
+      "domain": "antikundmore.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antik-fabian-kahl.com/onlineshop/",
+      "domain": "antik-fabian-kahl.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://troedelfuchs.de/",
+      "domain": "troedelfuchs.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://shop.goethesgalerie.com/",
+      "domain": "shop.goethesgalerie.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antik.de/",
+      "domain": "antik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.ebay.de/b/Antiquitaten-Kunst/353/bn_1845163?srsltid=AfmBOooh0Ra03RlKwffTKNU0IoUwk6JTrLJTHbyyRE4seBVyUQrqVqH0",
+      "domain": "ebay.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://oldthing.de/",
+      "domain": "oldthing.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.skandeko.de/produkte/chic-antique",
+      "domain": "skandeko.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antik-modern.shop/",
+      "domain": "antik-modern.shop",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.ifantik.at/",
+      "domain": "ifantik.at",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://allerlei-online.de/",
+      "domain": "allerlei-online.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.eifel-antik.de/",
+      "domain": "eifel-antik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://erkanantik.de/shop.html",
+      "domain": "erkanantik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antikmitstil.com/antikmitstil_onlineshops.html",
+      "domain": "antikmitstil.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.alteroemer.de/de/onlineshop/kulturraum/roemische-antiquitaeten.html",
+      "domain": "alteroemer.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.labelleepoque.de/",
+      "domain": "labelleepoque.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://luminated.at/",
+      "domain": "luminated.at",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://livinta.com/collections/vintage-neuheiten?srsltid=AfmBOorBQeJEiL2h5eyNJheTVdGb5AkZZ_s-7cR5oO8bZ6XuQDMNMrtY",
+      "domain": "livinta.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.wohnkultour.de/",
+      "domain": "wohnkultour.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://sammlerparadies24.de/",
+      "domain": "sammlerparadies24.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.dorotheum.com/de/c/online-auctions-11/",
+      "domain": "dorotheum.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://auktioneum-shop.com/de/6_antiquitaeten",
+      "domain": "auktioneum-shop.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.birgit-niehaus.de/shop",
+      "domain": "birgit-niehaus.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.rahaus.de/antiquitaeten/",
+      "domain": "rahaus.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.zvab.com/",
+      "domain": "zvab.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antik92.de/",
+      "domain": "antik92.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.kohler-antik.de/",
+      "domain": "kohler-antik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.enke-antik.de/c/designobjekte-and-antiquitaeten",
+      "domain": "enke-antik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://archenoah-brocki.ch/antiquitaeten-und-antike-moebel-online-kaufen-in-der-naehe-von-obwalden-nidwalden-uri-interlaken-und-spiez/?srsltid=AfmBOorLQ3JbWzy-isQfU7-WcYHPBE7X5tUHypsMJXhBkayzZ8VPQXRA",
+      "domain": "archenoah-brocki.ch",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.hermann-historica.de/de/auctions",
+      "domain": "hermann-historica.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://militaria-berlin.de/",
+      "domain": "militaria-berlin.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.weitze.net/index.html",
+      "domain": "weitze.net",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.koenigslust.de/",
+      "domain": "koenigslust.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://leoleovintage.de/",
+      "domain": "leoleovintage.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://koeln.mitvergnuegen.com/2024/vintage-moebel-laeden",
+      "domain": "koeln.mitvergnuegen.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://vintageundantik.de/",
+      "domain": "vintageundantik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antique-vintage-berlin.de/",
+      "domain": "antique-vintage-berlin.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://geheimtipp-koeln.de/geheimtipp/7-shops-fuer-vintage-antik-moebel-in-koeln-vintage-traeume-werden-wahr/",
+      "domain": "geheimtipp-koeln.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.berlin.de/tourismus/insidertipps/5434784-2339440-suarezstrasse.html",
+      "domain": "berlin.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.toms-corner.de/",
+      "domain": "toms-corner.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiklux.de/",
+      "domain": "antiklux.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.werkenntdenbesten.de/antiquitaeten/koeln",
+      "domain": "werkenntdenbesten.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://antikundkunstankauf.de/",
+      "domain": "antikundkunstankauf.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.re-fabrik.com/",
+      "domain": "re-fabrik.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.zafari.biz/",
+      "domain": "zafari.biz",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antik-stil-vintage.com/",
+      "domain": "antik-stil-vintage.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://bruegge-antik.de/",
+      "domain": "bruegge-antik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antikstorys.com/?srsltid=AfmBOop1vlgZhcSWIeGyfMi3_SStoKAGFNfbeeM1vv6WvhFSifJfVQzt",
+      "domain": "antikstorys.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "http://www.antikhandel-bonn.de/",
+      "domain": "antikhandel-bonn.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.kunsthandel-antiquitaeten.com/",
+      "domain": "kunsthandel-antiquitaeten.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antike-wohntraeume24.de/",
+      "domain": "antike-wohntraeume24.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.original-antike-moebel.de/",
+      "domain": "original-antike-moebel.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.britsch.com/",
+      "domain": "britsch.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antik-garten.de/",
+      "domain": "antik-garten.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://tutuettata.de/",
+      "domain": "tutuettata.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://shop.yajutang.de/de/moebel/",
+      "domain": "shop.yajutang.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.kleinanzeigen.de/s-antike-m%C3%B6bel/k0",
+      "domain": "kleinanzeigen.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.diekommode.de/",
+      "domain": "diekommode.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.otto.de/moebel/?s=antik",
+      "domain": "otto.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://schatztruhe.saarland/",
+      "domain": "schatztruhe.saarland",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antikundgebraucht.de/verschiedenes-antike-moebel-c-262_317.html?srsltid=AfmBOoo3GWHQlUqNgjdN6wQ3-F9H1IUxbCiCOSojiwnCrQOdPfpU_RBu",
+      "domain": "antikundgebraucht.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antik-zone.at/",
+      "domain": "antik-zone.at",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.vintagehaus.de/Vintage-Moebel/?srsltid=AfmBOop7YNWfaBfbag1rkhmOyiE-4IZHqXa6QeAEym0xaJjZt6Pd1JlL",
+      "domain": "vintagehaus.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antik-trier.de/",
+      "domain": "antik-trier.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.casa-padrino.de/?srsltid=AfmBOooIJDIgQOIAvZqZyeSmeEEBv29OVbAIv7TQ-7cRMkrHr6LOrqR3",
+      "domain": "casa-padrino.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.historische-bauelemente.com/category/gestaltung-landkaufhaus/historische-kleinteile/antikes-fur-sammler/185",
+      "domain": "historische-bauelemente.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.friedrichhaeusser.com/online-boutique/",
+      "domain": "friedrichhaeusser.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.kunstplaza.de/kunsthandel/raritaeten-online-kaufen-sammlerobjekte/",
+      "domain": "kunstplaza.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://daniel-meyer-sammlerstuecke.myshopify.com/",
+      "domain": "daniel-meyer-sammlerstuecke.myshopify.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.altehochkulturen.de/c/shop/roemisches-reich-byzantinisches-reich?srsltid=AfmBOooSYCRIw7hhpt_qQ-zfY0ijsO3gLTSHVoVWOOobB7lzTa2vyxAT",
+      "domain": "altehochkulturen.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.gmcoinart.de/antike-kunst",
+      "domain": "gmcoinart.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.muenzkurier.de/alle-antiken-muenzen",
+      "domain": "muenzkurier.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.eppli.com/sammlerstuecke/spielzeug/?srsltid=AfmBOork_5nEW2PB6jgCR4BxVta5I4dJd0O9zLZ8uHrqArzIAoBBLBoe",
+      "domain": "eppli.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.catawiki.com/de/",
+      "domain": "catawiki.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antikundsammlerwelt.de/",
+      "domain": "antikundsammlerwelt.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.artinfo24.com/kunstmarkt/news-415.html",
+      "domain": "artinfo24.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.mkg-hamburg.de/sammlung",
+      "domain": "mkg-hamburg.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.1000-tollesachen.de/",
+      "domain": "1000-tollesachen.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.dieschatzkisteimnetz.de/",
+      "domain": "dieschatzkisteimnetz.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.antikhaus-insam.de/",
+      "domain": "antikhaus-insam.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.lot-tissimo.com/de-de/auction-catalogues",
+      "domain": "lot-tissimo.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.mdm.de/historische-muenzen/antike-muenzen",
+      "domain": "mdm.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.baronissima.de/antiquitaeten-online-shop/",
+      "domain": "baronissima.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.abebooks.de/sammlungen/sc/antike/5dvRkzkydxuKpVbHRAZXvR?srsltid=AfmBOoq8B4VHHDYGUA7htljXnXZc4fsGznHMnRAXAQeFK3FssRF5JTZp",
+      "domain": "abebooks.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://gallerease.de/de/magazin/artikel/leitfaden-zum-kauf-von-original-antiquitaten__86286a72fcad",
+      "domain": "gallerease.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.wunderkammershop.eu/de/verschiedenes/",
+      "domain": "wunderkammershop.eu",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.gebrauchte24.de/",
+      "domain": "gebrauchte24.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiquitaeten-lemke.de/",
+      "domain": "antiquitaeten-lemke.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://relics.es/de/collections/wunderkammer",
+      "domain": "relics.es",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antiquitaeten-breitenkamp.de/collections/seltene-antiquitaeten-hingucker?srsltid=AfmBOop7KxX6Y6Y_6FOpsTvF8RqibO2MNLF-nwhVbtzlE3tsRpV-PXTH",
+      "domain": "antiquitaeten-breitenkamp.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antik70.de/shop/raritaeten",
+      "domain": "antik70.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.petra-antiques.com/",
+      "domain": "petra-antiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://sandsoftimedc.com/de-de?srsltid=AfmBOooEqZ9sBfkgfMiRvAkAr46DUY072XPoMVAWGWfe9L5m7iWHh7WP",
+      "domain": "sandsoftimedc.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.etsy.com/de/market/seltene_antiquit%C3%A4t?ref=lp_queries_internal_bottom-3",
+      "domain": "etsy.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.suppes.de/",
+      "domain": "suppes.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.auction.de/auktionen/auktion-797/",
+      "domain": "auction.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://alteserien.de/",
+      "domain": "alteserien.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.facebook.com/groups/334606200390014/",
+      "domain": "facebook.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.muenchen.travel/artikel/shopping-design/antiquitaeten-franzosenviertel",
+      "domain": "muenchen.travel",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.markt.de/ratgeber/flohmaerkte/antiquitaeten-kaufen-und-verkaufen/",
+      "domain": "markt.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.goethesgalerie.com/kauf-von-antiquitaeten/?srsltid=AfmBOoqr67PMANTrogYuMo2v0kPY-R2j42L7xwRkzcjkWL49UTvHhDdL",
+      "domain": "goethesgalerie.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.kunst-waffenkammer.de/",
+      "domain": "kunst-waffenkammer.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://kolb-antik.website/",
+      "domain": "kolb-antik.website",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antikeo.com/de?srsltid=AfmBOoo7pk05vh9PqvKtEppmfeWop3hN8_Z5LpwmpMVSiYE-0Lx5OcO3",
+      "domain": "antikeo.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.wirkaufenmoebel.de/antiquitaeten-ankauf",
+      "domain": "wirkaufenmoebel.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://vonbruehl.com/",
+      "domain": "vonbruehl.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antixx.de/pages/antiquitaten-berlin?srsltid=AfmBOop4r7H5g-oMXvjl1c2fcg5ZGTdVk0svdTEkoH8hqkMw2E4324Jl",
+      "domain": "antixx.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.henrys.de/index.php?lang=de",
+      "domain": "henrys.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://historia.de/",
+      "domain": "historia.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antikhandel-stuttgart.de/",
+      "domain": "antikhandel-stuttgart.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.reddit.com/r/Antiques/comments/102mhxy/what_is_the_best_online_marketplace_for_antiques/?tl=de",
+      "domain": "reddit.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.dimanoinmano.it/de/pg1232/portali-marketplace?srsltid=AfmBOopOSnCKQIK8ShEejNN1FaVo0LldR1Rw5exT-ne2Cs8XKiAoBhMU",
+      "domain": "dimanoinmano.it",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.kudado.de/",
+      "domain": "kudado.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://wortfilter.de/oldthing-de-der-groesste-private-sammler-marktplatz-im-deutschsprachigen-raum/",
+      "domain": "wortfilter.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.antiqlist.com/de/",
+      "domain": "antiqlist.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.ankaeufer.com/antiquitaeten-verkaufen/",
+      "domain": "ankaeufer.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.kadaza.de/tips/online-adressen-fur-vintage-und-antiquitatenmobel",
+      "domain": "kadaza.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.ecomparo.de/portfolio/oldthing/",
+      "domain": "ecomparo.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.delcampe.net/de/sammlerobjekte/?srsltid=AfmBOoqGrIjsZY9sxAKtVxWBu548FOlzE3phX6nHCRoMypH-dTZFpoF8",
+      "domain": "delcampe.net",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.booklooker.de/",
+      "domain": "booklooker.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.hood.de/",
+      "domain": "hood.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://ntqs.eu/de/ntqs-blog/the-advantages-of-buying-antiques-online-for-antique-dealers/",
+      "domain": "ntqs.eu",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.fischers-lagerhaus.de/?srsltid=AfmBOorJ_f1JYI_XpZpz2qStdrVsoGK1OfwxWDbYfZATBkPxaqMOPnX_",
+      "domain": "fischers-lagerhaus.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.troedelmarkt-aachenerplatz.de/",
+      "domain": "troedelmarkt-aachenerplatz.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://wert-experte.com/antiquitaeten-verkaufen/",
+      "domain": "wert-experte.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "http://www.antik-markt.net/",
+      "domain": "antik-markt.net",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.onlinemarktplatz.de/118379/marktplatz-oldthing-kooperiert-mit-marktplatz-manager/",
+      "domain": "onlinemarktplatz.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.ecwid.com/de/blog/selling-antiques-online.html?q=%2Fde%2Fblog%2Fselling-antiques-online.html",
+      "domain": "ecwid.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://lomax-militaria.de/?srsltid=AfmBOooT8ozXysq7pmfoauuV_OIZVhztXQ3JlXfKpr0pV6xBXtqJNmuE",
+      "domain": "lomax-militaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://ww2-militaria-shop.de/?language=de&srsltid=AfmBOopuZOxSi8m7bri4y4YrD-6626tezeny43-rUon9cdFVD-zxugrE",
+      "domain": "ww2-militaria-shop.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.militarybasics.de/",
+      "domain": "militarybasics.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://themilitariashop.com/de-eu?srsltid=AfmBOoramo6kBo1M2uf3-5oznxhh8cJEE9P5URXCvu9JpfwfjpYSj_pF",
+      "domain": "themilitariashop.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.tacwrk.com/",
+      "domain": "tacwrk.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.miro-militaria.com/",
+      "domain": "miro-militaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://stephan-militaria.de/",
+      "domain": "stephan-militaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://richard-militaria.at/",
+      "domain": "richard-militaria.at",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.vip-militaria.de/",
+      "domain": "vip-militaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.militaria-reisig.com/",
+      "domain": "militaria-reisig.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.kpemig.de/",
+      "domain": "kpemig.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.bw-online-shop.com/",
+      "domain": "bw-online-shop.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.asmc.de/?srsltid=AfmBOoqb5WBsoKmWOneHEiS8kqv5NZPMnHuQRBMTwKCHruxzHWPQ9nhQ",
+      "domain": "asmc.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://militaryrange.de/",
+      "domain": "militaryrange.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.milantik.de/",
+      "domain": "milantik.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.zib-militaria.de/",
+      "domain": "zib-militaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.mundomilitaria.de/de/118-onlineshop",
+      "domain": "mundomilitaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.kotte-zeller.de/",
+      "domain": "kotte-zeller.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://spessart-militaria.de/",
+      "domain": "spessart-militaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.steinadler.de/de-de",
+      "domain": "steinadler.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://max-fuchs.de/",
+      "domain": "max-fuchs.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://military.eu/de",
+      "domain": "military.eu",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.philipp-militaria.com/index.shtml",
+      "domain": "philipp-militaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.outdoorfan.de/?srsltid=AfmBOopALlmAe0JS5fkOmpHxRXDJDVraRyUMCx0DB1ghXBg26nb9Sj6t",
+      "domain": "outdoorfan.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.trave-militaria.de/neuheiten",
+      "domain": "trave-militaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.bundeswehr-und-mehr.de/",
+      "domain": "bundeswehr-und-mehr.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.schoenicke.eu/",
+      "domain": "schoenicke.eu",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.military1st.de/?srsltid=AfmBOop11ztbHxCEH8hZjQtUM3VsqtrklL9b_9r7VjO5lqmVTXkO107d",
+      "domain": "military1st.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.us-army-military-shop.de/?srsltid=AfmBOoo2uwXvI5EclYDxRePzjkHn7NF7HZSqd_tg47IKtltoMD_inYSY",
+      "domain": "us-army-military-shop.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.armyshop-hoenig.de/",
+      "domain": "armyshop-hoenig.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.militaerbestaende.de/",
+      "domain": "militaerbestaende.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.militaria321.com/",
+      "domain": "militaria321.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://magerasmilitarystore.de/?srsltid=AfmBOormO9ENB-6ZdcLvypD0Xzv2Qsnu0RzSuW0tTaXG657o-rWLSi_l",
+      "domain": "magerasmilitarystore.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://dutchmilitaria.com/",
+      "domain": "dutchmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.truman.de/armyshop/Military-Shop/",
+      "domain": "truman.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.troph-e-shop.com/?srsltid=AfmBOorGTPPVuZcOsv9tx2glBeJt_JiBxoAbYAKmJ38tWMG2YV81WJ_5",
+      "domain": "troph-e-shop.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.bremer-sammlerparadies.de/c/militaria/deutschland/iii-reich-2-weltkrieg",
+      "domain": "bremer-sammlerparadies.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.boeck-jagd-outdoor.de/airsoft-militaria/historisches-sammlerware/?srsltid=AfmBOooRgdwjH-ETwGJ4VDd3ZJMALDBzo1KCcvt_l4phaqUStzvaBxeE",
+      "domain": "boeck-jagd-outdoor.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://hb-militaria.de/",
+      "domain": "hb-militaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.dg.de/",
+      "domain": "dg.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.spree-militaria.de/",
+      "domain": "spree-militaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.zinnfigur.com/Nach-Hersteller/Verlag-Militaria-oxid/?srsltid=AfmBOoo6N1RF28DdPQ8hk1VIRmEN7s-7FWlKU9bTsXKC5EqYADQMHXQ8",
+      "domain": "zinnfigur.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://aboutww2militaria.com/de",
+      "domain": "aboutww2militaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.team-militaria.de/orden-ehrenzeichen",
+      "domain": "team-militaria.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.haertle.de/Plastikmodellbau/Militaria+Bausaetze/hersteller/icm/truppe/wehrmacht/?srsltid=AfmBOornhzW82QO9-nc8xpgC4oWJ0pH9mQC59pm86G8PndoxEdwZ0-dX",
+      "domain": "haertle.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://antik-und-militaria-gera.de/Militaria/Militaria-und-militaerische-Antquitaeten-1800-1945/Sonstige-Militaria-1800-1945/",
+      "domain": "antik-und-militaria-gera.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.eilbote-onlineshop.de/modelle/militaria-modelle/",
+      "domain": "eilbote-onlineshop.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://shop.kusera.de/Antik-und-Kunst/Militaria-Weltkriege",
+      "domain": "shop.kusera.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.mbertram.de/Shop/Militaerische-Antiquitaeten-1933-bis-1945-Deutschland/",
+      "domain": "mbertram.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.orden-militaria-hamburg.de/",
+      "domain": "orden-militaria-hamburg.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.militaerkultur.de/",
+      "domain": "militaerkultur.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://militaria-bergedorf.de/",
+      "domain": "militaria-bergedorf.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antikhaus-rauh-straubing.de/",
+      "domain": "antikhaus-rauh-straubing.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "http://www.antik-rothballer.de/index.php/katalog/militaria-militaerische-antiquitaeten-detail",
+      "domain": "antik-rothballer.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.wir-kaufen-militaria.de/",
+      "domain": "wir-kaufen-militaria.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://ankaufmilitaria.de/",
+      "domain": "ankaufmilitaria.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.antik-kaufhaus.de/shop/Militaria-Antiques-c163621027/",
+      "domain": "antik-kaufhaus.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.militaria-antik.at/",
+      "domain": "militaria-antik.at",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antikcenter-siebert.de/militaer",
+      "domain": "antikcenter-siebert.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.militaermuseum.org/",
+      "domain": "militaermuseum.org",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://antiquitaetenbremen.de/tag/militaerische-objekte/",
+      "domain": "antiquitaetenbremen.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://historico.de/",
+      "domain": "historico.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.vonrenz.de/service/ankauf/",
+      "domain": "vonrenz.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.sammlermarkt-nord.net/",
+      "domain": "sammlermarkt-nord.net",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.sammler-cabinett.de/shop/de/neuheiten.html",
+      "domain": "sammler-cabinett.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://schlender-antik.com/",
+      "domain": "schlender-antik.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://militaria-kiel.de/",
+      "domain": "militaria-kiel.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://sammlerweltask.de/",
+      "domain": "sammlerweltask.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://german-historica.de/verkauf/",
+      "domain": "german-historica.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://sammler-store.de/",
+      "domain": "sammler-store.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://military-world-shop.ch/drittes-reich/",
+      "domain": "military-world-shop.ch",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://militarycollectibles.com/shop?category=Period%20Books,%20Papers",
+      "domain": "militarycollectibles.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.auctronia.de/",
+      "domain": "auctronia.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://worldwarcollectibles.com/shop.php",
+      "domain": "worldwarcollectibles.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.thalia.de/shop/home/artikeldetails/A1048223679",
+      "domain": "thalia.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.herder.de/wissen/shop/p8/86642-kriegserinnerungen-und-kriegsfolgen-gebundene-ausgabe/",
+      "domain": "herder.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.amazon.de/Alptraum-Kriegserinnerungen-Aufzeichnungen-einfachen-Soldaten/dp/3752859377",
+      "domain": "amazon.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.verlagsdruckerei-schmidt.de/kriegserinnerungen-in-europaeischen-heimaten/",
+      "domain": "verlagsdruckerei-schmidt.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.beck-shop.de/conrad-harth-herrmann-penth-kriegserinnerungen-kriegsfolgen/product/35771423?srsltid=AfmBOop-0oy6c1EVuaCTaoo8yOXYgHD-JkcEPULGgqc_KYyymgUjI7J7",
+      "domain": "beck-shop.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.gemeinde-blatt.com/product-page/kriegserinnerungen-1945-in-r%C3%BCckmarsdorf-und-miltitz",
+      "domain": "gemeinde-blatt.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://fines-mundi.de/zeitz-kriegserinnerungen-eines-feldzugsfreiwilligen",
+      "domain": "fines-mundi.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.vivat.de/kriegserinnerungen-und-kriegsfolgen-2553835/",
+      "domain": "vivat.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "http://army-book.de/erzaehlungen_-kriegserinnerungen-_memoiers_/index.htm",
+      "domain": "army-book.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.vdmedien24.de/Buentgens-Kriegserinnerungen",
+      "domain": "vdmedien24.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.osiander.de/ul/shop/home/artikeldetails/A1056595503",
+      "domain": "osiander.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.buecher.de/artikel/buch/kriegserinnerungen-und-kriegsfolgen/67934957/",
+      "domain": "buecher.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.epubli.com/shop/meine-kriegserinnerungen-1914-1918-9783745077346",
+      "domain": "epubli.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.hugendubel.de/de/buch_gebunden/helmut_sittinger-kriegserinnerungen_und_kriegsfolgen-46012849-produkt-details.html?srsltid=AfmBOoqJmYCOMrZ7lPvUYUoo2iW-mvCYN08e-XsTCHGBaWQJ0Zh5hD8D",
+      "domain": "hugendubel.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.buchfreund.de/de/d/a/B0024H5LVU/kriegserinnerungen?bookId=94580136&srsltid=AfmBOop3BHPIfOU0v1BYTN2upHy3aolMAwzHMy3gIOxewH2994LiQUKr",
+      "domain": "buchfreund.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://shop.studibuch.de/9783945377499/kriegserinnerungen-1914-1918-gedanken-und-erlebnisse-eines-preussischen-musketiers-von-otto-koenig-schraplau",
+      "domain": "shop.studibuch.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.medimops.de/alfred-weisshaupt-bis-alles-in-truemmer-faellt-kriegserinnerungen-gebundene-ausgabe-M03943391140.html",
+      "domain": "medimops.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.lehmanns.de/shop/medizin-pharmazie/29665205-9783662232828-militaeraerztliche-kriegserinnerungen-an-1866-und-1870-71",
+      "domain": "lehmanns.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://buchladenschmid.de/shop/item/9783534300099/kriegserinnerungen-und-kriegsfolgen-von-joachim-conrad-elias-harth-hans-christian-herrmann-u-a-e-book-pdf",
+      "domain": "buchladenschmid.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.kulturkaufhaus.de/de/detail/ISBN-9783750910249/Ludendorff-Erich/Meine-Kriegserinnerungen-1914-1918",
+      "domain": "kulturkaufhaus.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.orellfuessli.ch/shop/home/artikeldetails/A1056595503",
+      "domain": "orellfuessli.ch",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://buchhandlung-jost.de/shop/item/9783750293892/kriegs-erinnerungen-eines-deutschen-soldaten-von-unbekannter-autor-e-book-epub",
+      "domain": "buchhandlung-jost.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://otech-gmbh.de/?o=122801054",
+      "domain": "otech-gmbh.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.dhm.de/lemo/zeitzeugen/renate-nicklisch-kriegserinnerungen-des-matrosen-helmut-heidbrink-2",
+      "domain": "dhm.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.psychologie-aktuell.com/news/aktuelle-news-psychologie/news-lesen/aelteren-menschen-beim-umgang-mit-kriegserinnerungen-helfen.html",
+      "domain": "psychologie-aktuell.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.nwzonline.de/wilhelmshaven/90-geburtstag-in-wilhelmshaven-reinhard-rolke-blickt-auf-kriegserinnerungen-und-neuanfang-zurueck_a_4,2,2593357106.html",
+      "domain": "nwzonline.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.amazon.in/Meine-Kriegserinnerungen-1914-1918-Classic-Reprint/dp/1396802274",
+      "domain": "amazon.in",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://idw-online.de/de/news549748",
+      "domain": "idw-online.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.zeit.de/gesundheit/2022-03/kriegserinnerungen-ukraine-zweiter-weltkrieg-trauma-psychologie",
+      "domain": "zeit.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://rp-online.de/nrw/staedte/wesel/kriegserinnerungen-mahnen-zu-frieden_aid-20072217",
+      "domain": "rp-online.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://de.rokit.co.uk/collections/military",
+      "domain": "de.rokit.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.asmc-unlimited.com/collections/vintage-industries",
+      "domain": "asmc-unlimited.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.army-shop-marl.de/",
+      "domain": "army-shop-marl.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.armyonlinestore.com/de/",
+      "domain": "armyonlinestore.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.rarehousevintage.de/product-page/vintage-military-field-jacke-s",
+      "domain": "rarehousevintage.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://armydepotberlin.de/",
+      "domain": "armydepotberlin.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://us-onlineshop.com/",
+      "domain": "us-onlineshop.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.bundeswehr-us-shop.de/gebrauchte-Bekleidung-Waren",
+      "domain": "bundeswehr-us-shop.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "http://www.uswarenshop.de/",
+      "domain": "uswarenshop.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://buweos.de/",
+      "domain": "buweos.de",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.armeeshop.ch/de/",
+      "domain": "armeeshop.ch",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://jotex.at/",
+      "domain": "jotex.at",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.meinbwshop.de/",
+      "domain": "meinbwshop.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.army-warehouse.at/",
+      "domain": "army-warehouse.at",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://bwarmyshop50nb.de/",
+      "domain": "bwarmyshop50nb.de",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://onlineshop.oxfam.org.uk/home-antiques/category/home-antiques",
+      "domain": "onlineshop.oxfam.org.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.loveantiques.com/",
+      "domain": "loveantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.sellingantiques.co.uk/",
+      "domain": "sellingantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://decorativefair.com/shop-antiques-online/",
+      "domain": "decorativefair.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.hemswell-antiques.com/antiques",
+      "domain": "hemswell-antiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.theoldcinema.co.uk/?srsltid=AfmBOoqWlEm3sOkY_pYcFuUSDihPPc32eQF8JuMMAkq-W7wfkUuucjeE",
+      "domain": "theoldcinema.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiques.co.uk/",
+      "domain": "antiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.thehoarde.com/",
+      "domain": "thehoarde.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://theantiquescentreyork.co.uk/",
+      "domain": "theantiquescentreyork.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.drewpritchard.co.uk/",
+      "domain": "drewpritchard.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antiquesworld.co.uk/",
+      "domain": "antiquesworld.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiquesboutique.com/",
+      "domain": "antiquesboutique.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.worcesterantiques.co.uk/",
+      "domain": "worcesterantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.theantiquecollective.uk/",
+      "domain": "theantiquecollective.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.strichenantiques.co.uk/store",
+      "domain": "strichenantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://sallyantiques.co.uk/",
+      "domain": "sallyantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.goodhousekeeping.com/home/decorating-ideas/a64701326/online-vintage-antique-shops/",
+      "domain": "goodhousekeeping.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.houseandgarden.co.uk/article/vintage-antique-furniture-online-where-to-buy",
+      "domain": "houseandgarden.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://lowfieldsbarnantiques.com/",
+      "domain": "lowfieldsbarnantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://jacksonsantique.co.uk/?srsltid=AfmBOoo7kjWmG83f0-V19LBBukC0VwZYdcnVtaVyUV5suPw3O8z0Y9a-",
+      "domain": "jacksonsantique.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://paradeantiques.co.uk/",
+      "domain": "paradeantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.decorativecollective.com/",
+      "domain": "decorativecollective.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.brownrigg-interiors.co.uk/",
+      "domain": "brownrigg-interiors.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.georgianantiques.net/",
+      "domain": "georgianantiques.net",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://timeaftertimeantiques.co.uk/",
+      "domain": "timeaftertimeantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.battlesbridge.com/",
+      "domain": "battlesbridge.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiquestobuy.co.uk/",
+      "domain": "antiquestobuy.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://countryhomesantiques.co.uk/",
+      "domain": "countryhomesantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://reindeerantiques.co.uk/?srsltid=AfmBOorSZ8iusPeOXnZTGzC5UJBDoX1xD7XFq3ECv_QJHrq733ybBZfH",
+      "domain": "reindeerantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://scottish-antiques.com/",
+      "domain": "scottish-antiques.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.antiques-atlas.com/",
+      "domain": "antiques-atlas.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://vintage-and-antiques.co.uk/?srsltid=AfmBOopvgW5EUiTYDTx-F4QU8kJWfvU8GoGYVUztrMeXtnbeSOXiaY7P",
+      "domain": "vintage-and-antiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiquesandfinefurniture.com/",
+      "domain": "antiquesandfinefurniture.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.the-saleroom.com/en-gb",
+      "domain": "the-saleroom.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.vinterior.co/",
+      "domain": "vinterior.co",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://kernowfurniture.co.uk/?srsltid=AfmBOoqPu4OGeWdju3ypIswKY_XpxQBv2y3NiLqG4T0duWB9lJNIJViY",
+      "domain": "kernowfurniture.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://homebarnshop.co.uk/?srsltid=AfmBOorMaP_48qrXanhAL1mw7l0KgnmUdMjoOet-evesdq0TLhKcLQua",
+      "domain": "homebarnshop.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://lapada.org/art-and-antiques/",
+      "domain": "lapada.org",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.homesandantiques.com/",
+      "domain": "homesandantiques.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.antiquesbuyers.co.uk/",
+      "domain": "antiquesbuyers.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://willowhouseantiques.co.uk/online-antiques-shop/",
+      "domain": "willowhouseantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiquedealer.co.uk/",
+      "domain": "antiquedealer.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.countryliving.com/uk/homes-interiors/interiors/a43425819/best-online-vintage-antique-stores-uk/",
+      "domain": "countryliving.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://foundersantiques.co.uk/?srsltid=AfmBOop1QPF0e4MI-YAU_wiS2NkimHUCzFXjMNvLkmESDAx66Qr0JGen",
+      "domain": "foundersantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://abingtonantiques.co.uk/",
+      "domain": "abingtonantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.webuyvintage.co.uk/",
+      "domain": "webuyvintage.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.antiguedades.es/en/",
+      "domain": "antiguedades.es",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.classic.co.uk/nas/things-to-do/antique-shops-in-cornwall-3570.html",
+      "domain": "classic.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.theantiquevillage.co.uk/",
+      "domain": "theantiquevillage.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://vintageforever.co.uk/",
+      "domain": "vintageforever.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://alfiesantiques.com/",
+      "domain": "alfiesantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://onthesquareemporium.com/",
+      "domain": "onthesquareemporium.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.tripadvisor.co.uk/Attractions-g186270-Activities-c26-t137-Suffolk_East_Anglia_England.html",
+      "domain": "tripadvisor.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://crystalpalaceantiques.com/",
+      "domain": "crystalpalaceantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.sawdays.co.uk/detour/inspiration/a-locals-guide-antique-shops-to-visit-in-the-cotswolds/",
+      "domain": "sawdays.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://theoldpotatostore.co.uk/?srsltid=AfmBOorgt9PX-ABdqyQbh9yqhUsdEzyvTAjzO4QOc9k5kTNR_iyQckCb",
+      "domain": "theoldpotatostore.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://clickantiques.co.uk/",
+      "domain": "clickantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiquesandchic.com/pages/the-shop-at-sawbridgeworth?srsltid=AfmBOorBBh7LdXEyKtT7hXDaseuCxIjwDYrXDFpR45qCJXBuLEW8mVDc",
+      "domain": "antiquesandchic.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.visit-dorset.com/things-to-do/shopping/antiques-vintage/",
+      "domain": "visit-dorset.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.bristolvintageshop.co.uk/",
+      "domain": "bristolvintageshop.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.stalbansantiqueandvintagemarket.com/",
+      "domain": "stalbansantiqueandvintagemarket.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.vintagecashcow.co.uk/",
+      "domain": "vintagecashcow.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://vintageretreat.co.uk/",
+      "domain": "vintageretreat.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://visitpreston.uk/article/2675/Vintage-and-Antique-Shopping",
+      "domain": "visitpreston.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.rubylane.com/",
+      "domain": "rubylane.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://windsor-vintage.co.uk/?srsltid=AfmBOorvxQVLjQ6-GV9l9x1JXWPju1iJCQhDaDYI25SMiNldZkLEW1YT",
+      "domain": "windsor-vintage.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://visitportobello.com/antiques",
+      "domain": "visitportobello.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.camdenpassageislington.co.uk/",
+      "domain": "camdenpassageislington.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://bucksoxon.muddystilettos.co.uk/home/interiors/best-vintage-homewares-shops-markets-buckinghamshire-oxfordshire/",
+      "domain": "bucksoxon.muddystilettos.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://theglossarymagazine.com/homes/london-antique-shops-vintage-furniture/",
+      "domain": "theglossarymagazine.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.vintiquessurrey.co.uk/",
+      "domain": "vintiquessurrey.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://secretldn.com/londons-best-antiques-spots/",
+      "domain": "secretldn.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.falmouthpacket.co.uk/news/25566670.new-antique-vintage-shop-helstons-wendron-street/",
+      "domain": "falmouthpacket.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.maryleboneantiques.co.uk/",
+      "domain": "maryleboneantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.nimbusantiques.co.uk/",
+      "domain": "nimbusantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.pamono.co.uk/?srsltid=AfmBOopXE-mMb4FlNJYyruHI9cV53HymegfViy9pY98RSbU_ZiuJ6Mz6",
+      "domain": "pamono.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://scaramangashop.co.uk/collections/vintage-furniture",
+      "domain": "scaramangashop.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://retrovintageonline.co.uk/?srsltid=AfmBOor8tOM9qrAUdg7clyrn81bW6syg_0b3F01hjYs9BR_GvKDEvG6C",
+      "domain": "retrovintageonline.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antiquefurnituredirect.co.uk/",
+      "domain": "antiquefurnituredirect.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.penderynantiques.co.uk/",
+      "domain": "penderynantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.lutterworthantiques.co.uk/shop/?cat=17",
+      "domain": "lutterworthantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.selency.co.uk/",
+      "domain": "selency.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.regentantiques.com/",
+      "domain": "regentantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.westlandlondon.com/antiques/decorativeitems/furniture/",
+      "domain": "westlandlondon.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://ogtstore.com/antique-furniture/?srsltid=AfmBOopdrqc0uHeuBTJYV5OYdjH_4v9r4-sl6z4GRluQhEmRw9q9GZZs",
+      "domain": "ogtstore.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.harpersbazaar.com/fashion/trends/g61865365/best-vintage-furniture-stores-online/",
+      "domain": "harpersbazaar.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.thecotswoldemporium.co.uk/",
+      "domain": "thecotswoldemporium.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://vintageretro.co.uk/",
+      "domain": "vintageretro.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://lawsonsyard.co.uk/collections/vintage-finds",
+      "domain": "lawsonsyard.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.mustardvintage.com/?srsltid=AfmBOooPdA8Lfbm0-zSCxB930pNuI7z9Gwc5A6f6GrzbUVRx5Wld-ny7",
+      "domain": "mustardvintage.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.affordableantiquefurniture.co.uk/",
+      "domain": "affordableantiquefurniture.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://lrbinteriors.co.uk/?srsltid=AfmBOoosCDc2EfrOf56t_9j9PofJrNIBOlqkNArcWyHr3U0_P-fZ0PbS",
+      "domain": "lrbinteriors.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.1stdibs.com/furniture/",
+      "domain": "1stdibs.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.bhf.org.uk/shop/buy-furniture-and-items-for-your-home",
+      "domain": "bhf.org.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.pamono.eu/antique-furniture?srsltid=AfmBOopoDMNOwDGWctEPM2K-qUQNqlvEquEqqjn5TKA9-CZ6KOa6cnfx",
+      "domain": "pamono.eu",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://designerworkshop.co.uk/online-shop/",
+      "domain": "designerworkshop.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://cullensofsurrey.co.uk/antique-furniture-surrey",
+      "domain": "cullensofsurrey.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antiquesofkingston.co.uk/product-category/antique-vintage-collectables-online-buy/",
+      "domain": "antiquesofkingston.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.hastingsantiques.co.uk/",
+      "domain": "hastingsantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://pm-antiques.co.uk/?srsltid=AfmBOooEX1o06Gv3O3z7xrLwwEDdstX3xgSPmNPWsNjmNkpfRic4GgUf",
+      "domain": "pm-antiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.madmantiques.co.uk/",
+      "domain": "madmantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.vectis.co.uk/",
+      "domain": "vectis.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antiqueswebsite.co.uk/",
+      "domain": "antiqueswebsite.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.theemporiumyeovil.co.uk/pages/antiques-and-collectables",
+      "domain": "theemporiumyeovil.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.housebeautiful.com/design-inspiration/a63845517/sites-for-best-vintage-pieces-according-to-antique-collectors/",
+      "domain": "housebeautiful.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://antiquesarena.com/",
+      "domain": "antiquesarena.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.newarkantiques.co.uk/",
+      "domain": "newarkantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.thewarehouseantiques.co.uk/",
+      "domain": "thewarehouseantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.ebay.co.uk/b/bn_1838549",
+      "domain": "ebay.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.barnebys.co.uk/",
+      "domain": "barnebys.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://haywardsantiques.co.uk/?srsltid=AfmBOorpj_r9N3RhU1qbnv5EQoSppudorJoEO4vrVXdIjYIiJnADYdP_",
+      "domain": "haywardsantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.timelessonline.co.uk/collectables.html?srsltid=AfmBOopC-aUr8nz8FLZYIjy5VxoqpatVePbPxccBWZ3TerpNTIW2-fJX",
+      "domain": "timelessonline.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://hatfieldantiques.com/?srsltid=AfmBOopq_BptVOTgU0goOz9xxpGmN6Q9r-AbHrdxoxX3qHh9paqFEC-A",
+      "domain": "hatfieldantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.davidlay.co.uk/departments/collectables/",
+      "domain": "davidlay.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.mayfairgallery.com/antique-collectables",
+      "domain": "mayfairgallery.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.graysantiques.com/",
+      "domain": "graysantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://theurbanvintageaffair.com/collections/cabinet-of-curiosity-unusual-random-and-rare-antiques?srsltid=AfmBOop-WuUvQ4x7MHzONTcjcj1H55Oqm2SuqFznpy3tIqfmOz4n5N88",
+      "domain": "theurbanvintageaffair.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.kraveantiques.co.uk/index.html",
+      "domain": "kraveantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.christies.com/en",
+      "domain": "christies.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.curiousantiques.co.uk/",
+      "domain": "curiousantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.michaelbackmanltd.com/",
+      "domain": "michaelbackmanltd.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://rauantiques.com/collections/antiques?srsltid=AfmBOorQmy94MyNQcl-JCYCqL7e0w4ejp152bB2tQghAosTi3pE1dN2e",
+      "domain": "rauantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.koopman.art/",
+      "domain": "koopman.art",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://studioham.co.uk/collections/antiques?srsltid=AfmBOopvOm3tWX6QIAWt0pMcxB5bV3AtTWoMBU7Hg1QfKqOaJ0nEecan",
+      "domain": "studioham.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://vintiques.co.uk/",
+      "domain": "vintiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://bermondseysquare.co.uk/hidden-gems-unearthing-rare-antiques-in-london/",
+      "domain": "bermondseysquare.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.gumtree.com/for-sale/uk/srpsearch+rare+antiques",
+      "domain": "gumtree.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://realrareantiques.com/?srsltid=AfmBOooFqGwgqw5uK_veomXpnK4hupvF3wZw0N4zsFwRC2CFKS8aXTtF",
+      "domain": "realrareantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.bamfords-auctions.co.uk/",
+      "domain": "bamfords-auctions.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.mctears.co.uk/",
+      "domain": "mctears.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://theantiquestores.com/shop/rare-and-unusual-items",
+      "domain": "theantiquestores.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.potteriesauctions.com/",
+      "domain": "potteriesauctions.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.cashfloat.co.uk/blog/money-saving/collectible-antiques-extra-money/",
+      "domain": "cashfloat.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://zandkantiques.com/",
+      "domain": "zandkantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://drouot.com/en",
+      "domain": "drouot.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.bonhams.com/",
+      "domain": "bonhams.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.sworder.co.uk/",
+      "domain": "sworder.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.bada.org/advice/buying-and-selling-antiques/selling-antiques",
+      "domain": "bada.org",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.antiquestradegazette.com/",
+      "domain": "antiquestradegazette.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://sellyourantiques.co.uk/",
+      "domain": "sellyourantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.lorfordsantiques.com/",
+      "domain": "lorfordsantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.adampartridge.co.uk/",
+      "domain": "adampartridge.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.harrisonsantiques.com/",
+      "domain": "harrisonsantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.sellingantiqueslite.co.uk/",
+      "domain": "sellingantiqueslite.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.coastalcommunities.co.uk/content_uploads/_wp-content_uploads_2022_03_Ronati-Marketplace-Guide-2020-38.pdf",
+      "domain": "coastalcommunities.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.vintage-keepers.com/",
+      "domain": "vintage-keepers.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://virtualantiquemarketplace.com/",
+      "domain": "virtualantiquemarketplace.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://journalofantiques.com/digital-publications/joac-magazine/features/online-platforms-that-are-transforming-the-antiques-marketplace/",
+      "domain": "journalofantiques.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://district.net/antiquemarket?srsltid=AfmBOorCGYRwXIMbcy6_sYo1nHB6fQQQuj46XUQBP-VD9nU2J0j13L2O",
+      "domain": "district.net",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.vntg.com/",
+      "domain": "vntg.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.tias.com/",
+      "domain": "tias.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://ronati.com/sell-art-vintage-and-antiques-online-with-these-25-marketplaces/",
+      "domain": "ronati.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.goantiques.com/",
+      "domain": "goantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.antiqon.com/?srsltid=AfmBOorG5qBez8EX2znHoDotDKf2dt4tcHGwmWEp_FwLtR4mzUhKdwDu",
+      "domain": "antiqon.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.worthpoint.com/",
+      "domain": "worthpoint.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.standard.co.uk/shopping/esbest/home-garden/best-online-antique-stores-guide-b1205836.html",
+      "domain": "standard.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.fleamapket.com/listing-category/online-antique-store/",
+      "domain": "fleamapket.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.sothebys.com/en/",
+      "domain": "sothebys.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.militariazone.com/",
+      "domain": "militariazone.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.epicmilitaria.com/?srsltid=AfmBOoq8hpwVjBDLTu-lZ1a1gWVZ0fh0605MBAk_TMSF9BR8Odg2g0Vw",
+      "domain": "epicmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://theoldbrigade.co.uk/shop.php?d=1",
+      "domain": "theoldbrigade.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://regimentals.co.uk/",
+      "domain": "regimentals.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.themilitariadealers.com/",
+      "domain": "themilitariadealers.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://grenadiermilitaria.com/shop/",
+      "domain": "grenadiermilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://csmilitaria.co.uk/shop.php",
+      "domain": "csmilitaria.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://shop.bygones.co.uk/",
+      "domain": "shop.bygones.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://chasemilitaria.com/",
+      "domain": "chasemilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.sofmilitary.co.uk/",
+      "domain": "sofmilitary.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://crowvalleymilitaria.com/",
+      "domain": "crowvalleymilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://clementsmilitaria.com/shop.php",
+      "domain": "clementsmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.dandbmilitaria.com/",
+      "domain": "dandbmilitaria.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.warandson.co.uk/",
+      "domain": "warandson.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.mournemilitaria.com/",
+      "domain": "mournemilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://thetfordmilitariafair.com/",
+      "domain": "thetfordmilitariafair.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://timemilitaria.com/",
+      "domain": "timemilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://fjm44.com/product-category/militaria/",
+      "domain": "fjm44.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://vigomilitaria.com/",
+      "domain": "vigomilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.sonderklasse.uk/",
+      "domain": "sonderklasse.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.bulldogmilitaria.co.uk/en-GB/german-items/prodcat_1060",
+      "domain": "bulldogmilitaria.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.cetomilitaria.co.uk/",
+      "domain": "cetomilitaria.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://wehrmacht-militaria.com/",
+      "domain": "wehrmacht-militaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://bevo-militaria.com/shop/",
+      "domain": "bevo-militaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://ersatzmilitaria.com/",
+      "domain": "ersatzmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://armouryantiques.com/",
+      "domain": "armouryantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.amsmilitaria.com/eng/",
+      "domain": "amsmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.panzertruppecollectables.com/",
+      "domain": "panzertruppecollectables.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://onlinemilitaria.net/products/c97-british-militaria/",
+      "domain": "onlinemilitaria.net",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.lux-military-antiques.com/en/shop.htm",
+      "domain": "lux-military-antiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://militarista.com/",
+      "domain": "militarista.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://original-militaria.com/en/",
+      "domain": "original-militaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://militariamart.com/",
+      "domain": "militariamart.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://battleflagmilitaria.co.uk/",
+      "domain": "battleflagmilitaria.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.collexchange.co.uk/",
+      "domain": "collexchange.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.blightymilitaria.com/?srsltid=AfmBOoq0vNSfo2zTcOTZ19BCSxhJ-5PkpWjJXHmj9Scz-8iGUQyns-at",
+      "domain": "blightymilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.redsmilitaria.co.uk/",
+      "domain": "redsmilitaria.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.relicsfromthefront.co.uk/",
+      "domain": "relicsfromthefront.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.waterloomilitaria.com/",
+      "domain": "waterloomilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.jcmilitaria.com/",
+      "domain": "jcmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.dcmmedals.co.uk/product-category/world-medals-and-militaria/",
+      "domain": "dcmmedals.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.agmilitaria.com/shop.php",
+      "domain": "agmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://militaria.co.uk/",
+      "domain": "militaria.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://dragoonmilitaria.com/",
+      "domain": "dragoonmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://thehistorybunker.co.uk/",
+      "domain": "thehistorybunker.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "http://www.militaryantiques.co.uk/",
+      "domain": "militaryantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://a2zmilitarycollectables.co.uk/",
+      "domain": "a2zmilitarycollectables.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://seaforthmilitaria.com/",
+      "domain": "seaforthmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.acsilver.co.uk/shop/pc/buy/military-collectables/",
+      "domain": "acsilver.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://empirespast.com/",
+      "domain": "empirespast.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://cotswoldmilitaryantiques.co.uk/",
+      "domain": "cotswoldmilitaryantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://heartsanddaggers.co.uk/",
+      "domain": "heartsanddaggers.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://antiqurio.co.uk/",
+      "domain": "antiqurio.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://thelanesarmoury.co.uk/",
+      "domain": "thelanesarmoury.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://mjlmilitaria.com/",
+      "domain": "mjlmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.harlandmilitaryantiques.co.uk/ourshop",
+      "domain": "harlandmilitaryantiques.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.treasurebunker.co.uk/?srsltid=AfmBOorW9-BuhsQX62Dp7y36b5dFZp45Fze5u7FUqjpH2A9Bc2AZpAsX",
+      "domain": "treasurebunker.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.spandaumilitariashop.com/",
+      "domain": "spandaumilitariashop.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://hiscoll.com/",
+      "domain": "hiscoll.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.militariaandcollectables.co.uk/",
+      "domain": "militariaandcollectables.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://griffinmilitaria.com/",
+      "domain": "griffinmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.michaeldlong.com/",
+      "domain": "michaeldlong.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://london-medals.co.uk/",
+      "domain": "london-medals.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.ima-usa.com/",
+      "domain": "ima-usa.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://centurionmilitaria.co.uk/shop.php",
+      "domain": "centurionmilitaria.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.coldstreammilitaryantiques.com/",
+      "domain": "coldstreammilitaryantiques.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://worldmilitarycollectables.com/shop.php",
+      "domain": "worldmilitarycollectables.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://militarycollectorshq.com/",
+      "domain": "militarycollectorshq.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://tpowmilitaria.com/",
+      "domain": "tpowmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.jsccollectables.com/",
+      "domain": "jsccollectables.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.walkthisway.co.uk/",
+      "domain": "walkthisway.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://imcsmilitaria.com/shop.php",
+      "domain": "imcsmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.militariadefoerier.com/",
+      "domain": "militariadefoerier.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.theknightshop.com/",
+      "domain": "theknightshop.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.youtube.com/@militarycollectiblesshop",
+      "domain": "youtube.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://tjsmilitaria.co.uk/?srsltid=AfmBOoo1lOp3NqJEZDlJ9U-s1EPDiUbPbLhkRRCJKsBkBGeY55CtjAiC",
+      "domain": "tjsmilitaria.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://worldwarwonders.co.uk/",
+      "domain": "worldwarwonders.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.alansmilitaria.co.uk/",
+      "domain": "alansmilitaria.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.genuinearmysurplus.co.uk/store/WW1-WW2-Collectables-and-Bayonets-c22550590",
+      "domain": "genuinearmysurplus.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.ea-militaria.com/",
+      "domain": "ea-militaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.1944militaria.com/",
+      "domain": "1944militaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.collectiblepawn.co.uk/collections/militaria?srsltid=AfmBOoqHdOc_TkhfcYOZO0FoE997-bTRNflVl-JVR0SvgFh6XJ1bBdIK",
+      "domain": "collectiblepawn.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://war-relics.com/",
+      "domain": "war-relics.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.therupturedduck.com/?srsltid=AfmBOorkq88p0G-GpiFt0_HSTWUHg1ywMXIM1q_aEBB2YR3IZZ4Jefe_",
+      "domain": "therupturedduck.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://hansonsauctioneers.co.uk/department/medals-and-militaria-auctions-at-hansons/",
+      "domain": "hansonsauctioneers.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.gettysburgmuseumofhistory.com/product-category/world-war-ii-militaria/?srsltid=AfmBOorch9VUEDQyIIuNBLzqWKSsnANzJ4rjiqX9uOS3RbiCXn8xqDUu",
+      "domain": "gettysburgmuseumofhistory.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.thewarfront.com/wwii-militaria-for-sale",
+      "domain": "thewarfront.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://britishmilitarybadges.co.uk/where-to-sell-my-war-memorabilia/",
+      "domain": "britishmilitarybadges.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://tankmuseumshop.org/?srsltid=AfmBOopW3PGkT-UVUrUdJ2hIkxCs9ci_UQpeVdfBm2HTd5i1Grix0CAf",
+      "domain": "tankmuseumshop.org",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.militarymart.co.uk/?srsltid=AfmBOoruZxke2XP_oVK8kLDHi13_dKhK96bK5W-n5rkTdrKpZcm3lZsM",
+      "domain": "militarymart.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://bogeyknights.co.uk/",
+      "domain": "bogeyknights.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://goarmy.co.uk/",
+      "domain": "goarmy.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.rokit.co.uk/collections/military",
+      "domain": "rokit.co.uk",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.military1st.co.uk/?srsltid=AfmBOopCBJ3_CCk3n7CEjZgDIjoQENfYZnfo9U44XyYH-2J0GnxTbXDv",
+      "domain": "military1st.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://feltonsarmysurplus.com/",
+      "domain": "feltonsarmysurplus.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://19ujmilitaria.com/",
+      "domain": "19ujmilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://www.militarykit.com/?srsltid=AfmBOopI_9isvDvA2U-gUPPsUH9ADBfgFDT2CqPHQqz1kWblme4F5SMU",
+      "domain": "militarykit.com",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://gocommandolondon.com/",
+      "domain": "gocommandolondon.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://healysoutletstore.co.uk/?srsltid=AfmBOooS9gc6uwqnCL49fKiIRHLxKo_PgAjFJ6acJlu-P1kBwC5mXUeR",
+      "domain": "healysoutletstore.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://www.preppersshop.co.uk/collections/military-surplus?srsltid=AfmBOoqyEnxIjyGthcmO9ZpdPsaSnHqw0SZH3S0uuMMUcOjGkxbjSZ57",
+      "domain": "preppersshop.co.uk",
+      "is_antique_shop": false
+    },
+    {
+      "url": "https://omegamilitaria.com/?srsltid=AfmBOopaego_10I3aIa039J-ISqeoMGI7oqH7xgn35Dke7fLHV1wA1d6",
+      "domain": "omegamilitaria.com",
+      "is_antique_shop": true
+    },
+    {
+      "url": "https://shop.rutlandantiques.co.uk/product-category/collectable-militaria/",
+      "domain": "shop.rutlandantiques.co.uk",
+      "is_antique_shop": true
+    }
+  ]
+}
