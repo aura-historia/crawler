@@ -3,6 +3,7 @@ import csv
 from pathlib import Path
 import logging
 from typing import List, Dict, Set
+import json
 
 from crawl4ai import (
     BrowserConfig,
@@ -260,5 +261,35 @@ async def crawl_batch_parallel(start_urls: List[str]):
 
 
 if __name__ == "__main__":
-    # Example: Run multiple crawl batches in parallel
-    asyncio.run(crawl_batch_parallel([""]))
+    # Load start URLs from scripts/data/antique_shops_urls_domains.json
+    data_file = Path(__file__).parent / "data" / "antique_shops_urls_domains.json"
+    start_urls: List[str] = []
+    if data_file.exists():
+        try:
+            with open(data_file, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            entries = (
+                payload.get("urls_and_domains", []) if isinstance(payload, dict) else []
+            )
+            for entry in entries:
+                try:
+                    if entry.get("is_antique_shop"):
+                        url = entry.get("url")
+                        if url:
+                            start_urls.append(url)
+                except Exception:
+                    continue
+            logging.info(
+                f"Found {len(start_urls)} antique shop start URLs from {data_file}"
+            )
+        except Exception as e:
+            logging.error(f"Failed to read {data_file}: {e}")
+
+    if not start_urls:
+        logging.warning(
+            "No start URLs found in JSON, falling back to an empty string example."
+        )
+        start_urls = [""]
+
+    # Run the parallel crawler with the extracted start URLs
+    asyncio.run(crawl_batch_parallel(start_urls))
