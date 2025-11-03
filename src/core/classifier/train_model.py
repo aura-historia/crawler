@@ -13,7 +13,7 @@ from transformers import (
 from sklearn.metrics import accuracy_score
 import os
 
-df = pd.read_csv("./training_data/training_data.csv")  # CSV columns: url,label
+df = pd.read_csv("training_data/training_data.csv")  # CSV columns: url,label
 
 label_map = {"non-product": 0, "product": 1}
 df["label"] = df["label"].map(label_map)
@@ -28,7 +28,7 @@ val_df = df[train_size:]
 train_dataset = Dataset.from_pandas(train_df)
 val_dataset = Dataset.from_pandas(val_df)
 
-tokenizer = BertTokenizer(vocab_file="./bert_tokenizer/vocab.txt")
+tokenizer = BertTokenizer(vocab_file="bert_tokenizer/vocab.txt")
 
 
 def tokenize(batch):
@@ -42,12 +42,12 @@ train_dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "
 val_dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "label"])
 
 config_kwargs = {"hidden_dropout_prob": 0.2, "vocab_size": 5000}
-config = AutoConfig.from_pretrained("./bert_config/", **config_kwargs)
+config = AutoConfig.from_pretrained("bert_config/", **config_kwargs)
 
 bert_model = AutoModelForMaskedLM.from_config(config)
 bert_model.resize_token_embeddings(config_kwargs["vocab_size"])
 
-bert_dict = torch.load("./bert_model/urlBERT.pt", map_location="cpu")
+bert_dict = torch.load("bert_model/urlBERT.pt", map_location="cpu")
 # Handle possible dict wrappers
 if isinstance(bert_dict, dict) and "model_state_dict" in bert_dict:
     bert_dict = bert_dict["model_state_dict"]
@@ -96,7 +96,7 @@ def compute_metrics(pred):
 
 
 training_args = TrainingArguments(
-    output_dir="./results",
+    output_dir="results",
     num_train_epochs=3,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
@@ -109,7 +109,7 @@ training_args = TrainingArguments(
     metric_for_best_model="accuracy",
     save_total_limit=2,
     seed=42,
-    no_cuda=True,
+    use_cpu=True,
     fp16=False,
 )
 
@@ -126,8 +126,8 @@ trainer = Trainer(
 
 trainer.train()
 
-os.makedirs("./urlbert-product-finetuned", exist_ok=True)
-torch.save(model.state_dict(), "./urlbert-product-finetuned/model.pt")
+os.makedirs("urlbert-product-finetuned", exist_ok=True)
+torch.save(model.state_dict(), "urlbert-product-finetuned/model.pt")
 tokenizer.save_pretrained("./urlbert-product-finetuned")
 
 print("✅ Fine-tuning completed and model saved!")

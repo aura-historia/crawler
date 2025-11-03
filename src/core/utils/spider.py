@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import aiofiles
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 
 from src.core.algorithms.bfs_no_cycle_deep_crawl_strategy import (
@@ -124,6 +124,7 @@ async def crawl_urls(url: str):
     )
 
     config = CrawlerRunConfig(
+        cache_mode=CacheMode.BYPASS,
         deep_crawl_strategy=strategy,
         scraping_strategy=LXMLWebScrapingStrategy(),
         verbose=True,

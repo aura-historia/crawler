@@ -25,14 +25,14 @@ class URLBERTForClassification(nn.Module):
 
 
 config = AutoConfig.from_pretrained(
-    "./bert_config/", vocab_size=5000, hidden_dropout_prob=0.2
+    "bert_config/", vocab_size=5000, hidden_dropout_prob=0.2
 )
 
 # Base Model
 bert_model = AutoModelForMaskedLM.from_config(config)
 bert_model.resize_token_embeddings(5000)
 
-bert_dict = torch.load("./bert_model/urlBERT.pt", map_location="cpu")
+bert_dict = torch.load("bert_model/urlBERT.pt", map_location="cpu")
 if isinstance(bert_dict, dict) and "model_state_dict" in bert_dict:
     bert_dict = bert_dict["model_state_dict"]
 bert_model.load_state_dict(bert_dict, strict=False)
@@ -41,7 +41,7 @@ model = URLBERTForClassification(
     bert_model, num_labels=2, hidden_size=config.hidden_size
 )
 
-checkpoint_path = "./urlbert-product-finetuned"
+checkpoint_path = "urlbert-product-finetuned"
 state_dict = torch.load(f"{checkpoint_path}/model.pt", map_location="cpu")
 
 if isinstance(state_dict, dict) and "model_state_dict" in state_dict:
