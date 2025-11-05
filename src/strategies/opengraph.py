@@ -25,14 +25,14 @@ class OpenGraphExtractor(BaseExtractor):
             return val
 
         og_type = get_val("og:type", "").lower()
-        if og_type != "product":
+        if og_type not in ["product", "article"]:
             return None
 
         # Extract price safely, normalize European decimal commas
         price_str = get_val("product:price:amount") or get_val("og:price:amount")
 
         if not price_str:
-            price_str = "0"
+            return None
 
         price_str = price_str.replace(",", ".").replace(" ", "")
 

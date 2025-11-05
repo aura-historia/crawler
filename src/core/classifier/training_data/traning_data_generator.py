@@ -11,9 +11,8 @@ import csv
 import io
 from pathlib import Path
 import logging
-from typing import List, Dict, Set, Iterable
+from typing import List, Dict, Set, Iterable, Any
 import json
-
 import aiofiles
 from crawl4ai import AsyncWebCrawler
 from extruct import extract as extruct_extract
@@ -28,7 +27,17 @@ logging.basicConfig(
 )
 
 # Batch size for processing shops concurrently
-SHOP_BATCH_SIZE = 10
+SHOP_BATCH_SIZE = 30
+
+
+def get_default_shops_json_path() -> Path:
+    """Return default path to the antique shops JSON file."""
+    return (
+        Path(__file__).parent.parent.parent
+        / "shops_finder"
+        / "data"
+        / "antique_shops_urls_domains.json"
+    )
 
 
 def load_antique_shop_urls(json_path: Path | None = None) -> List[str]:
@@ -48,13 +57,7 @@ def load_antique_shop_urls(json_path: Path | None = None) -> List[str]:
         or malformed, a FileNotFoundError or ValueError is raised.
     """
     if json_path is None:
-        # from src/core/classifier/training_data -> go up to 'core'
-        json_path = (
-            Path(__file__).parent.parent.parent
-            / "shops_finder"
-            / "data"
-            / "antique_shops_urls_domains.json"
-        )
+        json_path = get_default_shops_json_path()
 
     if not json_path.exists():
         raise FileNotFoundError(f"Could not find antique shops JSON at {json_path}")
@@ -78,18 +81,79 @@ def load_antique_shop_urls(json_path: Path | None = None) -> List[str]:
     return urls
 
 
-def _chunked(iterable: Iterable, size: int) -> List[List]:
+async def remove_shop_url_from_json(
+    json_path: Path, shop_url: str, lock: asyncio.Lock
+) -> bool:
+    """Remove an entry with `shop_url` from the JSON file safely using a lock.
+
+    Preserves single-line comment lines starting with '//' at the top of the
+    file (they will be re-attached before the JSON content).
+    Returns True if an entry was removed, False otherwise.
+    """
+    try:
+        async with lock:
+            async with aiofiles.open(json_path, "r", encoding="utf-8") as afp:
+                raw = await afp.read()
+
+            comment_lines = [
+                line for line in raw.splitlines() if line.strip().startswith("//")
+            ]
+            cleaned = "\n".join(
+                line for line in raw.splitlines() if not line.strip().startswith("//")
+            )
+
+            try:
+                payload = json.loads(cleaned)
+            except Exception as exc:
+                logging.error(
+                    f"Failed to parse JSON when removing shop {shop_url}: {exc}"
+                )
+                return False
+
+            urls_list = payload.get("urls_and_domains", [])
+            original_len = len(urls_list)
+            new_list = [item for item in urls_list if item.get("url") != shop_url]
+
+            if len(new_list) == original_len:
+                return False
+
+            payload["urls_and_domains"] = new_list
+            new_json = json.dumps(payload, ensure_ascii=False, indent=2)
+            new_content = (
+                "\n".join(comment_lines + [new_json]) if comment_lines else new_json
+            )
+
+            async with aiofiles.open(json_path, "w", encoding="utf-8") as afp:
+                await afp.write(new_content)
+
+            logging.info(f"Removed shop URL from JSON: {shop_url}")
+            return True
+    except Exception as exc:
+        logging.error(
+            f"Error while removing shop URL {shop_url} from {json_path}: {exc}"
+        )
+        return False
+
+
+def _chunked(iterable: Iterable[Any], size: int) -> List[List[Any]]:
     """Split an iterable into chunks of `size`.
 
-    Args:
-        iterable: Any iterable to chunk.
-        size: Maximum size of each chunk.
-
-    Returns:
-        A list of lists where each inner list is up to `size` elements.
+    Simpler implementation that avoids large slices and complex type hints
+    to keep static analysis quiet.
     """
     it = list(iterable)
-    return [it[i : i + size] for i in range(0, len(it), size)]
+    if size <= 0:
+        return [it]
+    chunks: List[List[Any]] = []
+    current: List[Any] = []
+    for idx, item in enumerate(it, start=1):
+        current.append(item)
+        if len(current) >= size:
+            chunks.append(current)
+            current = []
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 async def process_crawl_result(result) -> Dict:
@@ -171,9 +235,7 @@ async def stream_and_process_shop(
     logging.info(f"Starting streaming crawl for: {start_url}")
 
     try:
-        # crawl_urls now returns an async generator of CrawlResults
         async with AsyncWebCrawler() as crawler:
-            # Use strategy directly to get all discovered URLs
             async for result in await crawler.arun(
                 start_url, config=crawl_config(), dispatcher=crawl_dispatcher()
             ):
@@ -188,8 +250,10 @@ async def stream_and_process_shop(
                 # Add to existing_urls to avoid processing duplicates in the same run
                 existing_urls.add(result.url)
 
+        return True
     except Exception as exc:
         logging.error(f"Error during streaming crawl of {start_url}: {exc}")
+        return False
 
 
 async def writer_task(queue: asyncio.Queue, csv_file_path: Path):
@@ -287,6 +351,8 @@ async def shop_worker(
     result_queue: asyncio.Queue,
     existing_urls: Set[str],
     worker_id: int,
+    json_path: Path,
+    lock: asyncio.Lock,
 ):
     """Worker that continuously processes shops from a queue.
 
@@ -298,6 +364,7 @@ async def shop_worker(
         result_queue: Queue to put crawl results into
         existing_urls: Set of already processed URLs
         worker_id: ID of this worker for logging
+        json_path: Path to the json file with the start urls
     """
     while True:
         try:
@@ -307,8 +374,19 @@ async def shop_worker(
                 break
 
             logging.info(f"[Worker {worker_id}] Starting shop: {shop_url}")
-            await stream_and_process_shop(shop_url, result_queue, existing_urls)
-            logging.info(f"[Worker {worker_id}] Completed shop: {shop_url}")
+            success = await stream_and_process_shop(
+                shop_url, result_queue, existing_urls
+            )
+            logging.info(
+                f"[Worker {worker_id}] Completed shop: {shop_url} (success={success})"
+            )
+
+            if success:
+                removed = await remove_shop_url_from_json(json_path, shop_url, lock)
+                if removed:
+                    logging.info(
+                        f"[Worker {worker_id}] Removed shop from JSON: {shop_url}"
+                    )
 
             shop_queue.task_done()
         except Exception as exc:
@@ -349,11 +427,16 @@ async def crawl_batch_parallel(start_urls: List[str]):
     # Start the writer task
     writer = asyncio.create_task(writer_task(result_queue, csv_file_path))
 
+    lock = asyncio.Lock()
+    json_path = get_default_shops_json_path()
+
     # Start worker pool
     workers = []
     for worker_id in range(SHOP_BATCH_SIZE):
         worker = asyncio.create_task(
-            shop_worker(shop_queue, result_queue, existing_urls, worker_id)
+            shop_worker(
+                shop_queue, result_queue, existing_urls, worker_id, json_path, lock
+            )
         )
         workers.append(worker)
 

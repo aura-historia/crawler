@@ -1,4 +1,3 @@
-aiofiles
 nest-asyncio
 openai
 pydantic
@@ -16,7 +15,7 @@ pytest-cov
 langdetect
 ruff
 pre-commit
-
+aiofiles
 groq
 boto3
 python-dotenv
