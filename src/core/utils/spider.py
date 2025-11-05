@@ -4,7 +4,13 @@ from pathlib import Path
 from typing import Any
 
 import aiofiles
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
+from crawl4ai import (
+    AsyncWebCrawler,
+    CrawlerRunConfig,
+    CacheMode,
+    SemaphoreDispatcher,
+    RateLimiter,
+)
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 
 from src.core.algorithms.bfs_no_cycle_deep_crawl_strategy import (
@@ -86,11 +92,10 @@ def evaluate_urls(urls: list[str]) -> dict[str, Any]:
     return result
 
 
-async def crawl_urls(url: str):
+def crawl_config() -> CrawlerRunConfig:
     """Crawl URLs starting from the given URL using BFSNoCycleDeepCrawlStrategy."""
     strategy = BFSNoCycleDeepCrawlStrategy(
         max_depth=1000,
-        max_pages=10,
         include_external=False,
         exclude_extensions=[
             "jpg",
@@ -127,24 +132,35 @@ async def crawl_urls(url: str):
         cache_mode=CacheMode.BYPASS,
         deep_crawl_strategy=strategy,
         scraping_strategy=LXMLWebScrapingStrategy(),
-        verbose=True,
-        stream=False,
+        verbose=False,
+        stream=True,
         check_robots_txt=True,
         delay_before_return_html=2.0,  # Wait 2 seconds for page to fully load
         mean_delay=3.0,  # Average 3 seconds delay between requests
         max_range=2.0,  # Random delay between 1-5 seconds
     )
 
-    async with AsyncWebCrawler() as crawler:
-        # Use strategy directly to get all discovered URLs
-        discovered = await strategy.arun(start_url=url, crawler=crawler, config=config)
+    return config
 
-        return discovered
+
+def crawl_dispatcher() -> SemaphoreDispatcher:
+    """Create a SemaphoreDispatcher for crawling."""
+    dispatcher = SemaphoreDispatcher(
+        max_session_permit=20,  # Maximum concurrent tasks
+        rate_limiter=RateLimiter(  # Optional rate limiting
+            base_delay=(0.5, 1.0), max_delay=10.0
+        ),
+    )
+
+    return dispatcher
 
 
 async def main(start_url: str):
     print(f"Starting crawl from: {start_url}")
-    discovered = await crawl_urls(start_url)
+    async with AsyncWebCrawler() as crawler:
+        # Use strategy directly to get all discovered URLs
+        async for result in await crawler.arun(start_url, config=crawl_config()):
+            discovered = result
     print(f"\n Done! {len(discovered)} unique URLs found")
 
     script_dir = Path(__file__).resolve().parent
@@ -176,4 +192,4 @@ async def main(start_url: str):
 
 if __name__ == "__main__":
     test_url = ""
-    asyncio.run(main(test_url))
+    asyncio.run()

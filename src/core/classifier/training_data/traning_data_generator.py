@@ -15,15 +15,11 @@ from typing import List, Dict, Set, Iterable
 import json
 
 import aiofiles
-from crawl4ai import (
-    BrowserConfig,
-    CrawlerRunConfig,
-    AsyncWebCrawler,
-)
+from crawl4ai import AsyncWebCrawler
 from extruct import extract as extruct_extract
 from w3lib.html import get_base_url
 
-from src.core.utils.spider import crawl_urls
+from src.core.utils.spider import crawl_config, crawl_dispatcher
 from src.core.utils.standards_extractor import extract_standard
 
 # Setup logging
@@ -31,9 +27,8 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# Batch sizes
-SHOP_BATCH_SIZE = 20
-URL_BATCH_SIZE = 100
+# Batch size for processing shops concurrently
+SHOP_BATCH_SIZE = 10
 
 
 def load_antique_shop_urls(json_path: Path | None = None) -> List[str]:
@@ -97,49 +92,55 @@ def _chunked(iterable: Iterable, size: int) -> List[List]:
     return [it[i : i + size] for i in range(0, len(it), size)]
 
 
-async def crawl_and_process_url(
-    crawler: AsyncWebCrawler, url_to_crawl: str, run_config: CrawlerRunConfig
-) -> Dict:
-    """Crawl a single URL and determine whether it contains product data.
+async def process_crawl_result(result) -> Dict:
+    """Process a CrawlResult and determine whether it contains product data.
 
-    This function uses the provided crawler instance to fetch HTML, then
-    extracts structured data (json-ld, microdata, rdfa, opengraph) and runs
-    the repository's standard extractor.
+    This function extracts structured data (json-ld, microdata, rdfa, opengraph)
+    from the crawl result's HTML and runs the repository's standard extractor.
 
     Args:
-        crawler: An active AsyncWebCrawler instance.
-        url_to_crawl: The target URL to crawl.
-        run_config: CrawlerRunConfig controlling crawler behavior.
+        result: A CrawlResult object from crawl4ai.
 
     Returns:
         A dict with keys: 'url', 'label' ('product', 'non-product', 'failed'),
         and 'status' (either 'success', '429', or an error message).
     """
     try:
-        result = await crawler.arun(url=url_to_crawl, config=run_config)
+        url = result.url
 
+        # Check for rate limiting
         if result.success and "429 Too Many Requests" in (result.html or ""):
-            logging.warning(f"RATE LIMIT: Server returned 429 for {url_to_crawl}")
-            return {"url": url_to_crawl, "label": "failed", "status": "429"}
+            logging.warning(f"RATE LIMIT: Server returned 429 for {url}")
+            return {"url": url, "label": "failed", "status": "429"}
 
-        if result.success:
-            base_url = get_base_url(result.html, result.url)
+        # Process successful crawls
+        if result.success and result.html:
+            # Ensure html is a string (sometimes it can be a list)
+            html_content = result.html
+            if isinstance(html_content, list):
+                html_content = html_content[0] if html_content else ""
+
+            if not html_content or not isinstance(html_content, str):
+                return {"url": url, "label": "failed", "status": "Invalid HTML content"}
+
+            base_url = get_base_url(html_content, result.url)
             structured = extruct_extract(
-                result.html,
+                html_content,
                 base_url=base_url,
                 syntaxes=["json-ld", "microdata", "rdfa", "opengraph"],
             )
 
             extracted_data = await extract_standard(structured, result.url)
             if extracted_data:
-                return {"url": url_to_crawl, "label": "product", "status": "success"}
-            return {"url": url_to_crawl, "label": "non-product", "status": "success"}
+                return {"url": url, "label": "product", "status": "success"}
+            return {"url": url, "label": "non-product", "status": "success"}
 
+        # Handle failed crawls
         logging.error(
-            f"FAILED to crawl {url_to_crawl}: {getattr(result, 'error_message', 'unknown')}"
+            f"FAILED to crawl {url}: {getattr(result, 'error_message', 'unknown')}"
         )
         return {
-            "url": url_to_crawl,
+            "url": url,
             "label": "failed",
             "status": getattr(result, "error_message", "unknown"),
         }
@@ -147,60 +148,51 @@ async def crawl_and_process_url(
     except asyncio.CancelledError:
         raise
     except Exception as exc:
-        logging.error(f"Exception during crawling {url_to_crawl}: {exc}")
-        return {"url": url_to_crawl, "label": "failed", "status": str(exc)}
+        logging.error(f"Exception during processing {result.url}: {exc}")
+        return {"url": result.url, "label": "failed", "status": str(exc)}
 
 
-async def crawl_batch(
+async def stream_and_process_shop(
     start_url: str,
     queue: asyncio.Queue,
     existing_urls: Set[str],
-    run_config: CrawlerRunConfig,
 ):
-    """Crawl URLs discovered from a single start URL and put results into a queue.
+    """Stream crawl results from a shop URL and process them in real-time.
 
-    This function extracts links from `start_url` using `crawl_urls`, filters
-    out already-known URLs, and then crawls targets in bounded batches to
-    limit concurrency.
+    This function uses crawl_urls to stream CrawlResults from start_url,
+    processes each result to determine if it's a product page, and puts
+    the results into a queue for writing.
 
     Args:
         start_url: The base page to scan for product links.
         queue: An asyncio.Queue where results dicts will be placed.
         existing_urls: A set of URLs already present in the CSV (to skip).
-        run_config: CrawlerRunConfig to pass to the crawler when fetching pages.
     """
-    logging.info(f"Starting crawl batch for: {start_url}")
+    logging.info(f"Starting streaming crawl for: {start_url}")
 
     try:
-        urls_list = await crawl_urls(start_url)
-        logging.info(f"Found {len(urls_list)} URLs from {start_url}")
+        # crawl_urls now returns an async generator of CrawlResults
+        async with AsyncWebCrawler() as crawler:
+            # Use strategy directly to get all discovered URLs
+            async for result in await crawler.arun(
+                start_url, config=crawl_config(), dispatcher=crawl_dispatcher()
+            ):
+                if result.url in existing_urls:
+                    logging.debug(f"Skipping duplicate URL: {result.url}")
+                    continue
+
+                # Process the result and put it in the queue
+                processed = await process_crawl_result(result)
+                await queue.put(processed)
+
+                # Add to existing_urls to avoid processing duplicates in the same run
+                existing_urls.add(result.url)
+
     except Exception as exc:
-        logging.error(f"Could not extract URLs from {start_url}: {exc}")
-        return
-
-    urls_to_process = [url for url in urls_list if url not in existing_urls]
-    duplicates_skipped = len(urls_list) - len(urls_to_process)
-    if duplicates_skipped > 0:
-        logging.info(f"Skipping {duplicates_skipped} duplicate URLs for {start_url}")
-
-    if not urls_to_process:
-        logging.info(f"No new URLs to process for {start_url}")
-        return
-
-    browser_config = BrowserConfig(headless=True, verbose=False)
-    async with AsyncWebCrawler(config=browser_config) as crawler:
-        # Process target URLs in bounded batches to avoid creating too many concurrent tasks
-        for batch in _chunked(urls_to_process, URL_BATCH_SIZE):
-            tasks = [crawl_and_process_url(crawler, url, run_config) for url in batch]
-            results = await asyncio.gather(*tasks)
-            for res in results:
-                await queue.put(res)
-            logging.info(f"Completed batch of {len(batch)} URLs for {start_url}")
+        logging.error(f"Error during streaming crawl of {start_url}: {exc}")
 
 
-async def writer_task(
-    queue: asyncio.Queue, csv_file_path: Path, total_urls_to_process: int
-):
+async def writer_task(queue: asyncio.Queue, csv_file_path: Path):
     """Consume results from a queue and append them to a CSV file.
 
     Uses an asynchronous file API (aiofiles) to avoid blocking the event loop.
@@ -208,12 +200,11 @@ async def writer_task(
     Args:
         queue: An asyncio.Queue that receives result dicts from crawlers.
         csv_file_path: Destination CSV file path.
-        total_urls_to_process: Expected total number of new URLs to process (for progress reporting).
 
     Returns:
         A tuple with counts: (product_count, non_product_count, failed_count).
     """
-    fieldnames = ["url", "label"]
+    fieldnames = ["url", "label", "status"]
     file_exists = csv_file_path.exists()
 
     processed_count = 0
@@ -238,15 +229,15 @@ async def writer_task(
                 queue.task_done()
                 break
 
-            csv_label = (
-                "non-product"
-                if result.get("label") == "failed"
-                else result.get("label")
-            )
+            # Determine the label: if failed, mark as "failed", otherwise use the actual label
+            csv_label = result.get("label")
+
+            # Get the status (either "success" or the error message)
+            csv_status = result.get("status", "unknown")
 
             sio = io.StringIO()
             writer = csv.writer(sio)
-            writer.writerow([result.get("url"), csv_label])
+            writer.writerow([result.get("url"), csv_label, csv_status])
             await afp.write(sio.getvalue())
 
             processed_count += 1
@@ -257,9 +248,9 @@ async def writer_task(
             else:  # failed
                 failed_count += 1
 
-            if processed_count % 20 == 0 or processed_count == total_urls_to_process:
+            if processed_count % 20 == 0:
                 logging.info(
-                    f"Progress: {processed_count}/{total_urls_to_process} URLs processed. "
+                    f"Progress: {processed_count} URLs processed. "
                     f"Products: {product_count}, Non-Products: {non_product_count}, Failed: {failed_count}"
                 )
 
@@ -267,60 +258,6 @@ async def writer_task(
 
     logging.info("Writer task finished.")
     return product_count, non_product_count, failed_count
-
-
-async def _extract_all_target_urls(
-    start_urls: List[str], existing_urls: Set[str]
-) -> Set[str]:
-    """Extract target URLs from a list of start/shop URLs in SHOP_BATCH_SIZE batches.
-
-    Args:
-        start_urls: list of shop root pages to scan.
-        existing_urls: set of URLs already present in CSV to avoid duplicates.
-
-    Returns:
-        A set of unique target URLs discovered across all start pages.
-    """
-    all_urls: Set[str] = set()
-    for shop_batch in _chunked(start_urls, SHOP_BATCH_SIZE):
-        tasks = [crawl_urls(url) for url in shop_batch]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for idx, extraction_result in enumerate(results):
-            shop_url = shop_batch[idx]
-            if isinstance(extraction_result, Exception):
-                logging.error(
-                    f"Failed to extract URLs from {shop_url}: {extraction_result}"
-                )
-                continue
-            for url in extraction_result:
-                if url not in existing_urls:
-                    all_urls.add(url)
-        logging.info(
-            f"Processed a batch of {len(shop_batch)} shops; collected {len(all_urls)} unique target URLs so far."
-        )
-    return all_urls
-
-
-async def _process_url_batches(
-    unique_urls: List[str], queue: asyncio.Queue, run_config: CrawlerRunConfig
-):
-    """Crawl a list of URLs using AsyncWebCrawler in URL_BATCH_SIZE batches.
-
-    Args:
-        unique_urls: list of target URLs to crawl.
-        queue: asyncio.Queue to put results into.
-        run_config: CrawlerRunConfig for crawler behavior.
-    """
-    browser_config = BrowserConfig(headless=True, verbose=False)
-    async with AsyncWebCrawler(config=browser_config) as crawler:
-        for url_batch in _chunked(unique_urls, URL_BATCH_SIZE):
-            tasks = [
-                crawl_and_process_url(crawler, url, run_config) for url in url_batch
-            ]
-            crawled_results = await asyncio.gather(*tasks)
-            for res in crawled_results:
-                await queue.put(res)
-            logging.info(f"Completed a URL batch of {len(url_batch)} targets.")
 
 
 async def _read_existing_urls(csv_file_path: Path) -> Set[str]:
@@ -345,60 +282,97 @@ async def _read_existing_urls(csv_file_path: Path) -> Set[str]:
         return set()
 
 
-async def crawl_batch_parallel(start_urls: List[str]):
-    """Orchestrate crawling for multiple start URLs with centralized writing.
+async def shop_worker(
+    shop_queue: asyncio.Queue,
+    result_queue: asyncio.Queue,
+    existing_urls: Set[str],
+    worker_id: int,
+):
+    """Worker that continuously processes shops from a queue.
 
-    This function reads existing URLs from the CSV to avoid duplicates,
-    extracts target URLs from the provided `start_urls` while processing the
-    start URLs in batches of size `SHOP_BATCH_SIZE`, and crawls target URLs in
-    bounded batches of size `URL_BATCH_SIZE` to limit concurrency.
+    As soon as one shop is finished, this worker picks up the next shop
+    from the queue, ensuring maximum throughput.
+
+    Args:
+        shop_queue: Queue containing shop URLs to process
+        result_queue: Queue to put crawl results into
+        existing_urls: Set of already processed URLs
+        worker_id: ID of this worker for logging
+    """
+    while True:
+        try:
+            shop_url = await shop_queue.get()
+            if shop_url is None:  # Sentinel to stop
+                shop_queue.task_done()
+                break
+
+            logging.info(f"[Worker {worker_id}] Starting shop: {shop_url}")
+            await stream_and_process_shop(shop_url, result_queue, existing_urls)
+            logging.info(f"[Worker {worker_id}] Completed shop: {shop_url}")
+
+            shop_queue.task_done()
+        except Exception as exc:
+            logging.error(f"[Worker {worker_id}] Error processing shop: {exc}")
+            shop_queue.task_done()
+
+
+async def crawl_batch_parallel(start_urls: List[str]):
+    """Orchestrate streaming crawl for multiple start URLs with centralized writing.
+
+    This function uses a worker pool approach where SHOP_BATCH_SIZE workers
+    continuously process shops. When a worker finishes a shop, it immediately
+    picks up the next one from the queue, maximizing throughput.
 
     Args:
         start_urls: A list of base pages (shops) to scan for product pages.
     """
-    logging.info(f"Starting PARALLEL crawl for {len(start_urls)} base URLs")
+    logging.info(f"Starting STREAMING crawl for {len(start_urls)} shop URLs")
+    logging.info(f"Using {SHOP_BATCH_SIZE} concurrent workers")
 
     csv_file_path = Path(__file__).parent / "training_data.csv"
     csv_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Read existing URLs from CSV (asynchronously). Avoid pre-assigning to prevent linter unused-variable warning.
+    # Read existing URLs from CSV (asynchronously)
     existing_urls = await _read_existing_urls(csv_file_path)
-
     logging.info(f"Found {len(existing_urls)} existing URLs in CSV.")
 
-    logging.info("Step 1: Extracting all URLs from start pages in batches...")
-    all_urls_to_process = await _extract_all_target_urls(start_urls, existing_urls)
+    # Create queues
+    shop_queue: asyncio.Queue = asyncio.Queue()
+    result_queue: asyncio.Queue = asyncio.Queue()
 
-    total_urls_to_process = len(all_urls_to_process)
-    if total_urls_to_process == 0:
-        logging.info("No new URLs to process across all start URLs. Exiting.")
-        return
+    # Fill the shop queue
+    for shop_url in start_urls:
+        await shop_queue.put(shop_url)
 
-    logging.info(f"Total of {total_urls_to_process} new unique URLs to be crawled.")
-
-    run_config = CrawlerRunConfig(
-        stream=True,
-        check_robots_txt=True,
-        verbose=False,
-        delay_before_return_html=2.0,
-        mean_delay=3.0,
-        max_range=2.0,
-    )
-
-    queue: asyncio.Queue = asyncio.Queue()
+    logging.info(f"Queued {len(start_urls)} shops for processing")
 
     # Start the writer task
-    writer = asyncio.create_task(
-        writer_task(queue, csv_file_path, total_urls_to_process)
-    )
+    writer = asyncio.create_task(writer_task(result_queue, csv_file_path))
 
-    unique_urls_to_crawl = list(all_urls_to_process)
-    logging.info(f"Creating crawl tasks for {len(unique_urls_to_crawl)} URLs.")
+    # Start worker pool
+    workers = []
+    for worker_id in range(SHOP_BATCH_SIZE):
+        worker = asyncio.create_task(
+            shop_worker(shop_queue, result_queue, existing_urls, worker_id)
+        )
+        workers.append(worker)
 
-    await _process_url_batches(unique_urls_to_crawl, queue, run_config)
+    logging.info(f"Started {len(workers)} workers")
+
+    # Wait for all shops to be processed
+    await shop_queue.join()
+    logging.info("All shops processed by workers")
+
+    # Stop workers
+    for _ in range(SHOP_BATCH_SIZE):
+        await shop_queue.put(None)
+
+    # Wait for workers to finish
+    await asyncio.gather(*workers)
+    logging.info("All workers stopped")
 
     # Signal the writer that we are done
-    await queue.put(None)
+    await result_queue.put(None)
 
     # Wait for the writer to finish and collect counts
     product_count, non_product_count, failed_count = await writer
@@ -428,4 +402,4 @@ async def crawl_batch_parallel(start_urls: List[str]):
 
 
 if __name__ == "__main__":
-    asyncio.run(crawl_batch_parallel(load_antique_shop_urls()))
+    asyncio.run(crawl_batch_parallel(load_antique_shop_urls()[20:]))

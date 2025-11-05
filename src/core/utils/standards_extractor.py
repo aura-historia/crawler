@@ -149,7 +149,6 @@ async def extract_standard(
 
     for extractor in extractors:
         result = await extractor.extract(data, url)
-        print(f"Extractor '{extractor.name}' result: {result}")
         if not is_valid_product(result):
             continue
 
@@ -170,29 +169,37 @@ async def extract_standard(
     if isinstance(combined_result, dict):
         for key in ["title", "description"]:
             text = combined_result.get(key, {}).get("text", "")
+            # Ensure text is a string, not a list
+            if isinstance(text, list):
+                text = " ".join(str(t) for t in text if t)
             if (
                 combined_result.get(key, {}).get("language") == "UNKNOWN"
                 and text
                 and text != "UNKNOWN"
+                and isinstance(text, str)
             ):
                 try:
                     lang = detect(text)
                     combined_result[key]["language"] = lang
-                except LangDetectException:
+                except (LangDetectException, Exception):
                     pass  # Ignore if language cannot be detected
     elif isinstance(combined_result, list):
         for product in combined_result:
             for key in ["title", "description"]:
                 text = product.get(key, {}).get("text", "")
+                # Ensure text is a string, not a list
+                if isinstance(text, list):
+                    text = " ".join(str(t) for t in text if t)
                 if (
                     product.get(key, {}).get("language") == "UNKNOWN"
                     and text
                     and text != "UNKNOWN"
+                    and isinstance(text, str)
                 ):
                     try:
                         lang = detect(text)
                         product[key]["language"] = lang
-                    except LangDetectException:
+                    except (LangDetectException, Exception):
                         pass  # Ignore if language cannot be detected
 
     return combined_result

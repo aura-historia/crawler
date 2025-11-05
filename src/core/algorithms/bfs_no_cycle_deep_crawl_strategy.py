@@ -1,20 +1,19 @@
-from typing import List, Set, Dict, Tuple, Optional, Iterable
+from typing import List, Set, Dict, Tuple, Optional, Iterable, AsyncGenerator
 import logging
 from urllib.parse import urlparse
 import fnmatch
 from crawl4ai import BFSDeepCrawlStrategy, AsyncWebCrawler, CrawlerRunConfig
+from crawl4ai.types import CrawlResult
 from crawl4ai.utils import normalize_url_for_deep_crawl
 
 
 class BFSNoCycleDeepCrawlStrategy(BFSDeepCrawlStrategy):
     """
-    BFS-based deep crawl strategy that avoids cycles and returns the full set
-    of discovered links for the website.
+    BFS-based deep crawl strategy that ensures no cycles occur.
 
     Differences from `BFSDeepCrawlStrategy`:
     - Ensures each normalized URL is visited at most once (no cycles).
-    - Returns a flat list of discovered URLs when running in batch mode.
-    - In streaming mode yields discovered URLs as they are found.
+    - Uses a visited set that is checked before enqueueing any URL.
 
     Added features:
     - exclude_extensions: iterable of file extensions (e.g. ['jpg','pdf']) to skip
@@ -95,101 +94,197 @@ class BFSNoCycleDeepCrawlStrategy(BFSDeepCrawlStrategy):
         """Simple wildcard matcher for URL patterns (case-insensitive)."""
         return fnmatch.fnmatch(url.lower(), pattern.lower())
 
-    async def _process_result_links(
+    async def link_discovery(
         self,
-        result,
-        depths: Dict[str, int],
+        result: CrawlResult,
+        source_url: str,
+        current_depth: int,
         visited: Set[str],
-        discovered: Set[str],
         next_level: List[Tuple[str, Optional[str]]],
+        depths: Dict[str, int],
     ) -> None:
-        """Process links from a single crawl result and append valid ones to next_level.
-
-        This helper extracts links, normalizes them, checks duplication and filters,
-        and updates visited/discovered/depths accordingly.
         """
-        source = result.url
-        depth = depths.get(source, 0)
-
-        # Only process successful results
-        if not result.success:
-            return
-
-        links = result.links.get("internal", [])[:]
-        if self.include_external:
-            links += result.links.get("external", [])
-
-        next_depth = depth + 1
+        Extracts links from the crawl result, validates and filters them, and
+        prepares the next level of URLs. Ensures no cycles by checking visited set.
+        Each valid URL is appended to next_level as a tuple (url, parent_url)
+        and its depth is tracked.
+        """
+        next_depth = current_depth + 1
         if next_depth > self.max_depth:
             return
+
+        # Check if we've reached the max pages limit
+        remaining_capacity = self.max_pages - self._pages_crawled
+        if remaining_capacity <= 0:
+            self.logger.info(
+                f"Max pages limit ({self.max_pages}) reached, stopping link discovery"
+            )
+            return
+
+        # Get internal links and, if enabled, external links
+        links = result.links.get("internal", [])
+        if self.include_external:
+            links += result.links.get("external", [])
 
         for link in links:
             raw = link.get("href")
             if not raw:
                 continue
-            normalized = normalize_url_for_deep_crawl(raw, source)
+
+            # Quick filter: skip non-HTTP(S) schemes early (tel:, mailto:, sms:, etc.)
+            try:
+                parsed = urlparse(raw)
+                if parsed.scheme and parsed.scheme not in ("http", "https", ""):
+                    continue
+            except Exception:
+                continue
+
+            normalized = normalize_url_for_deep_crawl(raw, source_url)
 
             # Skip already visited to avoid cycles
             if normalized in visited:
                 continue
 
-            # Validate URL using parent method and additional filters
+            # Validate URL using can_process_url (includes extension/pattern filters)
             if not await self.can_process_url(normalized, next_depth):
                 self.stats.urls_skipped += 1
                 continue
 
+            # Mark as visited immediately to prevent cycles
             visited.add(normalized)
-            discovered.add(normalized)
             depths[normalized] = next_depth
-            next_level.append((normalized, source))
+            next_level.append((normalized, source_url))
 
     async def _arun_batch(
         self,
         start_url: str,
         crawler: AsyncWebCrawler,
         config: CrawlerRunConfig,
-    ) -> List[str]:
+    ) -> List[CrawlResult]:
         """
-        Batch mode: performs a BFS and returns a list of discovered URLs (strings)
-        without cycles.
+        Batch (non-streaming) mode:
+        Processes one BFS level at a time, then returns all the results.
+        Ensures no cycles by maintaining a visited set.
         """
         visited: Set[str] = set()
-        discovered: Set[str] = set()
+        # current_level holds tuples: (url, parent_url)
+        current_level: List[Tuple[str, Optional[str]]] = [(start_url, None)]
+        depths: Dict[str, int] = {start_url: 0}
 
-        # Normalize start URL and seed
-        start_norm = normalize_url_for_deep_crawl(start_url, start_url)
-        current_level: List[Tuple[str, Optional[str]]] = [(start_norm, None)]
-        depths: Dict[str, int] = {start_norm: 0}
-        visited.add(start_norm)
-        discovered.add(start_norm)
+        results: List[CrawlResult] = []
 
         while current_level and not self._cancel_event.is_set():
-            # Stop if we've crawled enough pages
+            # Check if we've already reached max_pages before starting a new level
             if self._pages_crawled >= self.max_pages:
+                self.logger.info(
+                    f"Max pages limit ({self.max_pages}) reached, stopping crawl"
+                )
                 break
 
             next_level: List[Tuple[str, Optional[str]]] = []
             urls = [url for url, _ in current_level]
 
-            # Clone config to avoid recursive deep crawling; use batch mode.
+            # Clone the config to disable deep crawling recursion and enforce batch mode
             batch_config = config.clone(deep_crawl_strategy=None, stream=False)
             batch_results = await crawler.arun_many(urls=urls, config=batch_config)
 
-            # Count successful crawls
+            # Update pages crawled counter - count only successful crawls
             successful_results = [r for r in batch_results if r.success]
             self._pages_crawled += len(successful_results)
 
-            # Process each result via helper to keep complexity low
             for result in batch_results:
-                await self._process_result_links(
-                    result, depths, visited, discovered, next_level
+                url = result.url
+                depth = depths.get(url, 0)
+                result.metadata = result.metadata or {}
+                result.metadata["depth"] = depth
+                parent_url = next(
+                    (parent for (u, parent) in current_level if u == url), None
+                )
+                result.metadata["parent_url"] = parent_url
+                results.append(result)
+
+                # Only discover links from successful crawls
+                if result.success:
+                    # Link discovery will handle the max pages limit internally
+                    await self.link_discovery(
+                        result, url, depth, visited, next_level, depths
+                    )
+
+            current_level = next_level
+
+        return results
+
+    async def _arun_stream(
+        self,
+        start_url: str,
+        crawler: AsyncWebCrawler,
+        config: CrawlerRunConfig,
+    ) -> AsyncGenerator[CrawlResult, None]:
+        """
+        Streaming mode:
+        Processes one BFS level at a time and yields results immediately as they arrive.
+        Ensures no cycles by maintaining a visited set.
+        """
+        visited: Set[str] = set()
+        current_level: List[Tuple[str, Optional[str]]] = [(start_url, None)]
+        depths: Dict[str, int] = {start_url: 0}
+
+        while current_level and not self._cancel_event.is_set():
+            next_level: List[Tuple[str, Optional[str]]] = []
+            urls = [url for url, _ in current_level]
+            visited.update(urls)
+
+            stream_config = config.clone(deep_crawl_strategy=None, stream=True)
+            stream_gen = await crawler.arun_many(urls=urls, config=stream_config)
+
+            # Keep track of processed results for this batch
+            results_count = 0
+            async for result in stream_gen:
+                url = result.url
+                depth = depths.get(url, 0)
+                result.metadata = result.metadata or {}
+                result.metadata["depth"] = depth
+                parent_url = next(
+                    (parent for (u, parent) in current_level if u == url), None
+                )
+                result.metadata["parent_url"] = parent_url
+
+                # Count only successful crawls
+                if result.success:
+                    self._pages_crawled += 1
+                    # Check if we've reached the limit during batch processing
+                    if self._pages_crawled >= self.max_pages:
+                        self.logger.info(
+                            f"Max pages limit ({self.max_pages}) reached during batch, stopping crawl"
+                        )
+                        yield result
+                        return  # Exit the generator
+
+                results_count += 1
+                yield result
+
+                # Only discover links from successful crawls
+                if result.success:
+                    # Link discovery will handle the max pages limit internally
+                    await self.link_discovery(
+                        result, url, depth, visited, next_level, depths
+                    )
+
+            # If we didn't get results back (e.g. due to errors), avoid getting stuck in an infinite loop
+            # by considering these URLs as visited but not counting them toward the max_pages limit
+            if results_count == 0 and urls:
+                self.logger.warning(
+                    f"No results returned for {len(urls)} URLs, marking as visited"
                 )
 
             current_level = next_level
 
-        # Return the discovered links as a list
-        return list(discovered)
-
     async def shutdown(self) -> None:
+        """
+        Clean up resources and signal cancellation of the crawl.
+        """
         self._cancel_event.set()
-        self.stats.end_time = None
+        if self.stats:
+            from datetime import datetime
+
+            self.stats.end_time = datetime.now()
