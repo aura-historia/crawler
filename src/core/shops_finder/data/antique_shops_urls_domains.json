@@ -139,11 +139,6 @@
       "is_antique_shop": true
     },
     {
-      "url": "https://www.ebay.de/b/Antiquitaten-Kunst/353/bn_1845163?srsltid=AfmBOooh0Ra03RlKwffTKNU0IoUwk6JTrLJTHbyyRE4seBVyUQrqVqH0",
-      "domain": "ebay.de",
-      "is_antique_shop": true
-    },
-    {
       "url": "https://oldthing.de/",
       "domain": "oldthing.de",
       "is_antique_shop": true
@@ -1134,11 +1129,6 @@
       "is_antique_shop": false
     },
     {
-      "url": "https://www.amazon.de/Alptraum-Kriegserinnerungen-Aufzeichnungen-einfachen-Soldaten/dp/3752859377",
-      "domain": "amazon.de",
-      "is_antique_shop": false
-    },
-    {
       "url": "https://www.verlagsdruckerei-schmidt.de/kriegserinnerungen-in-europaeischen-heimaten/",
       "domain": "verlagsdruckerei-schmidt.de",
       "is_antique_shop": false
@@ -1251,11 +1241,6 @@
     {
       "url": "https://www.nwzonline.de/wilhelmshaven/90-geburtstag-in-wilhelmshaven-reinhard-rolke-blickt-auf-kriegserinnerungen-und-neuanfang-zurueck_a_4,2,2593357106.html",
       "domain": "nwzonline.de",
-      "is_antique_shop": false
-    },
-    {
-      "url": "https://www.amazon.in/Meine-Kriegserinnerungen-1914-1918-Classic-Reprint/dp/1396802274",
-      "domain": "amazon.in",
       "is_antique_shop": false
     },
     {
@@ -1886,11 +1871,6 @@
     {
       "url": "https://www.thewarehouseantiques.co.uk/",
       "domain": "thewarehouseantiques.co.uk",
-      "is_antique_shop": true
-    },
-    {
-      "url": "https://www.ebay.co.uk/b/bn_1838549",
-      "domain": "ebay.co.uk",
       "is_antique_shop": true
     },
     {
