@@ -304,6 +304,11 @@ async def writer_task(queue: asyncio.Queue, csv_file_path: Path):
             writer.writerow([result.get("url"), csv_label, csv_status])
             await afp.write(sio.getvalue())
 
+            try:
+                await afp.flush()
+            except Exception as exc:
+                logging.error(f"Error flushing to CSV file: {exc}")
+
             processed_count += 1
             if result.get("label") == "product":
                 product_count += 1
