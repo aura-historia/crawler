@@ -10,8 +10,10 @@ from crawl4ai import (
     CacheMode,
     SemaphoreDispatcher,
     RateLimiter,
+    MemoryAdaptiveDispatcher,
 )
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
+from crawl4ai.types import CrawlerMonitor, DisplayMode
 
 from src.core.algorithms.bfs_no_cycle_deep_crawl_strategy import (
     BFSNoCycleDeepCrawlStrategy,
@@ -135,21 +137,18 @@ def crawl_config() -> CrawlerRunConfig:
         verbose=False,
         stream=True,
         check_robots_txt=True,
-        delay_before_return_html=2.0,  # Wait 2 seconds for page to fully load
-        mean_delay=3.0,  # Average 3 seconds delay between requests
-        max_range=2.0,  # Random delay between 1-5 seconds
     )
 
     return config
 
 
-def crawl_dispatcher() -> SemaphoreDispatcher:
+def crawl_dispatcher() -> MemoryAdaptiveDispatcher:
     """Create a SemaphoreDispatcher for crawling."""
-    dispatcher = SemaphoreDispatcher(
-        max_session_permit=20,  # Maximum concurrent tasks
-        rate_limiter=RateLimiter(  # Optional rate limiting
-            base_delay=(0.5, 1.0), max_delay=10.0
-        ),
+    dispatcher = MemoryAdaptiveDispatcher(
+        memory_threshold_percent=85.0,  # Auto-throttle at 80% memory
+        check_interval=0.5,  # Check every 0.5 seconds
+        max_session_permit=100,  # Max concurrent sessions
+        rate_limiter=RateLimiter(base_delay=(0.5, 1.0), max_delay=20.0),
     )
 
     return dispatcher
