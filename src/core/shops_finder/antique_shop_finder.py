@@ -92,7 +92,7 @@ def _enrich_analysis_results(batch_analysis):
 
 
 def _deduplicate_by_domain(results):
-    """Deduplicate results by domain, keeping highest confidence score."""
+    """Deduplicate results by domain"""
     unique_results_by_domain = {}
 
     for r in results:
