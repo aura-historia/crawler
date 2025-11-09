@@ -166,7 +166,8 @@ class BFSNoCycleDeepCrawlStrategy(BFSDeepCrawlStrategy):
         Processes one BFS level at a time, then returns all the results.
         Ensures no cycles by maintaining a visited set.
         """
-        visited: Set[str] = set()
+        # Initialize visited with the start URL so it isn't re-scheduled
+        visited: Set[str] = {start_url}
         # current_level holds tuples: (url, parent_url)
         current_level: List[Tuple[str, Optional[str]]] = [(start_url, None)]
         depths: Dict[str, int] = {start_url: 0}
@@ -183,6 +184,10 @@ class BFSNoCycleDeepCrawlStrategy(BFSDeepCrawlStrategy):
 
             next_level: List[Tuple[str, Optional[str]]] = []
             urls = [url for url, _ in current_level]
+
+            # Mark all URLs in the current level as visited immediately so
+            # link discovery from this level won't re-enqueue them (prevents cycles)
+            visited.update(urls)
 
             # Clone the config to disable deep crawling recursion and enforce batch mode
             batch_config = config.clone(deep_crawl_strategy=None, stream=False)

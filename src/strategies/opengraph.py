@@ -32,7 +32,7 @@ class OpenGraphExtractor(BaseExtractor):
         price_str = get_val("product:price:amount") or get_val("og:price:amount")
 
         if not price_str:
-            return None
+            price_str = "0"
 
         price_str = price_str.replace(",", ".").replace(" ", "")
 
