@@ -3,7 +3,7 @@ import asyncio
 import nest_asyncio
 import streamlit as st
 import json
-import requests
+from crawl4ai import BrowserConfig, CrawlerRunConfig, CacheMode, AsyncWebCrawler
 from extruct import extract as extruct_extract
 from w3lib.html import get_base_url
 from src.app.extractor import parse_schema
@@ -11,7 +11,8 @@ from src.core.utils.standards_extractor import extract_standard
 
 # --- Windows asyncio fix ---
 if sys.platform.startswith("win"):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    # Use ProactorEventLoopPolicy for subprocess support (required by Playwright)
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 nest_asyncio.apply()
 
 st.set_page_config(page_title="🕸️ Web Data Extractor", page_icon="🕸️", layout="wide")
@@ -67,34 +68,33 @@ def display_json_sections(data: dict):
 
 
 async def extract_and_display_standards(url: str):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-    }
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    html = response.text
-    base_url = get_base_url(html, url)
-    data = extruct_extract(
-        html,
-        base_url=base_url,
-        syntaxes=[
-            "microdata",
-            "opengraph",
-            "json-ld",
-            "microformat",
-            "rdfa",
-            "dublincore",
-        ],
+    browser_config = BrowserConfig(headless=True, verbose=False)
+    run_config = CrawlerRunConfig(
+        cache_mode=CacheMode.BYPASS, stream=False, check_robots_txt=True, verbose=True
     )
 
-    # Zuerst das Endergebnis anzeigen
+    async with AsyncWebCrawler(config=browser_config) as crawler:
+        result = await crawler.arun(url=url, config=run_config)
+        if result.success:
+            base_url = get_base_url(result.html, result.url)
+            html = result.html
+            data = extruct_extract(
+                html,
+                base_url=base_url,
+                syntaxes=[
+                    "microdata",
+                    "opengraph",
+                    "json-ld",
+                    "rdfa",
+                ],
+            )
+
     st.subheader("✅ Schritt 1: Kombiniertes Endergebnis (Produkt)")
     result = await extract_standard(
         data, url, preferred=["microdata", "json-ld", "rdfa", "opengraph"]
     )
     st.code(beautify_json(result), language="json")
 
-    # Danach die Rohdaten pro Syntax anzeigen
     st.subheader("🔍 Schritt 2: Extrahierte Rohdaten pro Syntax")
     display_json_sections(data)
 

@@ -246,12 +246,15 @@ class TestBFSNoCycleDeepCrawlStrategy:
         )
 
         # Verify BFS: all URLs discovered
-        assert "https://example.com" in result
-        assert "https://example.com/page1" in result
-        assert "https://example.com/page2" in result
-        assert "https://example.com/page3" in result
-        assert "https://example.com/page4" in result
-        assert len(result) == 5
+        # Extract URLs from CrawlResult objects
+        urls = [r.url for r in result]
+
+        assert "https://example.com" in urls
+        assert "https://example.com/page1" in urls
+        assert "https://example.com/page2" in urls
+        assert "https://example.com/page3" in urls
+        assert "https://example.com/page4" in urls
+        assert len(urls) == 5
 
     @pytest.mark.asyncio
     async def test_no_cycles_prevents_revisiting_urls(self):
@@ -306,8 +309,11 @@ class TestBFSNoCycleDeepCrawlStrategy:
         )
 
         # Verify results
-        assert len(result) == 3
-        assert set(result) == {
+        # Extract URLs from CrawlResult objects
+        urls = [r.url for r in result]
+
+        assert len(urls) == 3
+        assert set(urls) == {
             "https://example.com",
             "https://example.com/page1",
             "https://example.com/page2",
