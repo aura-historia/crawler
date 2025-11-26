@@ -193,8 +193,6 @@ def _detect_language(text: str) -> str:
         return "UNKNOWN"
 
     # Handle list-type text
-    if isinstance(text, list):
-        text = " ".join(str(t) for t in text if t)
 
     try:
         return detect(text)
