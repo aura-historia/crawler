@@ -177,7 +177,6 @@ class BaseExtractor(ABC):
 
         Returns:
             First value found, or default if none
-            "value"
         """
         if not isinstance(data, dict):
             return default
