@@ -117,6 +117,7 @@ class BaseExtractor(ABC):
             )
             price_spec["amount"] = cents
         except (InvalidOperation, ValueError, TypeError):
+            # If price cannot be parsed, fallback to default amount=0
             pass
 
         return price_spec
