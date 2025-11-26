@@ -53,7 +53,7 @@ class BaseExtractor(ABC):
             item_id: Product identifier (SKU, product ID, etc.)
             title: Product title/name
             description: Product description
-            price: Product price (can be floated, int, or string)
+            price: Product price (can be float, int, or string)
             currency: Currency code (e.g., "EUR", "USD")
             availability: Availability status string
             url: Product URL
