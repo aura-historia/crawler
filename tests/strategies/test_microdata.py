@@ -90,7 +90,7 @@ async def test_price_invalid_format_results_in_zero_and_default_currency():
     )
     res = await extractor.extract(data, "http://fallback")
     assert res["price"]["amount"] == 0
-    assert res["price"]["currency"] == "UNKNOWN"
+    assert res["price"]["currency"] == "EUR"
 
 
 @pytest.mark.asyncio

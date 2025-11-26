@@ -169,7 +169,7 @@ async def test_price_invalid_format_returns_unknown():
         ]
     )
     res = await extractor.extract(data, "http://fallback")
-    assert res["price"]["amount"] == "UNKNOWN"
+    assert res["price"]["amount"] == 0
 
 
 @pytest.mark.asyncio

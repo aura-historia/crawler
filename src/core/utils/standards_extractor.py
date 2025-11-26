@@ -1,140 +1,247 @@
 import asyncio
+from typing import Optional, Dict, Any, List
 from langdetect import detect, LangDetectException
 from src.strategies.registry import EXTRACTORS
 import aiohttp
 from extruct import extract as extruct_extract
 
 
-def is_valid_product(extracted) -> bool:
-    """Accepts a single product or a list of products."""
-    if not extracted:
+def is_valid_product(product: Optional[Dict[str, Any]]) -> bool:
+    """
+    Check if a product dictionary contains valid data.
+
+    A product is considered valid if it has a non-empty title text.
+
+    Args:
+        product: Product dictionary to validate
+
+    Returns:
+        True if product has valid title text, False otherwise
+    """
+    if not product or not isinstance(product, dict):
         return False
-    if isinstance(extracted, list):
-        return any(is_valid_product(item) for item in extracted)
-    # Single product
-    if extracted.get("title", {}).get("text"):
-        return True
-    return False
+    return bool(product.get("title", {}).get("text"))
 
 
-def merge_products(base: dict, new: dict) -> dict:
+def merge_products(base: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, Any]:
     """
     Merge two product dictionaries.
-    Keeps existing values in `base` and fills in missing ones from `new`.
-    If both have nested dicts, merges them recursively.
-    Also deduplicates images by URL.
+
+    Keeps existing values in base and fills in missing ones from new.
+    Handles special merging logic for specific fields like price and images.
+
+    Args:
+        base: Base product dictionary to merge into
+        new: New product dictionary with additional data
+
+    Returns:
+        Merged product dictionary with combined data from both inputs
+
+    Note:
+        - Prefers non-URL item IDs over URLs
+        - Merges price amounts and currencies intelligently
+        - Deduplicates images while preserving order
+        - Fills in missing text fields and language codes
     """
     merged = dict(base)
+
     for key, value in new.items():
-        # Special case for shopsItemId: prefer value without URL if available
         if key == "shopsItemId":
-            if (
-                merged.get(key, "").startswith("http")
-                and value
-                and not value.startswith("http")
-            ):
-                merged[key] = value
-            elif not merged.get(key) or merged.get(key) in ["", "UNKNOWN"]:
-                merged[key] = value
-        # Price merge
-        elif key == "price" and isinstance(value, dict):
-            merged_price = dict(merged.get("price", {}))
-
-            new_amount = value.get("amount")
-            if isinstance(new_amount, (int, float)) and new_amount > 0:
-                merged_price["amount"] = new_amount
-            elif "amount" not in merged_price:
-                merged_price["amount"] = new_amount or 0
-
-            new_currency = value.get("currency")
-            if new_currency and new_currency not in ["", "UNKNOWN"]:
-                merged_price["currency"] = new_currency
-            elif "currency" not in merged_price:
-                merged_price["currency"] = new_currency or "UNKNOWN"
-
-            merged[key] = merged_price
-        # Recursive merge for dicts
-        elif isinstance(value, dict):
-            merged[key] = merge_products(merged.get(key, {}), value)
-        # Deduplicate images
-        elif isinstance(value, list) and key == "images":
-            existing_urls = set()
-            new_images = []
-
-            # Ensure merged[key] is a list, not a string like "UNKNOWN"
-            existing_images = merged.get(key, [])
-            if not isinstance(existing_images, list):
-                existing_images = []
-                merged[key] = []
-
-            for img in existing_images:
-                if isinstance(img, dict) and img.get("url"):
-                    existing_urls.add(img["url"])
-                elif isinstance(img, str):
-                    existing_urls.add(img)
-            for img in value:
-                url = (
-                    img["url"]
-                    if isinstance(img, dict) and img.get("url")
-                    else img
-                    if isinstance(img, str)
-                    else None
-                )
-                if url and url not in existing_urls:
-                    new_images.append(img)
-                    existing_urls.add(url)
-            merged.setdefault(key, []).extend(new_images)
-        # Replace "" or UNKNOWN with valid value
-        elif value not in ["", "UNKNOWN", 0] and (
-            merged.get(key) in ["", "UNKNOWN", 0] or not merged.get(key)
-        ):
+            merged[key] = _merge_item_id(merged.get(key, ""), value)
+        elif key == "price":
+            merged[key] = _merge_price(merged.get(key, {}), value)
+        elif key == "images":
+            merged[key] = _merge_images(merged.get(key, []), value)
+        elif key in ("title", "description"):
+            merged[key] = _merge_text_field(merged.get(key, {}), value)
+        elif _is_empty_value(merged.get(key)) and not _is_empty_value(value):
             merged[key] = value
+
+    return merged
+
+
+def _merge_item_id(existing: str, new: str) -> str:
+    """
+    Merge item IDs, preferring non-URL IDs.
+
+    Args:
+        existing: Current item ID
+        new: New item ID to merge
+
+    Returns:
+        Preferred item ID (non-URL if available)
+    """
+    if existing.startswith("http") and new and not new.startswith("http"):
+        return new
+    return new if _is_empty_value(existing) else existing
+
+
+def _merge_price(existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Merge price dictionaries, preferring valid amounts and currencies.
+
+    Args:
+        existing: Current price dictionary
+        new: New price dictionary to merge
+
+    Returns:
+        Merged price dictionary with the best available amount and currency
+    """
+    if not isinstance(new, dict):
+        return existing
+
+    merged = dict(existing)
+
+    amount = new.get("amount")
+    if isinstance(amount, (int, float)) and amount > 0:
+        merged["amount"] = amount
+    elif "amount" not in merged:
+        merged["amount"] = amount or 0
+
+    currency = new.get("currency")
+    if currency and currency not in ("", "UNKNOWN"):
+        merged["currency"] = currency
+    elif "currency" not in merged:
+        merged["currency"] = currency or "UNKNOWN"
+
     return merged
 
 
-def are_products_equal(p1: dict, p2: dict) -> bool:
+def _merge_images(existing: List[str], new: List[str]) -> List[str]:
     """
-    Check if two products are likely the same.
-    Comparison is based on title text or product URL if available.
+    Deduplicate and merge image lists.
+
+    Args:
+        existing: Current list of image URLs
+        new: New list of image URLs to add
+
+    Returns:
+        Combined list with duplicates removed, preserving order
     """
-    title1 = (p1.get("title") or {}).get("text", "").strip().lower()
-    title2 = (p2.get("title") or {}).get("text", "").strip().lower()
-    url1 = (p1.get("url") or "").strip().lower()
-    url2 = (p2.get("url") or "").strip().lower()
+    if not isinstance(new, list):
+        new = [new] if new else []
+    if not isinstance(existing, list):
+        existing = [existing] if existing else []
 
-    if url1 and url2:
-        return url1 == url2
-    if title1 and title2:
-        return title1 == title2
-    return False
+    seen = set(existing)
+    result = list(existing)
+
+    for img in new:
+        if img and img not in seen:
+            result.append(img)
+            seen.add(img)
+
+    return result
 
 
-def merge_product_lists(list1: list[dict], list2: list[dict]) -> list[dict]:
+def _merge_text_field(existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Merge two product lists.
-    - Products that look identical are merged.
-    - Unique ones are added.
-    """
-    merged = list(list1)
+    Merge text fields (title/description), preferring valid text and languages.
 
-    for new_item in list2:
-        found = False
-        for i, existing_item in enumerate(merged):
-            if are_products_equal(existing_item, new_item):
-                merged[i] = merge_products(existing_item, new_item)
-                found = True
-                break
-        if not found:
-            merged.append(new_item)
+    Args:
+        existing: Current text field dictionary
+        new: New text field dictionary to merge
+
+    Returns:
+        Merged text field with the best available text and language
+    """
+    if not isinstance(new, dict):
+        return existing
+
+    merged = dict(existing)
+
+    text = new.get("text")
+    if text and text != "UNKNOWN":
+        if not merged.get("text") or merged.get("text") == "UNKNOWN":
+            merged["text"] = text
+
+    language = new.get("language")
+    if language and language != "UNKNOWN":
+        if not merged.get("language") or merged.get("language") == "UNKNOWN":
+            merged["language"] = language
 
     return merged
+
+
+def _is_empty_value(value: Any) -> bool:
+    """
+    Check if a value is considered empty.
+
+    Args:
+        value: Value to check
+
+    Returns:
+        True if value is empty (None, "", "UNKNOWN", 0, or empty dict), False otherwise
+    """
+    return value in ("", "UNKNOWN", 0, None) or (isinstance(value, dict) and not value)
+
+
+def _detect_language(text: str) -> str:
+    """
+    Detect language of text, return UNKNOWN on failure.
+
+    Args:
+        text: Text string to analyze
+
+    Returns:
+        Two-letter language code (e.g., "en", "de") or "UNKNOWN"
+
+    Note:
+        Uses langdetect library for detection. Returns "UNKNOWN" if detection fails.
+    """
+    if not text or not isinstance(text, str) or text == "UNKNOWN":
+        return "UNKNOWN"
+
+    # Handle list-type text
+
+    try:
+        return detect(text)
+    except (LangDetectException, Exception):
+        return "UNKNOWN"
+
+
+def _apply_language_detection(product: Dict[str, Any]) -> None:
+    """
+    Apply language detection to title and description if needed.
+
+    Modifies the product dictionary in-place, updating language fields
+    that are set to "UNKNOWN".
+
+    Args:
+        product: Product dictionary to update
+    """
+    for key in ("title", "description"):
+        field = product.get(key, {})
+        if isinstance(field, dict) and field.get("language") == "UNKNOWN":
+            text = field.get("text", "")
+            detected = _detect_language(text)
+            if detected != "UNKNOWN":
+                field["language"] = detected
 
 
 async def extract_standard(
-    data: dict, url: str, preferred: list[str] | None = None
-) -> dict | list[dict] | None:
+    data: Dict[str, Any], url: str, preferred: Optional[List[str]] = None
+) -> Optional[Dict[str, Any]]:
     """
-    Combines results from multiple extractors to create the most complete and deduplicated product data possible.
+    Combine results from multiple extractors to create complete product data.
+
+    Iterates through registered extractors (optionally in preferred order) and
+    merges their results into a single comprehensive product dictionary.
+
+    Args:
+        data: Dictionary containing structured data from extruct
+        url: The URL of the page being processed
+        preferred: Optional list of extractor names in order of preference
+                  (e.g., ["json-ld", "microdata", "rdfa", "opengraph"])
+
+    Returns:
+        Single product dictionary with merged data from all extractors,
+        or None if no valid product found
+
+    Note:
+        - Extractors are tried in preferred order if specified
+        - Results are merged intelligently, preserving the best available data
+        - Language detection is applied as fallback for UNKNOWN languages
     """
     extractors = EXTRACTORS
     if preferred:
@@ -145,74 +252,41 @@ async def extract_standard(
             else len(preferred),
         )
 
-    combined_result = None
+    combined: Optional[Dict[str, Any]] = None
 
     for extractor in extractors:
         result = await extractor.extract(data, url)
         if not is_valid_product(result):
             continue
 
-        if combined_result is None:
-            combined_result = result
+        if combined is None:
+            combined = result
         else:
-            # Merge logic for different result types
-            if isinstance(combined_result, list) and isinstance(result, list):
-                combined_result = merge_product_lists(combined_result, result)
-            elif isinstance(combined_result, dict) and isinstance(result, dict):
-                combined_result = merge_products(combined_result, result)
-            elif isinstance(combined_result, list) and isinstance(result, dict):
-                combined_result = merge_product_lists(combined_result, [result])
-            elif isinstance(combined_result, dict) and isinstance(result, list):
-                combined_result = merge_product_lists([combined_result], result)
+            combined = merge_products(combined, result)
 
-    # Fallback language detection
-    if isinstance(combined_result, dict):
-        for key in ["title", "description"]:
-            text = combined_result.get(key, {}).get("text", "")
-            # Ensure text is a string, not a list
-            if isinstance(text, list):
-                text = " ".join(str(t) for t in text if t)
-            if (
-                combined_result.get(key, {}).get("language") == "UNKNOWN"
-                and text
-                and text != "UNKNOWN"
-                and isinstance(text, str)
-            ):
-                try:
-                    lang = detect(text)
-                    combined_result[key]["language"] = lang
-                except (LangDetectException, Exception):
-                    pass  # Ignore if language cannot be detected
-    elif isinstance(combined_result, list):
-        for product in combined_result:
-            for key in ["title", "description"]:
-                text = product.get(key, {}).get("text", "")
-                # Ensure text is a string, not a list
-                if isinstance(text, list):
-                    text = " ".join(str(t) for t in text if t)
-                if (
-                    product.get(key, {}).get("language") == "UNKNOWN"
-                    and text
-                    and text != "UNKNOWN"
-                    and isinstance(text, str)
-                ):
-                    try:
-                        lang = detect(text)
-                        product[key]["language"] = lang
-                    except (LangDetectException, Exception):
-                        pass  # Ignore if language cannot be detected
+    if combined:
+        _apply_language_detection(combined)
 
-    return combined_result
+    return combined
 
 
 async def single_url(url: str):
-    """Fetch a product page and test extraction with all registered extractors."""
+    """
+    Fetch a product page and test extraction with all registered extractors.
+
+    This function is primarily for testing and debugging purposes.
+
+    Args:
+        url: URL of the product page to extract
+
+    Note:
+        Prints the final combined product result to console.
+    """
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
             html = await resp.text()
             base_url = str(resp.url)
 
-    # Run extruct to collect all structured data syntaxes
     data = extruct_extract(
         html,
         base_url=base_url,

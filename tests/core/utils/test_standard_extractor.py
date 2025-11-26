@@ -3,8 +3,6 @@ from src.core.utils.standards_extractor import (
     extract_standard,
     is_valid_product,
     merge_products,
-    are_products_equal,
-    merge_product_lists,
 )
 
 
@@ -315,54 +313,3 @@ def test_merge_products_handles_string_images():
     merged = merge_products(base, new)
     assert isinstance(merged["images"], list)
     assert "http://example.com/image.jpg" in merged["images"]
-
-
-def test_are_products_equal_by_url():
-    """Test product equality check by URL."""
-    p1 = {"url": "http://example.com/product1"}
-    p2 = {"url": "http://example.com/product1"}
-    assert are_products_equal(p1, p2) is True
-
-
-def test_are_products_equal_by_title():
-    """Test product equality check by title."""
-    p1 = {"title": {"text": "Product Name"}}
-    p2 = {"title": {"text": "Product Name"}}
-    assert are_products_equal(p1, p2) is True
-
-
-def test_are_products_not_equal():
-    """Test that different products are not equal."""
-    p1 = {"title": {"text": "Product A"}}
-    p2 = {"title": {"text": "Product B"}}
-    assert are_products_equal(p1, p2) is False
-
-
-def test_merge_product_lists_merges_identical():
-    """Test that identical products in lists are merged."""
-    list1 = [
-        {
-            "title": {"text": "Product A"},
-            "price": {"amount": 100, "currency": "EUR"},
-        }
-    ]
-    list2 = [
-        {
-            "title": {"text": "Product A"},
-            "description": {"text": "Description"},
-            "state": "AVAILABLE",
-        }
-    ]
-    merged = merge_product_lists(list1, list2)
-    assert len(merged) == 1
-    assert merged[0]["title"]["text"] == "Product A"
-    assert merged[0]["price"]["amount"] == 100
-    assert merged[0]["description"]["text"] == "Description"
-
-
-def test_merge_product_lists_adds_unique():
-    """Test that unique products are added to the list."""
-    list1 = [{"title": {"text": "Product A"}}]
-    list2 = [{"title": {"text": "Product B"}}]
-    merged = merge_product_lists(list1, list2)
-    assert len(merged) == 2
