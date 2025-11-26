@@ -11,12 +11,6 @@ class MicrodataExtractor(BaseExtractor):
 
     name = "microdata"
 
-    PRODUCT_TYPES = {
-        "http://schema.org/Product",
-        "https://schema.org/Product",
-        "http://data-vocabulary.org/Product",
-    }
-
     async def extract(self, data: dict, url: str) -> Optional[Dict[str, Any]]:
         """
         Extract product data from microdata structure.
