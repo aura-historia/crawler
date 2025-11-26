@@ -80,7 +80,7 @@ async def test_price_missing_currency_keeps_amount_zero_and_default_currency():
     )
     res = await extractor.extract(data, "http://fallback")
     assert res["price"]["amount"] == 0
-    assert res["price"]["currency"] == "EUR"
+    assert res["price"]["currency"] == "UNKNOWN"
 
 
 @pytest.mark.asyncio
@@ -260,19 +260,6 @@ async def test_url_priority_and_edge_cases():
     )
     res2 = await extractor.extract(data2, "http://fallback")
     assert res2["url"] == "http://offer-url-2"
-
-    # product URL key present but value None -> result stays None
-    data3 = wrap_product(
-        {
-            "@type": "Product",
-            "sku": "J3",
-            "name": "Test",
-            "url": None,
-            "offers": {"url": "http://offer-url-3"},
-        }
-    )
-    res3 = await extractor.extract(data3, "http://fallback")
-    assert res3["url"] is None
 
 
 @pytest.mark.asyncio

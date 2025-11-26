@@ -1,83 +1,57 @@
-from typing import Optional
-from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from typing import Optional, Dict, Any
 from .base import BaseExtractor
-from ..core.utils.availability_normalizer import map_availability_to_state
 
 
 class MicrodataExtractor(BaseExtractor):
+    """
+    Extractor for Microdata structured data format.
+
+    Handles Schema.org Microdata and data-vocabulary.org product markup.
+    """
+
     name = "microdata"
 
-    async def extract(self, data: dict, url: str) -> Optional[dict]:
-        def find_products(data):
-            products = []
-            if isinstance(data, dict):
-                if data.get("type", data.get("@type")) in [
-                    "http://schema.org/Product",
-                    "https://schema.org/Product",
-                    "http://data-vocabulary.org/Product",
-                ]:
-                    products.append(data)
-                for v in data.values():
-                    products.extend(find_products(v))
-            elif isinstance(data, list):
-                for item in data:
-                    products.extend(find_products(item))
-            return products
+    PRODUCT_TYPES = {
+        "http://schema.org/Product",
+        "https://schema.org/Product",
+        "http://data-vocabulary.org/Product",
+    }
 
-        products = find_products(data.get("microdata", []))
+    async def extract(self, data: dict, url: str) -> Optional[Dict[str, Any]]:
+        """
+        Extract product data from microdata structure.
+
+        Args:
+            data: Dictionary containing structured data with 'microdata' key
+            url: The URL of the page being processed
+
+        Returns:
+            Standardized product dictionary or None if no product found
+        """
+        products = self._find_product_items(
+            data.get("microdata", []), type_keys=["type", "@type"]
+        )
         if not products:
             return None
 
         product = products[0]
         props = product.get("properties", {})
+        offers = self._normalize_offers(props.get("offers", {}))
 
-        # Handle offers
-        offers = props.get("offers", {})
-        if isinstance(offers, dict) and "properties" in offers:
-            offers = offers["properties"]
-        elif isinstance(offers, list):
-            offers = offers[0].get("properties", offers[0]) if offers else {}
-        if not isinstance(offers, dict):
-            offers = {}
+        # URL priority: offers.url > props.url > fallback url
+        product_url = offers.get("url")
+        if not product_url:
+            product_url = props.get("url", url)
 
-        price_spec = {"currency": "UNKNOWN", "amount": 0}
-        try:
-            price = offers.get("price")
-            currency = offers.get("priceCurrency")
-            if price is not None:
-                cents = int(
-                    (Decimal(str(price)) * 100).quantize(
-                        Decimal("1"), rounding=ROUND_HALF_UP
-                    )
-                )
-                price_spec["amount"] = cents
-            if currency:
-                price_spec["currency"] = currency
-        except (InvalidOperation, ValueError, TypeError):
-            pass
-
-        state = map_availability_to_state(offers.get("availability"))
-
-        # Images
-        images = props.get("image", [])
-        if not isinstance(images, list):
-            images = [images] if images else []
-
-        images = list(dict.fromkeys(images))
-
-        # Return structured product
-        return {
-            "shopsItemId": str(props.get("sku") or props.get("productID", url)),
-            "title": {
-                "text": props.get("name", ""),
-                "language": props.get("inLanguage", "UNKNOWN"),
-            },
-            "description": {
-                "text": (props.get("description") or "UNKNOWN").strip(),
-                "language": props.get("inLanguage", "UNKNOWN"),
-            },
-            "price": price_spec,
-            "state": state,
-            "url": offers.get("url", props.get("url", url)),
-            "images": images,
-        }
+        return self._build_product_dict(
+            item_id=self._safe_get(props, "sku") or self._safe_get(props, "productID"),
+            title=self._safe_get(props, "name"),
+            description=self._safe_get(props, "description"),
+            price=self._safe_get(offers, "price"),
+            currency=self._safe_get(offers, "priceCurrency"),
+            availability=self._safe_get(offers, "availability"),
+            url=product_url,
+            images=self._safe_get(props, "image"),
+            language=self._safe_get(props, "inLanguage", default="UNKNOWN")
+            or "UNKNOWN",
+        )
