@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from typing import Optional, Dict, Any, List
 
 import boto3
@@ -14,7 +15,8 @@ class SQSClient:
     The instance stores a default queue name (self.name) and a cached
     SQS Queue object (self.queue). Each method accepts an optional name argument
     to override the default queue name. When no name is provided the instance
-    default is used; if neither is available a ValueError is raised.
+    default is used; if neither is available a ValueError is raised. Access to the
+    cached queue is synchronized so the client can be safely shared across threads.
     """
 
     def __init__(self, name: str, attributes: Dict[str, str]):
@@ -30,13 +32,13 @@ class SQSClient:
         self.sqs = session.resource("sqs", region_name=region_name)
         self.name = name
         self.queue = None
+        self._queue_lock = threading.Lock()
         queue_attributes = attributes or {}
 
         try:
-            self.queue = self.sqs.get_queue_by_name(QueueName=self.name)
-            logger.info(
-                "Cached default queue '%s' with URL=%s", self.name, self.queue.url
-            )
+            queue = self.sqs.get_queue_by_name(QueueName=self.name)
+            self._cache_default_queue(queue)
+            logger.info("Cached default queue '%s' with URL=%s", self.name, queue.url)
         except ClientError as error:
             error_code = error.response.get("Error", {}).get("Code", "")
             if error_code in {
@@ -47,12 +49,13 @@ class SQSClient:
                     "Default queue '%s' not found during init; attempting to create it",
                     self.name,
                 )
-                self.queue = self.sqs.create_queue(
+                queue = self.sqs.create_queue(
                     QueueName=self.name,
                     Attributes=queue_attributes,
                 )
+                self._cache_default_queue(queue)
                 logger.info(
-                    "Cached default queue '%s' with URL=%s", self.name, self.queue.url
+                    "Cached default queue '%s' with URL=%s", self.name, queue.url
                 )
             else:
                 logger.exception(
@@ -60,6 +63,11 @@ class SQSClient:
                     self.name,
                 )
                 raise
+
+    def _cache_default_queue(self, queue):
+        """Store the default queue reference under a lock to keep cache access thread-safe."""
+        with self._queue_lock:
+            self.queue = queue
 
     def create_queue(
         self, attributes: Optional[Dict[str, str]] = None, name: Optional[str] = None
@@ -86,9 +94,8 @@ class SQSClient:
         try:
             queue = self.sqs.create_queue(QueueName=queue_name, Attributes=attributes)
             logger.info("Created queue '%s' with URL=%s", queue_name, queue.url)
-            # If this was the client's default name, cache the queue object
             if queue_name == self.name:
-                self.queue = queue
+                self._cache_default_queue(queue)
         except ClientError as error:
             logger.exception("Couldn't create queue named '%s'.", queue_name)
             raise error
@@ -112,9 +119,8 @@ class SQSClient:
         try:
             queue = self.sqs.get_queue_by_name(QueueName=queue_name)
             logger.info("Got queue '%s' with URL=%s", queue_name, queue.url)
-            # cache default queue if applicable
             if queue_name == self.name:
-                self.queue = queue
+                self._cache_default_queue(queue)
         except ClientError as error:
             logger.exception("Couldn't get queue named %s.", queue_name)
             raise error
@@ -128,8 +134,11 @@ class SQSClient:
             raise ValueError(
                 "Queue name must be provided either per call or via the default"
             )
-        if not name and self.queue is not None:
-            return self.queue
+        if not name:
+            with self._queue_lock:
+                cached_queue = self.queue
+            if cached_queue is not None:
+                return cached_queue
         return self.get_queue(queue_name)
 
     def get_queues(self, prefix: Optional[str] = None) -> List[Any]:
@@ -162,9 +171,10 @@ class SQSClient:
         try:
             queue.delete()
             logger.info("Deleted queue with URL=%s.", queue.url)
-            # if this was the cached default queue, clear it
-            if getattr(self.queue, "url", None) == getattr(queue, "url", None):
-                self.queue = None
+            if queue is not None:
+                with self._queue_lock:
+                    if getattr(self.queue, "url", None) == getattr(queue, "url", None):
+                        self.queue = None
         except ClientError as error:
             logger.exception(
                 "Couldn't delete queue with URL=%s!", getattr(queue, "url", "<unknown>")
@@ -308,10 +318,11 @@ class SQSClient:
                         "Could not delete %s",
                         messages[int(msg_meta["Id"])].receipt_handle,
                     )
-        except ClientError:
+        except ClientError as error:
             logger.exception(
                 "Couldn't delete messages from queue %s",
                 getattr(queue, "url", "<unknown>"),
             )
+            raise error
         else:
             return response
