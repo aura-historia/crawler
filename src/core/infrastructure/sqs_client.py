@@ -98,8 +98,9 @@ class SQSClient:
         try:
             queue = self.sqs.create_queue(QueueName=queue_name, Attributes=attributes)
             logger.info("Created queue '%s' with URL=%s", queue_name, queue.url)
-            if queue_name == self.name:
-                self._cache_default_queue(queue)
+            with self._queue_lock:
+                if queue_name == self.name:
+                    self.queue = queue
         except ClientError as error:
             logger.exception("Couldn't create queue named '%s'.", queue_name)
             raise error
