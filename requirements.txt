@@ -1,3 +1,4 @@
+botocore
 aiohttp
 nest-asyncio
 openai
