@@ -122,8 +122,9 @@ class SQSClient:
         try:
             queue = self.sqs.get_queue_by_name(QueueName=queue_name)
             logger.info("Got queue '%s' with URL=%s", queue_name, queue.url)
-            if queue_name == self.name:
-                self._cache_default_queue(queue)
+            with self._queue_lock:
+                if queue_name == self.name:
+                    self.queue = queue
         except ClientError as error:
             logger.exception("Couldn't get queue named %s.", queue_name)
             raise error
@@ -173,10 +174,9 @@ class SQSClient:
         try:
             queue.delete()
             logger.info("Deleted queue with URL=%s.", queue.url)
-            if queue is not None:
-                with self._queue_lock:
-                    if getattr(self.queue, "url", None) == getattr(queue, "url", None):
-                        self.queue = None
+            with self._queue_lock:
+                if getattr(self.queue, "url", None) == getattr(queue, "url", None):
+                    self.queue = None
         except ClientError as error:
             logger.exception(
                 "Couldn't delete queue with URL=%s!", getattr(queue, "url", "<unknown>")
