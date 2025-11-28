@@ -33,7 +33,6 @@ class SQSClient:
         self.name = name
         self.queue = None
         self._queue_lock = threading.Lock()
-        queue_attributes = attributes or {}
 
         try:
             queue = self.sqs.get_queue_by_name(QueueName=self.name)
@@ -51,7 +50,7 @@ class SQSClient:
                 )
                 queue = self.sqs.create_queue(
                     QueueName=self.name,
-                    Attributes=queue_attributes,
+                    Attributes=attributes or {},
                 )
                 self._cache_default_queue(queue)
                 logger.info(
@@ -69,6 +68,13 @@ class SQSClient:
         with self._queue_lock:
             self.queue = queue
 
+    def _resolve_queue_name(self, override: Optional[str], error_message: str) -> str:
+        """Return the provided queue name or the default, raising when neither is set."""
+        queue_name = override or self.name
+        if not queue_name:
+            raise ValueError(error_message)
+        return queue_name
+
     def create_queue(
         self, attributes: Optional[Dict[str, str]] = None, name: Optional[str] = None
     ):
@@ -84,12 +90,10 @@ class SQSClient:
         if attributes is None:
             attributes = {}
 
-        queue_name = name or self.name
-
-        if not queue_name:
-            raise ValueError(
-                "Queue name must be provided either as an argument or as the client's default name"
-            )
+        queue_name = self._resolve_queue_name(
+            name,
+            "Queue name must be provided either as an argument or as the client's default name",
+        )
 
         try:
             queue = self.sqs.create_queue(QueueName=queue_name, Attributes=attributes)
@@ -110,12 +114,10 @@ class SQSClient:
                      instance default name is used.
         :return: A Queue object.
         """
-        queue_name = name or self.name
-
-        if not queue_name:
-            raise ValueError(
-                "Queue name must be provided either as an argument or as the client's default name"
-            )
+        queue_name = self._resolve_queue_name(
+            name,
+            "Queue name must be provided either as an argument or as the client's default name",
+        )
         try:
             queue = self.sqs.get_queue_by_name(QueueName=queue_name)
             logger.info("Got queue '%s' with URL=%s", queue_name, queue.url)
@@ -129,11 +131,10 @@ class SQSClient:
 
     def _get_active_queue(self, name: Optional[str] = None):
         """Return a cached queue if possible, otherwise fetch it by name."""
-        queue_name = name or self.name
-        if not queue_name:
-            raise ValueError(
-                "Queue name must be provided either per call or via the default"
-            )
+        queue_name = self._resolve_queue_name(
+            name,
+            "Queue name must be provided either per call or via the default",
+        )
         if not name:
             with self._queue_lock:
                 cached_queue = self.queue
@@ -181,19 +182,25 @@ class SQSClient:
             )
             raise error
 
-    def send_message(self, message_body, message_attributes=None):
+    def send_message(
+        self,
+        message_body,
+        message_attributes=None,
+        name: Optional[str] = None,
+    ):
         """
         Send a message to an Amazon SQS queue.
 
         :param message_body: The body text of the message.
         :param message_attributes: Custom attributes of the message. These are key-value
                                    pairs that can be whatever you want.
+        :param name: Optional queue name override. Defaults to the cached queue.
         :return: The response from SQS that contains the assigned message ID.
         """
         if not message_attributes:
             message_attributes = {}
 
-        queue = self._get_active_queue()
+        queue = self._get_active_queue(name=name)
         try:
             response = queue.send_message(
                 MessageBody=message_body, MessageAttributes=message_attributes
@@ -204,7 +211,7 @@ class SQSClient:
         else:
             return response
 
-    def send_messages(self, messages):
+    def send_messages(self, messages, name: Optional[str] = None):
         """
         Send a batch of messages in a single request to an SQS queue.
         This request may return overall success even when some messages were not sent.
@@ -213,6 +220,7 @@ class SQSClient:
 
         :param messages: The messages to send to the queue. These are simplified to
                          contain only the message body and attributes.
+        :param name: Optional queue name override. Defaults to the cached queue.
         :return: The response from SQS that contains the list of successful and failed
                  messages.
         """
@@ -225,7 +233,7 @@ class SQSClient:
                 }
                 for ind, msg in enumerate(messages)
             ]
-            queue = self._get_active_queue()
+            queue = self._get_active_queue(name=name)
             response = queue.send_messages(Entries=entries)
             if "Successful" in response:
                 for msg_meta in response["Successful"]:
@@ -247,7 +255,12 @@ class SQSClient:
         else:
             return response
 
-    def receive_messages(self, max_number, wait_time):
+    def receive_messages(
+        self,
+        max_number,
+        wait_time,
+        name: Optional[str] = None,
+    ):
         """
         Receive a batch of messages in a single request from an SQS queue.
 
@@ -256,11 +269,12 @@ class SQSClient:
         :param wait_time: The maximum time to wait (in seconds) before returning. When
                           this number is greater than zero, long polling is used. This
                           can result in reduced costs and fewer false empty responses.
+        :param name: Optional queue name override. Defaults to the cached queue.
         :return: The list of Message objects received. These each contain the body
                  of the message and metadata and custom attributes.
         """
         try:
-            messages = self._get_active_queue().receive_messages(
+            messages = self._get_active_queue(name=name).receive_messages(
                 MessageAttributeNames=["All"],
                 MaxNumberOfMessages=max_number,
                 WaitTimeSeconds=wait_time,
@@ -289,11 +303,12 @@ class SQSClient:
             logger.exception("Couldn't delete message: %s", message.message_id)
             raise error
 
-    def delete_messages(self, messages):
+    def delete_messages(self, messages, name: Optional[str] = None):
         """
         Delete a batch of messages from the default queue in a single request.
 
         :param messages: The list of messages to delete.
+        :param name: Optional queue name override. Defaults to the cached queue.
         :return: The response from SQS that contains the list of successful and failed
                  message deletions.
         """
@@ -305,7 +320,7 @@ class SQSClient:
                 {"Id": str(ind), "ReceiptHandle": msg.receipt_handle}
                 for ind, msg in enumerate(messages)
             ]
-            queue = self._get_active_queue()
+            queue = self._get_active_queue(name=name)
             response = queue.delete_messages(Entries=entries)
             if "Successful" in response:
                 for msg_meta in response["Successful"]:
