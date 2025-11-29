@@ -3,9 +3,11 @@ import os
 from typing import List, Optional
 
 from botocore.exceptions import ClientError
+from dotenv import load_dotenv
 
 from src.core.database.models import ShopMetadata, URLEntry, get_dynamodb_client
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 
@@ -75,6 +77,50 @@ class DynamoDBOperations:
             raise
         except Exception as e:
             logger.error(f"Error getting URL entry for {url}: {e}")
+            raise
+
+    def get_product_urls_by_domain(self, domain: str) -> List[str]:
+        """
+        Get all product URLs for a given domain.
+
+        Args:
+            domain: Shop domain
+
+        Returns:
+            List of product URLs
+        """
+        urls = []
+        last_evaluated_key = None
+
+        try:
+            while True:
+                query_args = {
+                    "TableName": self.table_name,
+                    "KeyConditionExpression": "PK = :pk AND begins_with(SK, :sk_prefix)",
+                    "FilterExpression": "is_product = :is_product",
+                    "ExpressionAttributeValues": {
+                        ":pk": {"S": f"SHOP#{domain}"},
+                        ":sk_prefix": {"S": "URL#"},
+                        ":is_product": {"BOOL": True},
+                    },
+                }
+                if last_evaluated_key:
+                    query_args["ExclusiveStartKey"] = last_evaluated_key
+
+                response = self.client.query(**query_args)
+                urls.extend([item["url"]["S"] for item in response.get("Items", [])])
+
+                last_evaluated_key = response.get("LastEvaluatedKey")
+                if not last_evaluated_key:
+                    break
+            return urls
+        except ClientError as e:
+            logger.error(f"Error querying product URLs for {domain}: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"An unexpected error occurred while querying product URLs for {domain}: {e}"
+            )
             raise
 
     # ==================== BatchWriteItem Operations ====================

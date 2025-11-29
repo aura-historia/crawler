@@ -386,3 +386,103 @@ class TestGlobalInstance:
         """Test that instance has client configured."""
         assert hasattr(db_operations, "client")
         assert hasattr(db_operations, "table_name")
+
+
+class TestGetProductUrls:
+    """Tests for get_product_urls_by_domain (refactored to match project test style)."""
+
+    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.database.operations.os.getenv")
+    def test_get_product_urls_single_page(self, mock_getenv, mock_get_client):
+        mock_getenv.return_value = "test-table"
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        mock_client.query.return_value = {
+            "Items": [
+                {"url": {"S": "https://a.com/p1"}, "is_product": {"BOOL": True}},
+                {"url": {"S": "https://a.com/p2"}, "is_product": {"BOOL": True}},
+            ]
+        }
+
+        ops = DynamoDBOperations()
+
+        urls = ops.get_product_urls_by_domain("a.com")
+
+        assert urls == ["https://a.com/p1", "https://a.com/p2"]
+        mock_client.query.assert_called_once()
+        called_kwargs = mock_client.query.call_args.kwargs
+        assert called_kwargs["TableName"] == "test-table"
+        assert ":pk" in called_kwargs.get("ExpressionAttributeValues", {})
+        assert "FilterExpression" in called_kwargs
+
+    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.database.operations.os.getenv")
+    def test_get_product_urls_multiple_pages(self, mock_getenv, mock_get_client):
+        mock_getenv.return_value = "test-table"
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        mock_client.query.side_effect = [
+            {
+                "Items": [{"url": {"S": "https://b.com/p1"}}],
+                "LastEvaluatedKey": {"PK": {"S": "x"}},
+            },
+            {"Items": [{"url": {"S": "https://b.com/p2"}}]},
+        ]
+
+        ops = DynamoDBOperations()
+        urls = ops.get_product_urls_by_domain("b.com")
+
+        assert urls == ["https://b.com/p1", "https://b.com/p2"]
+        assert mock_client.query.call_count == 2
+
+    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.database.operations.os.getenv")
+    def test_get_product_urls_filters_only_products(self, mock_getenv, mock_get_client):
+        mock_getenv.return_value = "test-table"
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        # Simulate DynamoDB already applying the filter; we still assert the FilterExpression was provided.
+        mock_client.query.return_value = {
+            "Items": [
+                {"url": {"S": "https://c.com/p1"}, "is_product": {"BOOL": True}},
+            ]
+        }
+
+        ops = DynamoDBOperations()
+        urls = ops.get_product_urls_by_domain("c.com")
+
+        assert urls == ["https://c.com/p1"]
+        called_kwargs = mock_client.query.call_args.kwargs
+        assert "FilterExpression" in called_kwargs
+        assert ":is_product" in called_kwargs.get("ExpressionAttributeValues", {})
+
+    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.database.operations.os.getenv")
+    def test_get_product_urls_handles_empty(self, mock_getenv, mock_get_client):
+        mock_getenv.return_value = "test-table"
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        mock_client.query.return_value = {"Items": []}
+
+        ops = DynamoDBOperations()
+        urls = ops.get_product_urls_by_domain("d.com")
+        assert urls == []
+
+    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.database.operations.os.getenv")
+    def test_get_product_urls_client_error(self, mock_getenv, mock_get_client):
+        mock_getenv.return_value = "test-table"
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        mock_client.query.side_effect = ClientError(
+            {"Error": {"Message": "boom"}}, "Query"
+        )
+
+        ops = DynamoDBOperations()
+        with pytest.raises(ClientError):
+            ops.get_product_urls_by_domain("e.com")
