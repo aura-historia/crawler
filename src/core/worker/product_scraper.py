@@ -139,7 +139,7 @@ async def crawl_streaming(urls: List[str], batch_size: int = 500) -> None:
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
         # `arun_many` yields results as they become available
-        result_generator = await crawler.arun_many(
+        result_generator = crawler.arun_many(
             urls=urls, config=run_config, dispatcher=dispatcher
         )
         async for result in result_generator:
@@ -246,6 +246,7 @@ async def main(n_shops: int = 1, batch_size: int = 10) -> None:
         signal.signal(signal.SIGTERM, signal_handler)
     except Exception as e:
         logger.debug("Could not register signal handlers: %s", e)
+        raise
 
     watcher_task = asyncio.create_task(spot_termination_watcher())
 
@@ -270,7 +271,7 @@ async def main(n_shops: int = 1, batch_size: int = 10) -> None:
         try:
             await watcher_task
         except asyncio.CancelledError:
-            logger.debug("Watcher task cancelled during shutdown")
+            logger.debug("Watcher task cancelled during shutdown; continuing shutdown")
             raise
 
     logger.info("Worker shutting down.")

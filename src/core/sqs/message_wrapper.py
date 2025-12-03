@@ -1,5 +1,7 @@
+import json
 import logging
 import os
+from typing import Optional, Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -156,3 +158,30 @@ def delete_messages(queue, messages):
         raise error
     else:
         return response
+
+
+def parse_message_body(message: Any) -> tuple[Optional[str], Optional[str]]:
+    """
+    Parse the JSON body of an SQS message produced by this project.
+
+    :param message: An object representing an SQS message with a `body` attribute.
+    :return Tuple of domain, next_url where either value can be None if absent.
+
+    """
+    try:
+        body = json.loads(getattr(message, "body", "{}"))
+        return body.get("domain"), body.get("next")
+    except json.JSONDecodeError as e:
+        logger.exception(
+            "Failed to parse message body (invalid JSON): %s; body=%s",
+            e,
+            getattr(message, "body", None),
+        )
+        return None, None
+    except (TypeError, AttributeError) as e:
+        logger.exception(
+            "Unexpected error parsing message body (type/attr issue): %s; body=%s",
+            e,
+            getattr(message, "body", None),
+        )
+        return None, None
