@@ -14,7 +14,7 @@ from src.core.sqs.message_wrapper import (
     delete_message,
     parse_message_body,
 )
-from src.core.sqs.queue_wrapper import get_queue, create_queue
+from src.core.sqs.queue_wrapper import get_queue
 from src.core.utils.send_items import send_items
 from src.core.utils.spider import build_product_scraper_components
 from src.core.utils.standards_extractor import extract_standard
@@ -28,11 +28,12 @@ logger = logging.getLogger(__name__)
 ScrapedData = Dict[str, Any]
 
 QUEUE_NAME = os.getenv("SQS_QUEUE_NAME")
-queue = get_queue(QUEUE_NAME)
-if not queue:
-    queue = create_queue(QUEUE_NAME)
-    logger.info(f"Queue {QUEUE_NAME} not found.")
-    raise ResourceWarning
+try:
+    queue = get_queue(QUEUE_NAME)
+except ClientError as e:
+    logger.info(e)
+    raise e
+
 
 current_message: Optional[Any] = None
 
@@ -68,6 +69,8 @@ def signal_handler(signum: int, frame) -> None:
             )
 
 
+# Placeholder for the implementation of the logic of the spot termination watcher, that
+# checks periodically if the EC2 instance is going to be shut down by AWS
 async def spot_termination_watcher(check_interval: int = 30):
     while True:
         await asyncio.sleep(check_interval)
