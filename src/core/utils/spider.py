@@ -73,19 +73,11 @@ def crawl_dispatcher() -> MemoryAdaptiveDispatcher:
     return dispatcher
 
 
-def build_product_scraper_components() -> Tuple[
-    BrowserConfig, CrawlerRunConfig, MemoryAdaptiveDispatcher
-]:
+def build_product_scraper_components() -> Tuple[BrowserConfig, CrawlerRunConfig]:
     """
     Build and return the crawler configuration objects for the product scraper.
     """
-    browser_config = BrowserConfig(headless=True, verbose=False)
+    browser_config = BrowserConfig(headless=True)
     run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, stream=True)
 
-    dispatcher = MemoryAdaptiveDispatcher(
-        memory_threshold_percent=70.0,
-        check_interval=1.0,
-        max_session_permit=10,
-    )
-
-    return browser_config, run_config, dispatcher
+    return browser_config, run_config

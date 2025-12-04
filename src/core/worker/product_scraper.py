@@ -1,8 +1,10 @@
 import asyncio
+import json
 import logging
 import os
 import signal
 from typing import Any, Dict, List, Optional
+import aiohttp
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from extruct import extract as extruct_extract
@@ -28,16 +30,14 @@ logger = logging.getLogger(__name__)
 ScrapedData = Dict[str, Any]
 
 QUEUE_NAME = os.getenv("SQS_QUEUE_NAME")
-try:
-    queue = get_queue(QUEUE_NAME)
-except ClientError as e:
-    logger.info(e)
-    raise e
+
+shutdown_event: asyncio.Event = asyncio.Event()
 
 
-current_message: Optional[Any] = None
-
-shutdown_event = asyncio.Event()
+# Helper to run blocking calls without freezing the loop
+async def run_sync(func, *args):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, func, *args)
 
 
 def signal_handler(signum: int, frame) -> None:
@@ -47,7 +47,6 @@ def signal_handler(signum: int, frame) -> None:
     The `frame` argument is required by the Python `signal` API even if
     unused.
     """
-    global current_message, shutdown_event
     logger.info("Signal %s received. Finishing current task and shutting down.", signum)
 
     if shutdown_event is not None:
@@ -56,24 +55,69 @@ def signal_handler(signum: int, frame) -> None:
         except Exception:
             logger.debug("Failed to signal shutdown_event to the loop")
 
-    if current_message:
-        try:
-            send_message(queue, current_message.body)
-            logger.info(
-                "Re-queued message due to signal: %s",
-                getattr(current_message, "body", "<no-body>"),
-            )
-        except ClientError as e:
-            logger.exception(
-                "Failed to re-queue message on signal (ClientError): %s", e
-            )
+
+async def _get_metadata_token(session: aiohttp.ClientSession) -> Optional[str]:
+    """Fetches a metadata token from the EC2 metadata service."""
+    token_url = os.getenv("EC2_TOKEN_URL")
+    headers = {"X-aws-ec2-metadata-token-ttl-seconds": "21600"}
+    try:
+        async with session.put(token_url, headers=headers, timeout=2) as token_resp:
+            if token_resp.status == 200:
+                return await token_resp.text()
+            else:
+                logger.debug(f"Failed to get metadata token: {token_resp.status}")
+                return None
+    except Exception as e:
+        logger.debug(f"Error fetching metadata token: {e}")
+        return None
 
 
-# Placeholder for the implementation of the logic of the spot termination watcher, that
-# checks periodically if the EC2 instance is going to be shut down by AWS
-async def spot_termination_watcher(check_interval: int = 30):
-    while True:
-        await asyncio.sleep(check_interval)
+async def _check_spot_termination_notice(
+    session: aiohttp.ClientSession, event: asyncio.Event
+):
+    """Checks for a spot termination notice and sets the event if found."""
+    metadata_url = os.getenv("EC2_METADATA_URL")
+    try:
+        token = await _get_metadata_token(session)
+        if not token:
+            return
+
+        headers = {"X-aws-ec2-metadata-token": token}
+        async with session.get(metadata_url, headers=headers, timeout=2) as resp:
+            if resp.status == 200:
+                try:
+                    data = await resp.json()
+                    action = data.get("action")
+                    if action in ["terminate", "stop"]:
+                        logger.warning(
+                            f"Spot {action} imminent! Time: {data.get('time')}"
+                        )
+                        event.set()
+                except json.JSONDecodeError:
+                    logger.debug("Failed to decode instance-action JSON")
+    except asyncio.CancelledError:
+        logger.info("Spot termination watcher cancelled.")
+        raise
+    except Exception as e:
+        logger.debug(f"Error checking spot status: {e}")
+
+
+async def watch_spot_termination(event: asyncio.Event, check_interval: int = 5) -> None:
+    """
+    Poll for spot termination notice using the modern 'instance-action' endpoint.
+    """
+    async with aiohttp.ClientSession() as session:
+        while not event.is_set():
+            try:
+                # Wait for the check_interval or until the event is set.
+                await asyncio.wait_for(event.wait(), timeout=check_interval)
+            except asyncio.TimeoutError:
+                # Timeout expired, time to check for the notice.
+                if not event.is_set():
+                    await _check_spot_termination_notice(session, event)
+            except asyncio.CancelledError:
+                logger.info("Spot termination watcher task cancelled.")
+                raise
 
 
 async def process_result(result: Any) -> Optional[ScrapedData]:
@@ -126,41 +170,59 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
             batch.clear()
 
 
-async def crawl_streaming(urls: List[str], batch_size: int = 500) -> None:
+async def crawl_streaming(
+    crawler: AsyncWebCrawler,
+    urls: List[str],
+    shutdown_event: asyncio.Event,
+    run_config: Any,
+    batch_size: int = 500,
+) -> int:
     """
     Crawl the given list of `urls` in streaming mode and send extracted items
     to the backend in batches.
 
     Args:
+        crawler: An instance of AsyncWebCrawler to use for crawling.
         urls: Sequence of URLs to crawl.
+        shutdown_event: An asyncio.Event that signals when to stop processing.
+        run_config: The configuration for the crawler run.
         batch_size: Number of items to accumulate before sending to the backend.
     """
+    processed_count = 0
     q: asyncio.Queue = asyncio.Queue()
     consumer_task = asyncio.create_task(batch_sender(q, batch_size))
 
-    browser_config, run_config, dispatcher = build_product_scraper_components()
-
-    async with AsyncWebCrawler(config=browser_config) as crawler:
-        # `arun_many` yields results as they become available
-        result_generator = crawler.arun_many(
-            urls=urls, config=run_config, dispatcher=dispatcher
-        )
-        async for result in result_generator:
+    try:
+        results = await crawler.arun_many(urls=urls, config=run_config)
+        async for result in results:
             if shutdown_event.is_set():
-                logger.info(
-                    "Interrupted during crawl_streaming; stopping producer loop"
-                )
+                logger.info("Interrupted during crawl_streaming")
                 break
 
             extracted = await process_result(result)
             if extracted:
                 await q.put(extracted)
-    await q.put(None)
-    await consumer_task
+
+            processed_count += 1
+    except Exception as e:
+        logger.exception("Error during crawl_streaming: %s", e)
+    finally:
+        await q.join()
+        await q.put(None)
+        try:
+            await consumer_task
+        except Exception as ce:
+            logger.exception("Error in batch sender: %s", ce)
+
+    return processed_count
 
 
 async def handle_domain_message(
-    message: Any, db: DynamoDBOperations, batch_size: int = 10
+    message: Any,
+    db: DynamoDBOperations,
+    shutdown_event: asyncio.Event,
+    queue: Any,
+    batch_size: int = 10,
 ) -> None:
     """
     Handle a single domain-processing message from the queue.
@@ -173,60 +235,90 @@ async def handle_domain_message(
     Args:
         message: SQS message object containing the domain to process.
         db: DynamoDBOperations instance used to retrieve product URLs.
+        shutdown_event: An asyncio.Event that signals when to stop processing.
+        queue: The SQS queue object for re-queuing.
         batch_size: Batch size to pass to `crawl_streaming`.
     """
-    global current_message
 
     domain, next_url = parse_message_body(message)
     if not domain:
-        logger.error(
-            "Message does not contain a domain: %s", getattr(message, "body", None)
-        )
-        delete_message(message)
+        await run_sync(delete_message, message)
         return
 
     logger.info("Processing domain: %s", domain)
-
-    product_urls = db.get_product_urls_by_domain(domain)
+    product_urls = await run_sync(db.get_product_urls_by_domain, domain)
 
     start_index = 0
     if next_url:
         try:
             start_index = product_urls.index(next_url)
         except ValueError:
-            logger.warning(
-                "next_url %s not found in product URLs for domain %s. Starting from the beginning.",
-                next_url,
-                domain,
-            )
+            pass
 
     urls_to_crawl = product_urls[start_index:]
-
     if not urls_to_crawl:
-        logger.info("No URLs to crawl for domain: %s", domain)
-        delete_message(message)
+        await run_sync(delete_message, message)
         return
 
-    current_message = message
+    items_processed = 0
 
-    await crawl_streaming(urls_to_crawl, batch_size=batch_size)
-    send_message(queue, message.body)
-    current_message = None
-    delete_message(message)
+    async def requeue_remaining(reason: str) -> bool:
+        current_absolute_index = start_index + items_processed
+        if current_absolute_index >= len(product_urls):
+            return False
+
+        next_url_candidate = product_urls[current_absolute_index]
+        body = json.dumps({"domain": domain, "next": next_url_candidate})
+        try:
+            await run_sync(send_message, queue, body)  # Use queue from args
+            logger.info("Requeued domain %s due to %s", domain, reason)
+            return True
+        except Exception as exc:
+            logger.exception("Failed to requeue: %s", exc)
+            return False
+
+    try:
+        browser_config, run_config = build_product_scraper_components()
+        browser_config.browser_id = domain
+
+        async with AsyncWebCrawler(config=browser_config) as crawler:
+            items_processed = await crawl_streaming(
+                crawler=crawler,
+                urls=urls_to_crawl,
+                shutdown_event=shutdown_event,
+                run_config=run_config,
+                batch_size=batch_size,
+            )
+
+        if shutdown_event.is_set():
+            if await requeue_remaining("shutdown signal"):
+                await run_sync(delete_message, message)
+            return
+
+        await run_sync(delete_message, message)
+    except Exception as e:
+        logger.exception("Error handling domain %s: %s", domain, e)
+        if await requeue_remaining("processing error"):
+            await run_sync(delete_message, message)
 
 
 async def process_message_batch(
-    db: DynamoDBOperations, n_shops: int, batch_size: int
+    messages: List[Any],
+    db: DynamoDBOperations,
+    shutdown_event: asyncio.Event,
+    queue: Any,
+    batch_size: int,
 ) -> None:
     """Poll SQS once and process the returned messages."""
-    messages = receive_messages(queue, max_number=n_shops, wait_time=10)
 
     if not messages:
         return
 
     # Process messages concurrently (one task per message)
     tasks = [
-        asyncio.create_task(handle_domain_message(m, db, batch_size=batch_size))
+        asyncio.create_task(
+            handle_domain_message(m, db, shutdown_event, queue, batch_size=batch_size)
+        )
         for m in messages
     ]
 
@@ -236,26 +328,32 @@ async def process_message_batch(
             logger.exception("Error while handling message: %s", r)
 
 
-async def main(n_shops: int = 1, batch_size: int = 10) -> None:
+async def main(n_shops: int = 5, batch_size: int = 10) -> None:
     """
     Main worker loop to poll SQS and process domain messages.
     """
+    try:
+        queue = get_queue(QUEUE_NAME)
+    except ClientError as e:
+        logger.error(f"Failed to get SQS queue '{QUEUE_NAME}': {e}")
+        return
 
     db = DynamoDBOperations()
 
-    # Register signal handlers so we can gracefully shut down on SIGINT/SIGTERM
-    try:
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-    except Exception as e:
-        logger.debug("Could not register signal handlers: %s", e)
-        raise
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, signal_handler, sig, None)
+        except NotImplementedError:
+            signal.signal(sig, lambda s, f: shutdown_event.set())
 
-    watcher_task = asyncio.create_task(spot_termination_watcher())
+    watcher_task = asyncio.create_task(watch_spot_termination(shutdown_event))
+
+    logger.info("Worker started. Listening for messages...")
 
     while not shutdown_event.is_set():
         try:
-            messages = receive_messages(queue, max_number=n_shops, wait_time=10)
+            messages = await run_sync(receive_messages, queue, n_shops, 10)
 
             if not messages:
                 try:
@@ -264,9 +362,9 @@ async def main(n_shops: int = 1, batch_size: int = 10) -> None:
                     pass
                 continue
 
-            await process_message_batch(db, n_shops, batch_size)
-        except Exception as e:
-            logger.exception("An unexpected runtime error occurred in main loop: %s", e)
+            await process_message_batch(messages, db, shutdown_event, queue, batch_size)
+        except Exception as r:
+            logger.exception("Error in main loop: %s", r)
 
     # Shutdown watcher cleanly
     if not watcher_task.done():
@@ -277,8 +375,6 @@ async def main(n_shops: int = 1, batch_size: int = 10) -> None:
             logger.debug("Watcher task cancelled during shutdown; continuing shutdown")
             raise
 
-    logger.info("Worker shutting down.")
-
 
 if __name__ == "__main__":
-    asyncio.run(main(1))
+    asyncio.run(main(n_shops=1))
