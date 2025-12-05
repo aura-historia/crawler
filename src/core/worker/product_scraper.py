@@ -119,6 +119,8 @@ async def watch_spot_termination(event: asyncio.Event, check_interval: int = 5) 
                 logger.info("Spot termination watcher task cancelled.")
                 raise
 
+        logger.info("Spot termination watcher finished.")
+
 
 async def process_result(result: Any) -> Optional[ScrapedData]:
     """
@@ -149,6 +151,8 @@ async def process_result(result: Any) -> Optional[ScrapedData]:
 
     standardized = await extract_standard(extracted_raw, url, preferred=syntaxes)
 
+    logger.info(f"Extracted raw data: {standardized}")
+
     return standardized
 
 
@@ -161,6 +165,7 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
         item = await q.get()
         if item is None:
             if batch:
+                logger.info(f"Sending Items remaining: {batch}")
                 await send_items(batch)
             break
 
@@ -170,7 +175,7 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
             batch.clear()
 
 
-async def crawl_streaming(
+async def scrape(
     crawler: AsyncWebCrawler,
     urls: List[str],
     shutdown_event: asyncio.Event,
@@ -193,22 +198,33 @@ async def crawl_streaming(
     consumer_task = asyncio.create_task(batch_sender(q, batch_size))
 
     try:
-        results = await crawler.arun_many(urls=urls, config=run_config)
-        async for result in results:
+        for url in urls:
             if shutdown_event.is_set():
                 logger.info("Interrupted during crawl_streaming")
                 break
 
-            extracted = await process_result(result)
-            if extracted:
-                await q.put(extracted)
+            try:
+                result = await crawler.arun(url, config=run_config)
+            except Exception as crawl_error:
+                logger.exception("Error crawling %s: %s", url, crawl_error)
+                processed_count += 1
+                continue
+
+            try:
+                extracted = await process_result(result)
+                if extracted:
+                    await q.put(extracted)
+            except Exception as proc_error:
+                logger.exception("Processing error for %s: %s", url, proc_error)
 
             processed_count += 1
-    except Exception as e:
-        logger.exception("Error during crawl_streaming: %s", e)
+
+    except Exception as outer_error:
+        logger.exception("Unexpected error in crawl_streaming: %s", outer_error)
+
     finally:
-        await q.join()
         await q.put(None)
+
         try:
             await consumer_task
         except Exception as ce:
@@ -260,6 +276,9 @@ async def handle_domain_message(
         await run_sync(delete_message, message)
         return
 
+    logger.info(urls_to_crawl)
+    logger.info(f"Found {len(urls_to_crawl)} URLs to crawl")
+
     items_processed = 0
 
     async def requeue_remaining(reason: str) -> bool:
@@ -269,8 +288,11 @@ async def handle_domain_message(
 
         next_url_candidate = product_urls[current_absolute_index]
         body = json.dumps({"domain": domain, "next": next_url_candidate})
+
+        logger.info(body)
+
         try:
-            await run_sync(send_message, queue, body)  # Use queue from args
+            await run_sync(send_message, queue, body)
             logger.info("Requeued domain %s due to %s", domain, reason)
             return True
         except Exception as exc:
@@ -279,16 +301,17 @@ async def handle_domain_message(
 
     try:
         browser_config, run_config = build_product_scraper_components()
-        browser_config.browser_id = domain
 
         async with AsyncWebCrawler(config=browser_config) as crawler:
-            items_processed = await crawl_streaming(
+            items_processed = await scrape(
                 crawler=crawler,
                 urls=urls_to_crawl,
                 shutdown_event=shutdown_event,
                 run_config=run_config,
                 batch_size=batch_size,
             )
+
+        logger.info("Items processed for domain %s: %d", domain, items_processed)
 
         if shutdown_event.is_set():
             if await requeue_remaining("shutdown signal"):
@@ -353,7 +376,7 @@ async def main(n_shops: int = 5, batch_size: int = 10) -> None:
 
     while not shutdown_event.is_set():
         try:
-            messages = await run_sync(receive_messages, queue, n_shops, 10)
+            messages = await run_sync(receive_messages, queue, n_shops, 1)
 
             if not messages:
                 try:
