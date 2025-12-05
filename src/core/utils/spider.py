@@ -1,8 +1,11 @@
+from typing import Tuple
+
 from crawl4ai import (
     CrawlerRunConfig,
     CacheMode,
     RateLimiter,
     MemoryAdaptiveDispatcher,
+    BrowserConfig,
 )
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 
@@ -68,3 +71,13 @@ def crawl_dispatcher() -> MemoryAdaptiveDispatcher:
     )
 
     return dispatcher
+
+
+def build_product_scraper_components() -> Tuple[BrowserConfig, CrawlerRunConfig]:
+    """
+    Build and return the crawler configuration objects for the product scraper.
+    """
+    browser_config = BrowserConfig(headless=True)
+    run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+
+    return browser_config, run_config
