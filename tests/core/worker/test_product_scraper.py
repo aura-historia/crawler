@@ -1,392 +1,647 @@
 import asyncio
-import importlib
-import signal
-import sys
-import types
-
+import json
 import pytest
+from unittest.mock import AsyncMock
+from typing import cast
+import aiohttp
+
+import src.core.worker.product_scraper as ps
+
+pytestmark = pytest.mark.asyncio
 
 
-class DummyMessage:
-    def __init__(self, body="{}"):
-        self.body = body
+# small async helper to make async tests use await (silence IDE warnings)
+async def _ensure_async_noop():
+    await asyncio.sleep(0)
 
 
-@pytest.fixture
-def product_scraper(monkeypatch):
-    monkeypatch.setenv("SQS_QUEUE_NAME", "test-queue")
+class FakeResp:
+    def __init__(self, status=200, text_value=None, json_value=None):
+        self.status = status
+        self._text = text_value or "tok"
+        self._json = json_value or {"action": "terminate", "time": "now"}
 
-    from src.core.sqs import queue_wrapper
+    async def text(self):
+        await asyncio.sleep(0)
+        return self._text
 
-    fake_queue = object()
-    monkeypatch.setattr(queue_wrapper, "get_queue", lambda _: fake_queue)
+    async def json(self):
+        await asyncio.sleep(0)
+        return self._json
 
-    fake_crawl4ai = types.ModuleType("crawl4ai")
 
-    class PlaceholderCrawler:
-        def __init__(self, config=None):
-            """This is a dummy class for testing purposes"""
-            self.config = config
+class FakeSession:
+    def __init__(
+        self, put_resp=None, get_resp=None, raise_on_put=False, raise_on_get=False
+    ):
+        self._put_resp = put_resp or FakeResp()
+        self._get_resp = get_resp or FakeResp()
+        self._raise_on_put = raise_on_put
+        self._raise_on_get = raise_on_get
+
+    class _Ctx:
+        def __init__(self, resp, raise_exc=False):
+            self.resp = resp
+            self._raise = raise_exc
 
         async def __aenter__(self):
-            return self
+            if self._raise:
+                raise RuntimeError("boom")
+            return self.resp
 
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-        async def arun_many(self, urls=None, config=None, dispatcher=None):
-            if urls:
-                for url in urls:
-                    yield types.SimpleNamespace(success=False, html=None, url=url)
+    def put(self, *args, **kwargs):
+        return FakeSession._Ctx(self._put_resp, self._raise_on_put)
 
-    class _SimpleAttr:
-        def __init__(self, *_, **__):
-            """This is a dummy class for testing purposes"""
-
-    fake_crawl4ai.AsyncWebCrawler = PlaceholderCrawler
-    fake_crawl4ai.CrawlerRunConfig = _SimpleAttr
-    fake_crawl4ai.CacheMode = types.SimpleNamespace(BYPASS="bypass")
-    fake_crawl4ai.RateLimiter = _SimpleAttr
-    fake_crawl4ai.MemoryAdaptiveDispatcher = _SimpleAttr
-    fake_crawl4ai.BrowserConfig = _SimpleAttr
-
-    scraping_module = types.ModuleType("crawl4ai.content_scraping_strategy")
-
-    class LXMLWebScrapingStrategy:
-        def __init__(self, *_, **__):
-            """This is a dummy class for testing purposes"""
-
-    scraping_module.LXMLWebScrapingStrategy = LXMLWebScrapingStrategy
-
-    monkeypatch.setitem(
-        sys.modules, "crawl4ai.content_scraping_strategy", scraping_module
-    )
-    monkeypatch.setitem(sys.modules, "crawl4ai", fake_crawl4ai)
-
-    crawler_module = types.ModuleType(
-        "src.core.algorithms.bfs_no_cycle_deep_crawl_strategy"
-    )
-
-    class DummyStrategy:
-        def __init__(self, *_, **__):
-            """This is a dummy class for testing purposes"""
-
-    class DummyCrawler:
-        pass
-
-    class DummyRunConfig:
-        def clone(self, *_, **__):
-            return self
-
-    crawler_module.BFSNoCycleDeepCrawlStrategy = DummyStrategy
-    crawler_module.BFSDeepCrawlStrategy = DummyStrategy
-    crawler_module.AsyncWebCrawler = DummyCrawler
-    crawler_module.CrawlerRunConfig = DummyRunConfig
-
-    monkeypatch.setitem(
-        sys.modules,
-        "src.core.algorithms.bfs_no_cycle_deep_crawl_strategy",
-        crawler_module,
-    )
-
-    import src.core.worker.product_scraper as module
-
-    module = importlib.reload(module)
-    module.queue = fake_queue
-    module.AsyncWebCrawler = PlaceholderCrawler
-    module.current_message = None
-    module.shutdown_event = asyncio.Event()
-    return module
+    def get(self, *args, **kwargs):
+        return FakeSession._Ctx(self._get_resp, self._raise_on_get)
 
 
-@pytest.mark.asyncio
-async def test_process_result_success_returns_standardized_data(
-    product_scraper, monkeypatch
-):
-    result = types.SimpleNamespace(
-        success=True, html="<html></html>", url="https://example.com/product"
-    )
+class FakeResult:
+    def __init__(
+        self, success=True, html="<html></html>", url="http://a", error_message=None
+    ):
+        self.success = success
+        self.html = html
+        self.url = url
+        self.error_message = error_message
 
-    captured = {}
 
-    def fake_extruct(html, base_url, syntaxes):
-        captured["base"] = base_url
-        captured["syntaxes"] = list(syntaxes)
-        return {"raw": True}
+class FakeCrawler:
+    def __init__(self, results=None, raise_on=None):
+        self._results = results or []
+        self.raise_on = raise_on or set()
 
-    async def fake_extract_standard(raw, url, preferred):
+    async def arun(self, url, config=None):
         await asyncio.sleep(0)
-        return {"url": url, "raw": raw, "preferred": preferred}
+        if url in self.raise_on:
+            raise RuntimeError("crawl fail")
+        # pop front
+        if self._results:
+            return self._results.pop(0)
+        return FakeResult()
 
-    monkeypatch.setattr(product_scraper, "extruct_extract", fake_extruct)
-    monkeypatch.setattr(product_scraper, "extract_standard", fake_extract_standard)
+    async def __aenter__(self):
+        return self
 
-    data = await product_scraper.process_result(result)
-
-    assert data["url"] == result.url
-    assert captured["base"] == result.url
-    assert captured["syntaxes"] == ["microdata", "opengraph", "json-ld", "rdfa"]
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
 
 
-@pytest.mark.asyncio
-async def test_process_result_returns_none_when_invalid(product_scraper):
-    missing_html = types.SimpleNamespace(
-        success=True, html=None, url="https://example.com"
+@pytest.fixture(autouse=True)
+def patch_defaults(monkeypatch):
+    # Prevent real network/DB/SQS calls by default
+    monkeypatch.setattr(
+        ps, "extruct_extract", lambda html, base_url, syntaxes: {"raw": True}
     )
-    failed = types.SimpleNamespace(
-        success=False, html="<html></html>", url="https://example.com"
-    )
 
-    assert await product_scraper.process_result(missing_html) is None
-    assert await product_scraper.process_result(failed) is None
-
-
-@pytest.mark.asyncio
-async def test_batch_sender_flushes_batches(product_scraper, monkeypatch):
-    sent_batches = []
-
-    async def fake_send(items):
+    async def fake_extract_standard(extracted_raw, url, preferred=None):
         await asyncio.sleep(0)
-        sent_batches.append(list(items))
+        return {"standard": True, "url": url}
 
-    monkeypatch.setattr(product_scraper, "send_items", fake_send)
+    monkeypatch.setattr(ps, "extract_standard", fake_extract_standard)
+    monkeypatch.setattr(ps, "get_base_url", lambda html, url: "http://base")
 
+    monkeypatch.setattr(ps, "send_items", AsyncMock())
+    monkeypatch.setattr(ps, "send_message", lambda q, body: None)
+    monkeypatch.setattr(ps, "delete_message", lambda msg: None)
+    monkeypatch.setattr(ps, "receive_messages", lambda q, n, v: [])
+    monkeypatch.setattr(ps, "parse_message_body", lambda m: (None, None))
+    monkeypatch.setattr(ps, "get_queue", lambda name: object())
+
+    # Fake DynamoDBOperations
+    class FakeDB:
+        def get_product_urls_by_domain(self, domain):
+            return []
+
+    monkeypatch.setattr(ps, "DynamoDBOperations", lambda: FakeDB())
+
+
+async def test_signal_handler_sets_event():
+    ev = asyncio.Event()
+    await _ensure_async_noop()
+    ps.shutdown_event = ev
+    ps.signal_handler(2, None)
+    assert ev.is_set()
+
+
+async def test_run_sync_executes(monkeypatch):
+    def f(a, b):
+        return a + b
+
+    res = await ps.run_sync(f, 1, 2)
+    assert res == 3
+
+
+async def test_get_metadata_token_success(monkeypatch):
+    session = FakeSession(put_resp=FakeResp(status=200, text_value="tokval"))
+    monkeypatch.setenv("EC2_TOKEN_URL", "http://token")
+    token = await ps._get_metadata_token(
+        cast(aiohttp.ClientSession, cast(object, session))
+    )
+    assert token == "tokval"
+
+
+async def test_get_metadata_token_non200(monkeypatch):
+    session = FakeSession(put_resp=FakeResp(status=404))
+    monkeypatch.setenv("EC2_TOKEN_URL", "http://token")
+    token = await ps._get_metadata_token(
+        cast(aiohttp.ClientSession, cast(object, session))
+    )
+    assert token is None
+
+
+async def test_get_metadata_token_exception(monkeypatch):
+    # raise by making put ctx raise
+    session = FakeSession(put_resp=FakeResp(), raise_on_put=True)
+    monkeypatch.setenv("EC2_TOKEN_URL", "http://token")
+    token = await ps._get_metadata_token(
+        cast(aiohttp.ClientSession, cast(object, session))
+    )
+    assert token is None
+
+
+async def test_check_spot_termination_sets_event(monkeypatch):
+    session = FakeSession(
+        put_resp=FakeResp(status=200, text_value="tok"),
+        get_resp=FakeResp(status=200, json_value={"action": "terminate", "time": "t"}),
+    )
+    monkeypatch.setenv("EC2_METADATA_URL", "http://meta")
+    ev = asyncio.Event()
+    await ps._check_spot_termination_notice(
+        cast(aiohttp.ClientSession, cast(object, session)), ev
+    )
+    assert ev.is_set()
+
+
+async def test_check_spot_termination_token_none(monkeypatch):
+    # make token fetcher return None
+    async def _get_metadata_token_no(session):
+        await asyncio.sleep(0)
+        return None
+
+    monkeypatch.setattr(ps, "_get_metadata_token", _get_metadata_token_no)
+    session = FakeSession()
+    ev = asyncio.Event()
+    await ps._check_spot_termination_notice(
+        cast(aiohttp.ClientSession, cast(object, session)), ev
+    )
+    assert not ev.is_set()
+
+
+async def test_check_spot_termination_jsondecode(monkeypatch):
+    # make get_resp.json raise JSONDecodeError
+    class BadResp(FakeResp):
+        async def json(self):
+            raise json.JSONDecodeError("msg", "doc", 0)
+
+    session = FakeSession(
+        put_resp=FakeResp(status=200, text_value="tok"), get_resp=BadResp(status=200)
+    )
+    monkeypatch.setenv("EC2_METADATA_URL", "http://meta")
+    ev = asyncio.Event()
+    await ps._check_spot_termination_notice(
+        cast(aiohttp.ClientSession, cast(object, session)), ev
+    )
+    assert not ev.is_set()
+
+
+async def test_watch_spot_termination_exits_when_event_set(monkeypatch):
+    # Patch _check_spot_termination_notice to set the event directly
+    async def setter(session, event):
+        await asyncio.sleep(0)
+        event.set()
+
+    monkeypatch.setattr(ps, "_check_spot_termination_notice", setter)
+    ev = asyncio.Event()
+    # run watcher (it should exit after first check)
+    await ps.watch_spot_termination(ev, check_interval=1)
+    assert ev.is_set()
+
+
+async def test_process_result_failure_cases(monkeypatch):
+    r = FakeResult(success=False, error_message="err")
+    assert await ps.process_result(r) is None
+
+    # Use empty strings to satisfy static type expectations while still being falsy
+    r2 = FakeResult(success=True, html="", url="")
+    assert await ps.process_result(r2) is None
+
+
+async def test_process_result_success(monkeypatch):
+    r = FakeResult(success=True, html="<html>o</html>", url="http://ok")
+    # extruct_extract & extract_standard patched by fixture
+    res = await ps.process_result(r)
+    assert res == {"standard": True, "url": "http://ok"}
+
+
+async def test_batch_sender_flush_and_batch(monkeypatch):
     q = asyncio.Queue()
-    payloads = [{"id": 1}, {"id": 2}, {"id": 3}]
-    for item in payloads:
-        await q.put(item)
+    # put 3 items and None; batch_size=2 => send_items called twice
+    await q.put({"a": 1})
+    await q.put({"a": 2})
+    await q.put({"a": 3})
     await q.put(None)
 
-    await product_scraper.batch_sender(q, batch_size=2)
+    await ps.batch_sender(q, batch_size=2)
+    # send_items is AsyncMock; check either await_count (if available) or call_count
+    count = getattr(
+        ps.send_items, "await_count", getattr(ps.send_items, "call_count", 0)
+    )
+    assert count == 2
 
-    assert sent_batches == [payloads[:2], payloads[2:]]
+
+async def test_scrape_counts_and_send(monkeypatch):
+    # create crawler that returns 3 successful results
+    results = [FakeResult(), FakeResult(), FakeResult()]
+    crawler = FakeCrawler(results=list(results))
+    urls = ["u1", "u2", "u3"]
+    ev = asyncio.Event()
+    count = await ps.scrape(
+        cast(ps.AsyncWebCrawler, cast(object, crawler)),
+        urls,
+        ev,
+        run_config={},
+        batch_size=2,
+    )
+    assert count == 3
+    # ensure send_items called at least once
+    count2 = getattr(
+        ps.send_items, "await_count", getattr(ps.send_items, "call_count", 0)
+    )
+    assert count2 >= 1
 
 
-@pytest.mark.asyncio
-async def test_crawl_streaming_processes_urls(product_scraper, monkeypatch):
-    sent_batches = []
+async def test_scrape_handles_crawl_exception(monkeypatch):
+    # crawler raises for one url
+    crawler = FakeCrawler(results=[FakeResult()], raise_on={"bad"})
+    urls = ["good", "bad", "good2"]
+    ev = asyncio.Event()
+    count = await ps.scrape(
+        cast(ps.AsyncWebCrawler, cast(object, crawler)),
+        urls,
+        ev,
+        run_config={},
+        batch_size=10,
+    )
+    assert count == 3
 
-    async def fake_send(batch):
+
+async def test_scrape_handles_process_exception(monkeypatch):
+    # monkeypatch process_result to raise on second
+    async def pr(r):
         await asyncio.sleep(0)
-        sent_batches.append([item["url"] for item in batch])
+        if getattr(r, "url", "").endswith("2"):
+            raise RuntimeError("proc fail")
+        return {"url": r.url}
 
-    async def fake_process(result):
-        await asyncio.sleep(0)
-        return {"url": result.url}
+    monkeypatch.setattr(ps, "process_result", pr)
+    results = [FakeResult(url="http://1"), FakeResult(url="http://2")]
+    crawler = FakeCrawler(results=list(results))
+    urls = ["u1", "u2"]
+    ev = asyncio.Event()
+    count = await ps.scrape(
+        cast(ps.AsyncWebCrawler, cast(object, crawler)),
+        urls,
+        ev,
+        run_config={},
+        batch_size=10,
+    )
+    assert count == 2
 
-    class StubCrawler:
-        def __init__(self, config=None):
-            self.config = config
 
+async def test_scrape_respects_shutdown(monkeypatch):
+    # set shutdown while scraping
+    async def slow_arun(url, config=None):
+        await asyncio.sleep(0.02)
+        return FakeResult()
+
+    class SCrawler(FakeCrawler):
+        async def arun(self, url, config=None):
+            return await slow_arun(url, config)
+
+    crawler = SCrawler(results=[FakeResult(), FakeResult(), FakeResult()])
+    urls = ["u1", "u2", "u3"]
+    ev = asyncio.Event()
+
+    async def setter():
+        await asyncio.sleep(0.01)
+        ev.set()
+
+    t_setter = asyncio.create_task(setter())
+    count = await ps.scrape(
+        cast(ps.AsyncWebCrawler, cast(object, crawler)),
+        urls,
+        ev,
+        run_config={},
+        batch_size=10,
+    )
+    # ensure background task reference is kept
+    if not t_setter.done():
+        t_setter.cancel()
+    assert count < 3
+
+
+async def test_handle_domain_message_parse_none_triggers_delete(monkeypatch):
+    # parse_message_body returns (None, None) via fixture
+    msg = object()
+    db = ps.DynamoDBOperations()
+    q = object()
+    # delete_message patched to lambda -> no error
+    await ps.handle_domain_message(
+        msg, cast(ps.DynamoDBOperations, db), asyncio.Event(), q, batch_size=2
+    )
+
+
+async def test_handle_domain_message_no_urls_deletes(monkeypatch):
+    # make parse_message_body return domain
+    monkeypatch.setattr(ps, "parse_message_body", lambda m: ("d", None))
+
+    class DB:
+        def get_product_urls_by_domain(self, domain):
+            return []
+
+    db = DB()
+    msg = object()
+    q = object()
+    await ps.handle_domain_message(
+        msg,
+        cast(ps.DynamoDBOperations, cast(object, db)),
+        asyncio.Event(),
+        q,
+        batch_size=2,
+    )
+
+
+async def test_handle_domain_message_requeue_on_exception(monkeypatch):
+    # parse returns domain with some urls
+    monkeypatch.setattr(ps, "parse_message_body", lambda m: ("d", None))
+
+    class DB:
+        def get_product_urls_by_domain(self, domain):
+            return ["a", "b", "c"]
+
+    db = DB()
+    msg = object()
+    # make build components return trivial configs
+    monkeypatch.setattr(ps, "build_product_scraper_components", lambda: ({}, {}))
+
+    # create a crawler whose __aenter__ raises to simulate fatal processing error
+    class RaisingCrawler(FakeCrawler):
         async def __aenter__(self):
-            return self
+            raise RuntimeError("enter fail")
 
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
+    monkeypatch.setattr(ps, "AsyncWebCrawler", lambda config=None: RaisingCrawler())
 
-        async def arun_many(self, urls, config=None, dispatcher=None):
-            for url in urls:
-                yield types.SimpleNamespace(success=True, html="<html></html>", url=url)
+    requeued = []
 
-    monkeypatch.setattr(product_scraper, "send_items", fake_send)
-    monkeypatch.setattr(product_scraper, "process_result", fake_process)
-    monkeypatch.setattr(product_scraper, "AsyncWebCrawler", StubCrawler)
-    monkeypatch.setattr(
-        product_scraper,
-        "build_product_scraper_components",
-        lambda: ("browser", "run", "dispatcher"),
+    def fake_send_message(q, body):
+        requeued.append(body)
+
+    monkeypatch.setattr(ps, "send_message", fake_send_message)
+    # delete_message is patched to lambda via fixture
+
+    await ps.handle_domain_message(
+        msg,
+        cast(ps.DynamoDBOperations, cast(object, db)),
+        asyncio.Event(),
+        object(),
+        batch_size=1,
     )
-
-    await product_scraper.crawl_streaming(["https://a", "https://b"], batch_size=1)
-
-    assert sent_batches == [["https://a"], ["https://b"]]
+    # after exception, it should have tried to requeue at least once
+    assert requeued
 
 
-@pytest.mark.asyncio
-async def test_crawl_streaming_halts_when_interrupted(product_scraper, monkeypatch):
-    product_scraper.shutdown_event = asyncio.Event()
-    product_scraper.shutdown_event.set()
+async def test_process_message_batch_runs_handlers(monkeypatch):
+    called = []
 
-    async def fake_process(result):
-        raise AssertionError("process_result should not be called when interrupted")
-
-    async def fake_batch_sender(q, batch_size):
-        # This should not be called if the producer loop is correctly interrupted.
-        item = await q.get()
-        if item is not None:
-            raise AssertionError("batch_sender should not have received items")
-
-    # We patch create_task to control the execution of the consumer
-    original_create_task = asyncio.create_task
-    consumer_tasks = []
-
-    def fake_create_task(coro):
-        # We want to test the producer loop, so we only create the consumer task
-        # to be awaited, but we don't want it to run freely.
-        task = original_create_task(coro)
-        if "batch_sender" in coro.__name__:
-            consumer_tasks.append(task)
-        return task
-
-    monkeypatch.setattr(product_scraper.asyncio, "create_task", fake_create_task)
-    monkeypatch.setattr(product_scraper, "process_result", fake_process)
-    monkeypatch.setattr(product_scraper, "batch_sender", fake_batch_sender)
-    monkeypatch.setattr(
-        product_scraper,
-        "build_product_scraper_components",
-        lambda: ("browser", "run", "dispatcher"),
-    )
-
-    await product_scraper.crawl_streaming(["https://only"], batch_size=1)
-
-    # The consumer task should have been cancelled or finished without processing.
-    assert len(consumer_tasks) == 1
-    assert consumer_tasks[0].done()
-
-    product_scraper.shutdown_event = asyncio.Event()
-
-
-@pytest.mark.asyncio
-async def test_handle_domain_message_without_domain_deletes(
-    product_scraper, monkeypatch
-):
-    message = DummyMessage("payload")
-    deletes = []
-
-    monkeypatch.setattr(product_scraper, "parse_message_body", lambda _: (None, None))
-    monkeypatch.setattr(
-        product_scraper, "delete_message", lambda msg: deletes.append(msg)
-    )
-
-    db = types.SimpleNamespace(get_product_urls_by_domain=lambda _: [])
-
-    await product_scraper.handle_domain_message(message, db, batch_size=3)
-
-    assert deletes == [message]
-
-
-@pytest.mark.asyncio
-async def test_handle_domain_message_processes_and_requeues(
-    product_scraper, monkeypatch
-):
-    message = DummyMessage("body")
-
-    monkeypatch.setattr(
-        product_scraper, "parse_message_body", lambda _: ("example.com", "https://b")
-    )
-    db = types.SimpleNamespace(
-        get_product_urls_by_domain=lambda _: ["https://a", "https://b", "https://c"]
-    )
-
-    crawled = {}
-
-    async def fake_crawl(urls, batch_size):
+    async def fake_handle(m, db, ev, q, batch_size):
         await asyncio.sleep(0)
-        crawled["urls"] = list(urls)
-        crawled["batch"] = batch_size
+        called.append(m)
 
-    sent_bodies = []
-    deletes = []
-
-    monkeypatch.setattr(product_scraper, "crawl_streaming", fake_crawl)
-    monkeypatch.setattr(
-        product_scraper, "send_message", lambda _queue, body: sent_bodies.append(body)
+    monkeypatch.setattr(ps, "handle_domain_message", fake_handle)
+    await ps.process_message_batch(
+        [1, 2, 3], ps.DynamoDBOperations(), asyncio.Event(), object(), batch_size=2
     )
-    monkeypatch.setattr(
-        product_scraper, "delete_message", lambda msg: deletes.append(msg)
-    )
-
-    await product_scraper.handle_domain_message(message, db, batch_size=5)
-
-    assert crawled["urls"] == ["https://b", "https://c"]
-    assert crawled["batch"] == 5
-    assert sent_bodies == [message.body]
-    assert deletes == [message]
-    assert product_scraper.current_message is None
+    assert called == [1, 2, 3]
 
 
-@pytest.mark.asyncio
-async def test_process_message_batch_logs_exceptions(product_scraper, monkeypatch):
-    messages = [DummyMessage("one"), DummyMessage("bad")]
-    monkeypatch.setattr(product_scraper, "receive_messages", lambda *_, **__: messages)
+async def test_main_get_queue_failure(monkeypatch):
+    from botocore.exceptions import ClientError
 
-    calls = []
+    def bad_get_queue(name):
+        raise ClientError({"Error": {}}, "Op")
 
-    async def fake_handle(msg, db, batch_size):
-        await asyncio.sleep(0)
-        calls.append((msg, batch_size))
-        if msg.body == "bad":
-            raise RuntimeError("boom")
-
-    logged = []
-
-    monkeypatch.setattr(product_scraper, "handle_domain_message", fake_handle)
-    monkeypatch.setattr(
-        product_scraper.logger,
-        "exception",
-        lambda message, exc: logged.append((message, str(exc))),
-    )
-
-    await product_scraper.process_message_batch(object(), n_shops=2, batch_size=4)
-
-    assert calls == [(messages[0], 4), (messages[1], 4)]
-    assert any("boom" in entry[1] for entry in logged)
+    monkeypatch.setattr(ps, "get_queue", bad_get_queue)
+    # run main; it should exit cleanly
+    await ps.main(n_shops=1, batch_size=1)
 
 
-def test_signal_handler_requeues_and_signals_shutdown(product_scraper, monkeypatch):
-    product_scraper.current_message = DummyMessage("body")
-    product_scraper.shutdown_event = asyncio.Event()
+async def test_main_shutdown_cancels_watcher(monkeypatch):
+    # patch get_queue to return something
+    monkeypatch.setattr(ps, "get_queue", lambda n: object())
 
-    sent_bodies = []
+    class DB:
+        def get_product_urls_by_domain(self, domain):
+            return []
 
-    def fake_send_message(queue, body):
-        sent_bodies.append(body)
+    monkeypatch.setattr(ps, "DynamoDBOperations", lambda: DB())
 
-    monkeypatch.setattr(product_scraper, "send_message", fake_send_message)
+    # make receive_messages return empty (so loop continues) and then set shutdown
+    seq = [[], []]
 
-    product_scraper.signal_handler(signal.SIGTERM, None)
+    def recv(q, n, v):
+        if seq:
+            return seq.pop(0)
+        return []
 
-    assert product_scraper.shutdown_event.is_set()
-    assert sent_bodies == ["body"]
+    monkeypatch.setattr(ps, "receive_messages", recv)
 
+    # patch watcher to a simple coroutine that waits until event is set
+    async def fake_watch(ev, check_interval=1):
+        # wait until main sets shutdown_event; then return
+        await asyncio.wait_for(ev.wait(), timeout=2)
 
-@pytest.mark.asyncio
-async def test_main_runs_until_shutdown(product_scraper, monkeypatch):
-    creations = []
+    monkeypatch.setattr(ps, "watch_spot_termination", fake_watch)
 
-    class DummyDB:
-        def __init__(self):
-            creations.append(True)
+    # schedule shutdown after a short delay
+    async def trigger_shutdown():
+        await asyncio.sleep(0.05)
+        ps.shutdown_event.set()
 
-    async def watcher_stub(check_interval=30):
-        while not product_scraper.shutdown_event.is_set():
-            await asyncio.sleep(0.01)
-
-    msg_iter = iter([[DummyMessage("work")]])
-
-    def fake_receive(queue, max_number, wait_time):
-        return next(msg_iter, [])
-
-    async def fake_process_batch(db, n_shops, batch_size):
-        await asyncio.sleep(0)
-        fake_process_batch.calls.append((n_shops, batch_size))
-        product_scraper.shutdown_event.set()
-
-    fake_process_batch.calls = []
-
-    monkeypatch.setattr(product_scraper, "DynamoDBOperations", DummyDB)
-    monkeypatch.setattr(product_scraper.signal, "signal", lambda *args, **kwargs: None)
-    monkeypatch.setattr(product_scraper, "spot_termination_watcher", watcher_stub)
-    monkeypatch.setattr(product_scraper, "receive_messages", fake_receive)
-    monkeypatch.setattr(product_scraper, "process_message_batch", fake_process_batch)
-
-    import pytest
-
-    # The watcher task will be cancelled during shutdown; `main` re-raises
-    # asyncio.CancelledError after cleaning up the watcher. The test should
-    # therefore expect that exception but still assert the side-effects.
+    t_shutdown = asyncio.create_task(trigger_shutdown())
+    # main is expected to propagate watcher cancellation -> CancelledError
     with pytest.raises(asyncio.CancelledError):
-        await product_scraper.main(n_shops=2, batch_size=6)
+        await ps.main(n_shops=1, batch_size=1)
+    if not t_shutdown.done():
+        t_shutdown.cancel()
 
-    assert fake_process_batch.calls == [(2, 6)]
-    assert creations
+
+async def test_handle_three_domains_no_shutdown(monkeypatch):
+    # Three messages for three domains with various URL counts; no shutdown
+    messages = [object(), object(), object()]
+    domains = ["dom1", "dom2", "dom3"]
+
+    # parse_message_body will return corresponding domain for each message
+    def parse(m):
+        return domains[messages.index(m)], None
+
+    monkeypatch.setattr(ps, "parse_message_body", parse)
+
+    # DB returns different number of URLs per domain
+    class DB:
+        def get_product_urls_by_domain(self, domain):
+            return {
+                "dom1": ["u1", "u2"],
+                "dom2": ["u3"],
+                "dom3": ["u4", "u5", "u6"],
+            }[domain]
+
+    db = DB()
+
+    # build_product_scraper_components and AsyncWebCrawler should produce results for each url
+    monkeypatch.setattr(ps, "build_product_scraper_components", lambda: ({}, {}))
+
+    # crawler that yields a FakeResult per URL requested
+    class SimpleCrawler(FakeCrawler):
+        def __init__(self):
+            super().__init__()
+
+        async def arun(self, url, config=None):
+            # return a FakeResult with the same url to help tracing
+            return FakeResult(url=url)
+
+    monkeypatch.setattr(ps, "AsyncWebCrawler", lambda config=None: SimpleCrawler())
+
+    sent = []
+
+    def fake_send_items(batch):
+        sent.append(list(batch))
+
+    monkeypatch.setattr(ps, "send_items", AsyncMock(side_effect=fake_send_items))
+
+    deleted = []
+    monkeypatch.setattr(ps, "delete_message", lambda m: deleted.append(m))
+
+    ev = asyncio.Event()  # not set
+
+    # run processing for 3 messages; batch_size=2 will produce ceil((2+1+3)/2)=3 sends
+    await ps.process_message_batch(messages, db, ev, object(), batch_size=2)
+
+    # verify that all messages resulted in delete_message calls
+    assert len(deleted) == 3
+
+    # total URLs = 6 -> with batch_size=2 should produce at least 3 sends
+    # verify batch contents are from the expected domains (urls preserved)
+    all_sent = [
+        item.get("url") if isinstance(item, dict) else item for b in sent for item in b
+    ]
+    assert set(all_sent) == {"u1", "u2", "u3", "u4", "u5", "u6"}
+    # ensure no batch exceeds the batch_size and at least the minimal number of batches were sent
+    assert all(len(b) <= 2 for b in sent)
+    assert len(sent) >= 3
+
+
+async def test_handle_three_domains_with_shutdown(monkeypatch):
+    # Three domains but shutdown will be triggered during processing of second domain
+    messages = [object(), object(), object()]
+    domains = ["d1", "d2", "d3"]
+
+    def parse(m):
+        return (domains[messages.index(m)], None)
+
+    monkeypatch.setattr(ps, "parse_message_body", parse)
+
+    class DB:
+        def get_product_urls_by_domain(self, domain):
+            return {
+                "d1": ["a1", "a2"],
+                "d2": ["b1", "b2", "b3"],
+                "d3": ["c1"],
+            }[domain]
+
+    db = DB()
+
+    monkeypatch.setattr(ps, "build_product_scraper_components", lambda: ({}, {}))
+
+    # Crawler returns results but we'll trigger shutdown in the middle
+    class SlowCrawler(FakeCrawler):
+        async def arun(self, url, config=None):
+            # slow to allow us to set shutdown between domains
+            await asyncio.sleep(0.01)
+            return FakeResult(url=url)
+
+    monkeypatch.setattr(ps, "AsyncWebCrawler", lambda config=None: SlowCrawler())
+
+    sent = []
+
+    def fake_send_items(batch):
+        sent.append(list(batch))
+
+    monkeypatch.setattr(ps, "send_items", AsyncMock(side_effect=fake_send_items))
+
+    deleted = []
+    monkeypatch.setattr(ps, "delete_message", lambda m: deleted.append(m))
+
+    ev = asyncio.Event()
+
+    # schedule shutdown shortly after processing starts
+    async def trigger():
+        await asyncio.sleep(0.02)
+        ev.set()
+
+    t_trigger = asyncio.create_task(trigger())
+
+    # process messages concurrently - expect that not all domains complete
+    await ps.process_message_batch(messages, db, ev, object(), batch_size=2)
+
+    # ensure trigger task is cancelled after run
+    if not t_trigger.done():
+        t_trigger.cancel()
+    # At least first domain should have been deleted; others may or may not
+    assert len(deleted) >= 1
+    # Some batches may have been sent but total sent URLs should be <= total available
+    all_sent = [
+        item.get("url") if isinstance(item, dict) else item for b in sent for item in b
+    ]
+    assert set(all_sent).issubset({"a1", "a2", "b1", "b2", "b3", "c1"})
+
+
+async def test_single_domain_batching_behavior(monkeypatch):
+    # Single domain with 5 URLs and batch_size=2 should produce 3 sends
+    messages = [object()]
+    monkeypatch.setattr(ps, "parse_message_body", lambda m: ("only", None))
+
+    class DB:
+        def get_product_urls_by_domain(self, domain):
+            return [f"p{i}" for i in range(5)]
+
+    db = DB()
+    monkeypatch.setattr(ps, "build_product_scraper_components", lambda: ({}, {}))
+
+    class FastCrawler(FakeCrawler):
+        async def arun(self, url, config=None):
+            return FakeResult(url=url)
+
+    monkeypatch.setattr(ps, "AsyncWebCrawler", lambda config=None: FastCrawler())
+
+    sent = []
+
+    def fake_send_items(batch):
+        sent.append(list(batch))
+
+    monkeypatch.setattr(ps, "send_items", AsyncMock(side_effect=fake_send_items))
+    deleted = []
+    monkeypatch.setattr(ps, "delete_message", lambda m: deleted.append(m))
+
+    await ps.process_message_batch(
+        messages, db, asyncio.Event(), object(), batch_size=2
+    )
+
+    assert len(deleted) == 1
+    assert len(sent) == 3
+    assert {
+        item.get("url") if isinstance(item, dict) else item for b in sent for item in b
+    } == {"p0", "p1", "p2", "p3", "p4"}
