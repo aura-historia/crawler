@@ -83,7 +83,9 @@ class URLBertClassifier(torch.nn.Module):
             self.classifier = torch.nn.Linear(self.bert.config.hidden_size, 2)
 
             # Load trained weights
-            state_dict = torch.load(str(model_path), map_location="cpu")
+            state_dict = torch.load(
+                str(model_path), map_location="cpu", weights_only=False
+            )
             self.load_state_dict(state_dict)
 
             logger.info(f"Model loaded successfully with vocab_size={self.VOCAB_SIZE}")
