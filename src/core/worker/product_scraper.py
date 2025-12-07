@@ -1,10 +1,8 @@
 import asyncio
 import json
-import logging
 import os
 import signal
 from typing import Any, Dict, List, Optional
-import aiohttp
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from extruct import extract as extruct_extract
@@ -17,109 +15,24 @@ from src.core.sqs.message_wrapper import (
     parse_message_body,
 )
 from src.core.sqs.queue_wrapper import get_queue
+from src.core.utils.logger import logger
 from src.core.utils.send_items import send_items
 from src.core.utils.spider import build_product_scraper_components
+from src.core.utils.spot_termination_watcher import (
+    watch_spot_termination,
+    signal_handler,
+)
 from src.core.utils.standards_extractor import extract_standard
 from crawl4ai import AsyncWebCrawler
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 ScrapedData = Dict[str, Any]
 
 QUEUE_NAME = os.getenv("SQS_QUEUE_NAME")
 
 shutdown_event: asyncio.Event = asyncio.Event()
-
-
-# Helper to run blocking calls without freezing the loop
-async def run_sync(func, *args):
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, func, *args)
-
-
-def signal_handler(signum: int, frame) -> None:
-    """Signal handler that marks the worker as interrupted and re-queues
-    the currently-processing SQS message (if any).
-
-    The `frame` argument is required by the Python `signal` API even if
-    unused.
-    """
-    logger.info("Signal %s received. Finishing current task and shutting down.", signum)
-
-    if shutdown_event is not None:
-        try:
-            shutdown_event.set()
-        except Exception:
-            logger.debug("Failed to signal shutdown_event to the loop")
-
-
-async def _get_metadata_token(session: aiohttp.ClientSession) -> Optional[str]:
-    """Fetches a metadata token from the EC2 metadata service."""
-    token_url = os.getenv("EC2_TOKEN_URL")
-    headers = {"X-aws-ec2-metadata-token-ttl-seconds": "21600"}
-    try:
-        async with session.put(token_url, headers=headers, timeout=2) as token_resp:
-            if token_resp.status == 200:
-                return await token_resp.text()
-            else:
-                logger.debug(f"Failed to get metadata token: {token_resp.status}")
-                return None
-    except Exception as e:
-        logger.debug(f"Error fetching metadata token: {e}")
-        return None
-
-
-async def _check_spot_termination_notice(
-    session: aiohttp.ClientSession, event: asyncio.Event
-):
-    """Checks for a spot termination notice and sets the event if found."""
-    metadata_url = os.getenv("EC2_METADATA_URL")
-    try:
-        token = await _get_metadata_token(session)
-        if not token:
-            return
-
-        headers = {"X-aws-ec2-metadata-token": token}
-        async with session.get(metadata_url, headers=headers, timeout=2) as resp:
-            if resp.status == 200:
-                try:
-                    data = await resp.json()
-                    action = data.get("action")
-                    if action in ["terminate", "stop"]:
-                        logger.warning(
-                            f"Spot {action} imminent! Time: {data.get('time')}"
-                        )
-                        event.set()
-                except json.JSONDecodeError:
-                    logger.debug("Failed to decode instance-action JSON")
-    except asyncio.CancelledError:
-        logger.info("Spot termination watcher cancelled.")
-        raise
-    except Exception as e:
-        logger.debug(f"Error checking spot status: {e}")
-
-
-async def watch_spot_termination(event: asyncio.Event, check_interval: int = 5) -> None:
-    """
-    Poll for spot termination notice using the modern 'instance-action' endpoint.
-    """
-    async with aiohttp.ClientSession() as session:
-        while not event.is_set():
-            try:
-                # Wait for the check_interval or until the event is set.
-                await asyncio.wait_for(event.wait(), timeout=check_interval)
-            except asyncio.TimeoutError:
-                # Timeout expired, time to check for the notice.
-                if not event.is_set():
-                    await _check_spot_termination_notice(session, event)
-            except asyncio.CancelledError:
-                logger.info("Spot termination watcher task cancelled.")
-                raise
-
-        logger.info("Spot termination watcher finished.")
 
 
 async def process_result(result: Any) -> Optional[ScrapedData]:
@@ -166,7 +79,7 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
         if item is None:
             if batch:
                 logger.info(f"Sending Items remaining: {batch}")
-                await send_items(batch)
+                # await send_items(batch)
             break
 
         batch.append(item)
@@ -258,11 +171,11 @@ async def handle_domain_message(
 
     domain, next_url = parse_message_body(message)
     if not domain:
-        await run_sync(delete_message, message)
+        await asyncio.to_thread(delete_message, message)
         return
 
     logger.info("Processing domain: %s", domain)
-    product_urls = await run_sync(db.get_product_urls_by_domain, domain)
+    product_urls = await asyncio.to_thread(db.get_product_urls_by_domain, domain)
 
     start_index = 0
     if next_url:
@@ -273,7 +186,7 @@ async def handle_domain_message(
 
     urls_to_crawl = product_urls[start_index:]
     if not urls_to_crawl:
-        await run_sync(delete_message, message)
+        await asyncio.to_thread(delete_message, message)
         return
 
     logger.info(urls_to_crawl)
@@ -292,7 +205,7 @@ async def handle_domain_message(
         logger.info(body)
 
         try:
-            await run_sync(send_message, queue, body)
+            await asyncio.to_thread(send_message, queue, body)
             logger.info("Requeued domain %s due to %s", domain, reason)
             return True
         except Exception as exc:
@@ -315,14 +228,14 @@ async def handle_domain_message(
 
         if shutdown_event.is_set():
             if await requeue_remaining("shutdown signal"):
-                await run_sync(delete_message, message)
+                await asyncio.to_thread(delete_message, message)
             return
 
-        await run_sync(delete_message, message)
+        await asyncio.to_thread(delete_message, message)
     except Exception as e:
         logger.exception("Error handling domain %s: %s", domain, e)
         if await requeue_remaining("processing error"):
-            await run_sync(delete_message, message)
+            await asyncio.to_thread(delete_message, message)
 
 
 async def process_message_batch(
@@ -366,7 +279,7 @@ async def main(n_shops: int = 5, batch_size: int = 10) -> None:
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            loop.add_signal_handler(sig, signal_handler, sig, None)
+            loop.add_signal_handler(sig, signal_handler, sig, shutdown_event)
         except NotImplementedError:
             signal.signal(sig, lambda s, f: shutdown_event.set())
 
@@ -376,7 +289,7 @@ async def main(n_shops: int = 5, batch_size: int = 10) -> None:
 
     while not shutdown_event.is_set():
         try:
-            messages = await run_sync(receive_messages, queue, n_shops, 1)
+            messages = await asyncio.to_thread(receive_messages, queue, n_shops, 1)
 
             if not messages:
                 try:

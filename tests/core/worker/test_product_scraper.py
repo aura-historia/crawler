@@ -127,14 +127,6 @@ async def test_signal_handler_sets_event():
     assert ev.is_set()
 
 
-async def test_run_sync_executes(monkeypatch):
-    def f(a, b):
-        return a + b
-
-    res = await ps.run_sync(f, 1, 2)
-    assert res == 3
-
-
 async def test_get_metadata_token_success(monkeypatch):
     session = FakeSession(put_resp=FakeResp(status=200, text_value="tokval"))
     monkeypatch.setenv("EC2_TOKEN_URL", "http://token")
