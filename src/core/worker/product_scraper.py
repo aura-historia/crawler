@@ -37,14 +37,16 @@ shutdown_event: asyncio.Event = asyncio.Event()
 
 async def process_result(result: Any) -> Optional[ScrapedData]:
     """
-    Process a single crawl result and extract a structured product representation.
+    Normalize the structured data contained in a single crawl result.
 
     Args:
-        result: The crawl result object returned by `AsyncWebCrawler.arun_many`.
+        result: Object returned by `AsyncWebCrawler.arun` containing `success`,
+            `html`, and `url` attributes.
 
     Returns:
-        A dictionary with structured data (ScrapedData) or None if extraction
-        failed or the result signals an unsuccessful fetch.
+        A ScrapedData dict when the crawl succeeded and extraction worked,
+        otherwise ``None`` (e.g., network failure, missing html/url, or
+        unsupported syntax).
     """
     if not getattr(result, "success", False):
         logger.debug(
@@ -70,16 +72,14 @@ async def process_result(result: Any) -> Optional[ScrapedData]:
 
 
 async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
-    """
-    Background consumer that reads items from `q` and sends them in batches.
-    """
+    """Drain `q` and send accumulated items via `send_items` until a ``None`` sentinel arrives."""
     batch: List[ScrapedData] = []
     while True:
         item = await q.get()
         if item is None:
             if batch:
                 logger.info(f"Sending Items remaining: {batch}")
-                # await send_items(batch)
+                await send_items(batch)
             break
 
         batch.append(item)
@@ -96,15 +96,17 @@ async def scrape(
     batch_size: int = 500,
 ) -> int:
     """
-    Crawl the given list of `urls` in streaming mode and send extracted items
-    to the backend in batches.
+    Crawl the given URLs sequentially, enqueue extracted products, and flush them in batches.
 
     Args:
-        crawler: An instance of AsyncWebCrawler to use for crawling.
-        urls: Sequence of URLs to crawl.
-        shutdown_event: An asyncio.Event that signals when to stop processing.
-        run_config: The configuration for the crawler run.
-        batch_size: Number of items to accumulate before sending to the backend.
+        crawler: Initialized `AsyncWebCrawler` instance (context-managed by caller).
+        urls: URLs to fetch.
+        shutdown_event: Cooperative cancellation flag checked before each request.
+        run_config: Dict passed to `crawler.arun(url, config=run_config)`.
+        batch_size: Number of extracted items passed to `send_items` at once.
+
+    Returns:
+        Count of URLs attempted (successful or not).
     """
     processed_count = 0
     q: asyncio.Queue = asyncio.Queue()
@@ -154,19 +156,13 @@ async def handle_domain_message(
     batch_size: int = 10,
 ) -> None:
     """
-    Handle a single domain-processing message from the queue.
+    Resolve a domain message, crawl its product URLs, and requeue unfinished work if interrupted.
 
-    This function fetches the product URLs for the domain (from DynamoDB),
-    computes a start position if a `next` key is present, and runs
-    `crawl_streaming` for the remaining URLs. On interruption, it will attempt
-    to re-queue the message for future processing.
-
-    Args:
-        message: SQS message object containing the domain to process.
-        db: DynamoDBOperations instance used to retrieve product URLs.
-        shutdown_event: An asyncio.Event that signals when to stop processing.
-        queue: The SQS queue object for re-queuing.
-        batch_size: Batch size to pass to `crawl_streaming`.
+    Workflow:
+        1. Parse ``domain``/``next`` from the message body.
+        2. Fetch URLs from DynamoDB and resume at ``next`` if present.
+        3. Build crawler components, run `scrape`, and stream items.
+        4. On shutdown or errors, requeue the remaining URLs before deleting the original message.
     """
 
     domain, next_url = parse_message_body(message)
@@ -245,7 +241,7 @@ async def process_message_batch(
     queue: Any,
     batch_size: int,
 ) -> None:
-    """Poll SQS once and process the returned messages."""
+    """Spawn one task per SQS message and wait for all to finish, logging per-task failures."""
 
     if not messages:
         return
