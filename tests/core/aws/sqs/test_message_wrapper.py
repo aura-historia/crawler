@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from src.core.sqs import message_wrapper
+from src.core.aws.sqs import message_wrapper
 from botocore.exceptions import ClientError
 
 

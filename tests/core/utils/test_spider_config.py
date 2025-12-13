@@ -1,11 +1,11 @@
-from src.core.utils import spider
+from src.core.utils import spider_config
 from crawl4ai import CacheMode
 import math
 
 
 def test_crawl_config_basic():
     """crawl_config returns an object with expected top-level settings."""
-    cfg = spider.crawl_config()
+    cfg = spider_config.crawl_config()
 
     assert cfg is not None
     assert hasattr(cfg, "deep_crawl_strategy")
@@ -17,7 +17,7 @@ def test_crawl_config_basic():
 
 def test_deep_crawl_strategy_settings():
     """The deep crawl strategy contains sensible defaults (max_depth, includes/excludes)."""
-    cfg = spider.crawl_config()
+    cfg = spider_config.crawl_config()
     strat = cfg.deep_crawl_strategy
 
     assert strat is not None
@@ -44,7 +44,7 @@ def test_deep_crawl_strategy_settings():
 
 def test_crawl_dispatcher_settings():
     """crawl_dispatcher returns a dispatcher that exposes expected attributes."""
-    dispatcher = spider.crawl_dispatcher()
+    dispatcher = spider_config.crawl_dispatcher()
 
     assert dispatcher is not None
     assert hasattr(dispatcher, "memory_threshold_percent")

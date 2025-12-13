@@ -8,17 +8,17 @@ from dotenv import load_dotenv
 from extruct import extract as extruct_extract
 from w3lib.html import get_base_url
 from src.core.database.operations import DynamoDBOperations
-from src.core.sqs.message_wrapper import (
+from src.core.aws.sqs.message_wrapper import (
     receive_messages,
     send_message,
     delete_message,
     parse_message_body,
 )
-from src.core.sqs.queue_wrapper import get_queue
+from src.core.aws.sqs.queue_wrapper import get_queue
 from src.core.utils.logger import logger
 from src.core.utils.send_items import send_items
-from src.core.utils.spider import build_product_scraper_components
-from src.core.utils.spot_termination_watcher import (
+from src.core.utils.spider_config import build_product_scraper_components
+from src.core.aws.spot.spot_termination_watcher import (
     watch_spot_termination,
     signal_handler,
 )

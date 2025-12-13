@@ -44,7 +44,7 @@ async def test_basic_product_with_all_fields():
     )
     res = await extractor.extract(data, "http://fallback")
 
-    assert res["shopsItemId"] == "http://example.com/product"
+    assert res["shopsProductId"] == "http://example.com/product"
     assert res["title"]["text"] == "Test Product"
     assert res["title"]["language"] == "de"
     assert res["description"]["text"] == "A great product"
@@ -299,7 +299,7 @@ async def test_url_from_data():
     )
     res = await extractor.extract(data, "http://fallback")
     assert res["url"] == "http://example.com/product/123"
-    assert res["shopsItemId"] == "http://example.com/product/123"
+    assert res["shopsProductId"] == "http://example.com/product/123"
 
 
 @pytest.mark.asyncio
@@ -314,7 +314,7 @@ async def test_url_fallback_when_missing():
     )
     res = await extractor.extract(data, "http://fallback")
     assert res["url"] == "http://fallback"
-    assert res["shopsItemId"] == "http://fallback"
+    assert res["shopsProductId"] == "http://fallback"
 
 
 @pytest.mark.asyncio

@@ -1,13 +1,13 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from src.core.sqs import queue_wrapper
+from src.core.aws.sqs import queue_wrapper
 from botocore.exceptions import ClientError
 
 
 @pytest.fixture
 def mock_sqs_resource():
     """Fixture for a mocked SQS resource."""
-    with patch("src.core.sqs.queue_wrapper.sqs") as mock_sqs:
+    with patch("src.core.aws.sqs.queue_wrapper.sqs") as mock_sqs:
         # Mock for create_queue
         mock_queue = MagicMock()
         mock_queue.url = "http://queue.url"

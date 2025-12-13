@@ -46,7 +46,7 @@ def merge_products(base: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, Any]:
     merged = dict(base)
 
     for key, value in new.items():
-        if key == "shopsItemId":
+        if key == "shopsProductId":
             merged[key] = _merge_item_id(merged.get(key, ""), value)
         elif key == "price":
             merged[key] = _merge_price(merged.get(key, {}), value)

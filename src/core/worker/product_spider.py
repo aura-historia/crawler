@@ -10,14 +10,14 @@ from dotenv import load_dotenv
 from src.core.classifier.url_classifier import URLBertClassifier
 from src.core.database.operations import DynamoDBOperations
 from src.core.database.models import URLEntry
-from src.core.sqs.message_wrapper import (
+from src.core.aws.sqs.message_wrapper import (
     receive_messages,
     delete_message,
 )
-from src.core.sqs.queue_wrapper import get_queue, create_queue
+from src.core.aws.sqs.queue_wrapper import get_queue
 from src.core.utils.logger import logger
-from src.core.utils.spider import crawl_config, crawl_dispatcher
-from src.core.utils.spot_termination_watcher import (
+from src.core.utils.spider_config import crawl_config, crawl_dispatcher
+from src.core.aws.spot.spot_termination_watcher import (
     watch_spot_termination,
     signal_handler,
 )
@@ -274,7 +274,6 @@ async def main(n_shops: int = 5, batch_size: int = 50) -> None:
         batch_size: Number of URLs to batch before writing to database
     """
     try:
-        create_queue(QUEUE_NAME)
         queue = get_queue(QUEUE_NAME)
     except ClientError as e:
         logger.error(f"Failed to get SQS queue '{QUEUE_NAME}': {e}")

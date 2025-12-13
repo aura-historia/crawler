@@ -46,7 +46,7 @@ async def test_multiple_products_returns_first():
         ]
     }
     res = await extractor.extract(data, "http://fallback")
-    assert res["shopsItemId"] == "FIRST"
+    assert res["shopsProductId"] == "FIRST"
 
 
 @pytest.mark.asyncio
@@ -187,7 +187,7 @@ async def test_shops_item_id_precedence_and_defaults():
         }
     )
     res1 = await extractor.extract(data1, "http://fallback")
-    assert res1["shopsItemId"] == "H1"
+    assert res1["shopsProductId"] == "H1"
 
     data2 = wrap_product(
         {
@@ -196,7 +196,7 @@ async def test_shops_item_id_precedence_and_defaults():
         }
     )
     res2 = await extractor.extract(data2, "http://fallback")
-    assert res2["shopsItemId"] == "PID2"
+    assert res2["shopsProductId"] == "PID2"
 
     data3 = wrap_product(
         {
@@ -204,7 +204,7 @@ async def test_shops_item_id_precedence_and_defaults():
         }
     )
     res3 = await extractor.extract(data3, "http://fallback")
-    assert res3["shopsItemId"] == "http://fallback"
+    assert res3["shopsProductId"] == "http://fallback"
 
 
 @pytest.mark.asyncio
@@ -339,4 +339,4 @@ async def test_nested_product_is_found():
         ]
     }
     res = await extractor.extract(data, "http://fallback")
-    assert res["shopsItemId"] == "NESTED"
+    assert res["shopsProductId"] == "NESTED"

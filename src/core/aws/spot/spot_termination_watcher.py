@@ -11,9 +11,6 @@ from src.core.utils.logger import logger
 def signal_handler(signum: int, shutdown_event) -> None:
     """Signal handler that marks the worker as interrupted and re-queues
     the currently-processing SQS message (if any).
-
-    The `frame` argument is required by the Python `signal` API even if
-    unused.
     """
     logger.info("Signal %s received. Finishing current task and shutting down.", signum)
 
@@ -24,7 +21,7 @@ def signal_handler(signum: int, shutdown_event) -> None:
             logger.debug("Failed to signal shutdown_event to the loop")
 
 
-async def _get_metadata_token(session: aiohttp.ClientSession) -> Optional[str]:
+async def get_metadata_token(session: aiohttp.ClientSession) -> Optional[str]:
     """Fetches a metadata token from the EC2 metadata service."""
     token_url = os.getenv("EC2_TOKEN_URL")
     headers = {"X-aws-ec2-metadata-token-ttl-seconds": "21600"}
@@ -40,13 +37,13 @@ async def _get_metadata_token(session: aiohttp.ClientSession) -> Optional[str]:
         return None
 
 
-async def _check_spot_termination_notice(
+async def check_spot_termination_notice(
     session: aiohttp.ClientSession, event: asyncio.Event
 ):
     """Checks for a spot termination notice and sets the event if found."""
     metadata_url = os.getenv("EC2_METADATA_URL")
     try:
-        token = await _get_metadata_token(session)
+        token = await get_metadata_token(session)
         if not token:
             return
 
@@ -70,7 +67,9 @@ async def _check_spot_termination_notice(
         logger.debug(f"Error checking spot status: {e}")
 
 
-async def watch_spot_termination(event: asyncio.Event, check_interval: int = 5) -> None:
+async def watch_spot_termination(
+    event: asyncio.Event, check_interval: float = 0.1
+) -> None:
     """
     Poll for spot termination notice using the modern 'instance-action' endpoint.
     """
@@ -82,7 +81,7 @@ async def watch_spot_termination(event: asyncio.Event, check_interval: int = 5) 
             except asyncio.TimeoutError:
                 # Timeout expired, time to check for the notice.
                 if not event.is_set():
-                    await _check_spot_termination_notice(session, event)
+                    await check_spot_termination_notice(session, event)
             except asyncio.CancelledError:
                 logger.info("Spot termination watcher task cancelled.")
                 raise
