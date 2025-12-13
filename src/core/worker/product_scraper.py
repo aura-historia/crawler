@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from extruct import extract as extruct_extract
 from w3lib.html import get_base_url
-from src.core.database.operations import DynamoDBOperations
+from src.core.aws.database.operations import DynamoDBOperations
 from src.core.aws.sqs.message_wrapper import (
     receive_messages,
     send_message,

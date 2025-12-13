@@ -8,8 +8,8 @@ from aiohttp import ClientError
 from dotenv import load_dotenv
 
 from src.core.classifier.url_classifier import URLBertClassifier
-from src.core.database.operations import DynamoDBOperations
-from src.core.database.models import URLEntry
+from src.core.aws.database.operations import DynamoDBOperations
+from src.core.aws.database.models import URLEntry
 from src.core.aws.sqs.message_wrapper import (
     receive_messages,
     delete_message,

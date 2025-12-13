@@ -2,14 +2,14 @@ import pytest
 from unittest.mock import Mock, patch
 from botocore.exceptions import ClientError
 
-from src.core.database.models import ShopMetadata, URLEntry
-from src.core.database.operations import DynamoDBOperations, db_operations
+from src.core.aws.database.models import ShopMetadata, URLEntry
+from src.core.aws.database.operations import DynamoDBOperations, db_operations
 
 
 class TestGetOperations:
     """Test GetItem operations."""
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_get_shop_metadata_success(self, mock_get_client):
         """Test successfully getting shop metadata."""
         # Arrange
@@ -36,7 +36,7 @@ class TestGetOperations:
         assert result.standards_used == ["json-ld"]
         mock_client.get_item.assert_called_once()
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_get_shop_metadata_not_found(self, mock_get_client):
         """Test getting shop metadata when it doesn't exist."""
         # Arrange
@@ -52,7 +52,7 @@ class TestGetOperations:
         # Assert
         assert result is None
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_get_shop_metadata_error(self, mock_get_client):
         """Test error handling when getting shop metadata."""
         # Arrange
@@ -68,7 +68,7 @@ class TestGetOperations:
         with pytest.raises(ClientError):
             ops.get_shop_metadata("example.com")
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_get_url_entry_success(self, mock_get_client):
         """Test successfully getting URL entry."""
         # Arrange
@@ -96,7 +96,7 @@ class TestGetOperations:
         assert result.url == test_url
         assert result.is_product is True
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_get_url_entry_not_found(self, mock_get_client):
         """Test getting URL entry when it doesn't exist."""
         # Arrange
@@ -116,7 +116,7 @@ class TestGetOperations:
 class TestBatchWriteOperations:
     """Test BatchWriteItem operations."""
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_batch_write_items_empty_list(self, mock_get_client):
         """Test batch write with empty list."""
         # Arrange
@@ -131,7 +131,7 @@ class TestBatchWriteOperations:
         assert result == {"UnprocessedItems": {}}
         mock_client.batch_write_item.assert_not_called()
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_batch_write_shop_metadata_success(self, mock_get_client):
         """Test successfully batch writing shop metadata."""
         # Arrange
@@ -152,7 +152,7 @@ class TestBatchWriteOperations:
         assert result == {"UnprocessedItems": {}}
         mock_client.batch_write_item.assert_called_once()
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_batch_write_shop_metadata_empty_list(self, mock_get_client):
         """Test batch write shop metadata with empty list."""
         # Arrange
@@ -166,7 +166,7 @@ class TestBatchWriteOperations:
         # Assert
         assert result == {"UnprocessedItems": {}}
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_batch_write_url_entries_success(self, mock_get_client):
         """Test successfully batch writing URL entries."""
         # Arrange
@@ -188,8 +188,8 @@ class TestBatchWriteOperations:
         assert result == {"UnprocessedItems": {}}
         mock_client.batch_write_item.assert_called_once()
 
-    @patch("src.core.database.operations.get_dynamodb_client")
-    @patch("src.core.database.operations.os.getenv")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.os.getenv")
     def test_batch_write_handles_unprocessed_items(self, mock_getenv, mock_get_client):
         """Test handling of unprocessed items."""
         # Arrange
@@ -219,7 +219,7 @@ class TestBatchWriteOperations:
 class TestUpsertOperations:
     """Test upsert (insert/update) operations."""
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_upsert_shop_metadata_success(self, mock_get_client):
         """Test successfully upserting shop metadata."""
         # Arrange
@@ -236,7 +236,7 @@ class TestUpsertOperations:
         # Assert
         mock_client.put_item.assert_called_once()
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_upsert_shop_metadata_error(self, mock_get_client):
         """Test error handling when upserting shop metadata."""
         # Arrange
@@ -253,7 +253,7 @@ class TestUpsertOperations:
         with pytest.raises(ClientError):
             ops.upsert_shop_metadata(metadata)
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_upsert_url_entry_success(self, mock_get_client):
         """Test successfully upserting URL entry."""
         # Arrange
@@ -274,7 +274,7 @@ class TestUpsertOperations:
 class TestQueryOperations:
     """Test query operations."""
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_query_all_urls_for_domain_success(self, mock_get_client):
         """Test successfully querying all URLs for a domain."""
         # Arrange
@@ -310,7 +310,7 @@ class TestQueryOperations:
         assert result[0].url == "https://example.com/page1"
         assert result[1].url == "https://example.com/page2"
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_query_all_urls_for_domain_empty(self, mock_get_client):
         """Test querying URLs when domain has no URLs."""
         # Arrange
@@ -326,7 +326,7 @@ class TestQueryOperations:
         # Assert
         assert result == []
 
-    @patch("src.core.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
     def test_query_handles_pagination(self, mock_get_client):
         """Test query handles pagination correctly."""
         # Arrange
@@ -391,8 +391,8 @@ class TestGlobalInstance:
 class TestGetProductUrls:
     """Tests for get_product_urls_by_domain (refactored to match project test style)."""
 
-    @patch("src.core.database.operations.get_dynamodb_client")
-    @patch("src.core.database.operations.os.getenv")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.os.getenv")
     def test_get_product_urls_single_page(self, mock_getenv, mock_get_client):
         mock_getenv.return_value = "test-table"
         mock_client = Mock()
@@ -416,8 +416,8 @@ class TestGetProductUrls:
         assert ":pk" in called_kwargs.get("ExpressionAttributeValues", {})
         assert "FilterExpression" in called_kwargs
 
-    @patch("src.core.database.operations.get_dynamodb_client")
-    @patch("src.core.database.operations.os.getenv")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.os.getenv")
     def test_get_product_urls_multiple_pages(self, mock_getenv, mock_get_client):
         mock_getenv.return_value = "test-table"
         mock_client = Mock()
@@ -437,8 +437,8 @@ class TestGetProductUrls:
         assert urls == ["https://b.com/p1", "https://b.com/p2"]
         assert mock_client.query.call_count == 2
 
-    @patch("src.core.database.operations.get_dynamodb_client")
-    @patch("src.core.database.operations.os.getenv")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.os.getenv")
     def test_get_product_urls_filters_only_products(self, mock_getenv, mock_get_client):
         mock_getenv.return_value = "test-table"
         mock_client = Mock()
@@ -459,8 +459,8 @@ class TestGetProductUrls:
         assert "FilterExpression" in called_kwargs
         assert ":is_product" in called_kwargs.get("ExpressionAttributeValues", {})
 
-    @patch("src.core.database.operations.get_dynamodb_client")
-    @patch("src.core.database.operations.os.getenv")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.os.getenv")
     def test_get_product_urls_handles_empty(self, mock_getenv, mock_get_client):
         mock_getenv.return_value = "test-table"
         mock_client = Mock()
@@ -472,8 +472,8 @@ class TestGetProductUrls:
         urls = ops.get_product_urls_by_domain("d.com")
         assert urls == []
 
-    @patch("src.core.database.operations.get_dynamodb_client")
-    @patch("src.core.database.operations.os.getenv")
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    @patch("src.core.aws.database.operations.os.getenv")
     def test_get_product_urls_client_error(self, mock_getenv, mock_get_client):
         mock_getenv.return_value = "test-table"
         mock_client = Mock()

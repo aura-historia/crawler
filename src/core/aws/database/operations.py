@@ -5,7 +5,7 @@ from typing import List, Optional
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
-from src.core.database.models import ShopMetadata, URLEntry, get_dynamodb_client
+from src.core.aws.database.models import ShopMetadata, URLEntry, get_dynamodb_client
 
 load_dotenv()
 logger = logging.getLogger(__name__)
