@@ -176,7 +176,7 @@ async def test_shops_item_id_precedence_and_defaults():
         }
     )
     res1 = await extractor.extract(data1, "http://fallback")
-    assert res1["shopsItemId"] == "H1"
+    assert res1["shopsProductId"] == "H1"
 
     # sku missing -> productGroupID
     data2 = wrap_product(
@@ -187,7 +187,7 @@ async def test_shops_item_id_precedence_and_defaults():
         }
     )
     res2 = await extractor.extract(data2, "http://fallback")
-    assert res2["shopsItemId"] == "PG2"
+    assert res2["shopsProductId"] == "PG2"
 
     # both missing -> "UNKNOWN"
     data3 = wrap_product(
@@ -197,7 +197,7 @@ async def test_shops_item_id_precedence_and_defaults():
         }
     )
     res3 = await extractor.extract(data3, "http://fallback")
-    assert res3["shopsItemId"] == "http://fallback"
+    assert res3["shopsProductId"] == "http://fallback"
 
 
 @pytest.mark.asyncio

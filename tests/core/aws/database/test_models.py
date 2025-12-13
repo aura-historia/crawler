@@ -1,4 +1,4 @@
-from src.core.database.models import ShopMetadata, URLEntry
+from src.core.aws.database.models import ShopMetadata, URLEntry
 
 
 def test_shop_metadata_creation():

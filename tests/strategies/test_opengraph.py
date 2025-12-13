@@ -47,7 +47,7 @@ async def test_basic_product_with_all_fields():
     )
     res = await extractor.extract(data, "http://fallback")
 
-    assert res["shopsItemId"] == "http://fallback"
+    assert res["shopsProductId"] == "http://fallback"
     assert res["title"]["text"] == "Test Product"
     assert res["title"]["language"] == "de"
     assert res["description"]["text"] == "A great product"
@@ -520,7 +520,7 @@ async def test_price_very_large():
 
 @pytest.mark.asyncio
 async def test_shops_item_id_uses_provided_url():
-    """Test that shopsItemId is set to the provided URL parameter."""
+    """Test that shopsProductId is set to the provided URL parameter."""
     extractor = OpenGraphExtractor()
     data = wrap_opengraph(
         [
@@ -529,7 +529,7 @@ async def test_shops_item_id_uses_provided_url():
         ]
     )
     res = await extractor.extract(data, "http://unique-url-12345")
-    assert res["shopsItemId"] == "http://unique-url-12345"
+    assert res["shopsProductId"] == "http://unique-url-12345"
 
 
 @pytest.mark.asyncio

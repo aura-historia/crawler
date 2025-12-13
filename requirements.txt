@@ -1,3 +1,4 @@
+aioresponses
 botocore
 aiohttp
 nest-asyncio

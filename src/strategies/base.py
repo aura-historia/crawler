@@ -62,7 +62,7 @@ class BaseExtractor(ABC):
 
         Returns:
             Dictionary with standardized product fields:
-                - shopsItemId: str
+                - shopsProductId: str
                 - title: dict with 'text' and 'language'
                 - description: dict with 'text' and 'language'
                 - price: dict with 'currency' and 'amount' (in cents)
@@ -71,7 +71,7 @@ class BaseExtractor(ABC):
                 - images: list of str
         """
         return {
-            "shopsItemId": str(item_id or url),
+            "shopsProductId": str(item_id or url),
             "title": {"text": title or "UNKNOWN", "language": language},
             "description": {
                 "text": (description or "UNKNOWN").strip(),

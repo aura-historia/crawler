@@ -3,7 +3,7 @@ import os
 import sys
 
 from botocore.exceptions import ClientError
-from src.core.database.models import get_dynamodb_client
+from src.core.aws.database.models import get_dynamodb_client
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)

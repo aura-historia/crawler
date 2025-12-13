@@ -133,7 +133,7 @@ async def test_extract_standard_with_generic_data(monkeypatch):
     assert is_valid_product(result)
 
     # Shops item ID assertion
-    assert result["shopsItemId"] == "A1023"
+    assert result["shopsProductId"] == "A1023"
 
     # Title assertions
     assert result["title"]["text"] == "Collectible Medal Set 1940s"
@@ -274,12 +274,12 @@ def test_merge_products_price_override():
     assert merged["price"]["currency"] == "USD"
 
 
-def test_merge_products_shopsitemid_prefers_non_url():
-    """Test that non-URL shopsItemId is preferred over URL."""
-    base = {"shopsItemId": "http://example.com/product"}
-    new = {"shopsItemId": "SKU123"}
+def test_merge_products_shopsproductid_prefers_non_url():
+    """Test that non-URL shopsProductId is preferred over URL."""
+    base = {"shopsProductId": "http://example.com/product"}
+    new = {"shopsProductId": "SKU123"}
     merged = merge_products(base, new)
-    assert merged["shopsItemId"] == "SKU123"
+    assert merged["shopsProductId"] == "SKU123"
 
 
 def test_merge_products_images_deduplication():
