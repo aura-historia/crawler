@@ -18,7 +18,7 @@ from crawl4ai import AsyncWebCrawler
 from extruct import extract as extruct_extract
 from w3lib.html import get_base_url
 
-from src.core.utils.spider import crawl_config, crawl_dispatcher
+from src.core.utils.spider_config import crawl_config, crawl_dispatcher
 from src.core.utils.standards_extractor import extract_standard
 
 # Setup logging
@@ -156,6 +156,37 @@ def _chunked(iterable: Iterable[Any], size: int) -> List[List[Any]]:
     return chunks
 
 
+async def _handle_successful_crawl(url: str, html: str | list) -> Dict:
+    """
+    Process successful crawl by extracting structured data.
+
+    Args:
+        url: The crawled URL.
+        html: The HTML content from the crawl result.
+
+    Returns:
+        A dictionary with the processing result.
+    """
+    html_content = html
+    if isinstance(html_content, list):
+        html_content = html_content[0] if html_content else ""
+
+    if not html_content or not isinstance(html_content, str):
+        return {"url": url, "label": "failed", "status": "Invalid HTML content"}
+
+    base_url = get_base_url(html_content, url)
+    structured = extruct_extract(
+        html_content,
+        base_url=base_url,
+        syntaxes=["json-ld", "microdata", "rdfa", "opengraph"],
+    )
+
+    extracted_data = await extract_standard(structured, url)
+    if extracted_data:
+        return {"url": url, "label": "product", "status": "success"}
+    return {"url": url, "label": "non-product", "status": "success"}
+
+
 async def process_crawl_result(result) -> Dict:
     """Process a CrawlResult and determine whether it contains product data.
 
@@ -179,35 +210,12 @@ async def process_crawl_result(result) -> Dict:
 
         # Process successful crawls
         if result.success and result.html:
-            # Ensure html is a string (sometimes it can be a list)
-            html_content = result.html
-            if isinstance(html_content, list):
-                html_content = html_content[0] if html_content else ""
-
-            if not html_content or not isinstance(html_content, str):
-                return {"url": url, "label": "failed", "status": "Invalid HTML content"}
-
-            base_url = get_base_url(html_content, result.url)
-            structured = extruct_extract(
-                html_content,
-                base_url=base_url,
-                syntaxes=["json-ld", "microdata", "rdfa", "opengraph"],
-            )
-
-            extracted_data = await extract_standard(structured, result.url)
-            if extracted_data:
-                return {"url": url, "label": "product", "status": "success"}
-            return {"url": url, "label": "non-product", "status": "success"}
+            return await _handle_successful_crawl(url, result.html)
 
         # Handle failed crawls
-        logging.error(
-            f"FAILED to crawl {url}: {getattr(result, 'error_message', 'unknown')}"
-        )
-        return {
-            "url": url,
-            "label": "failed",
-            "status": getattr(result, "error_message", "unknown"),
-        }
+        error_message = getattr(result, "error_message", "unknown")
+        logging.error(f"FAILED to crawl {url}: {error_message}")
+        return {"url": url, "label": "failed", "status": error_message}
 
     except asyncio.CancelledError:
         raise
@@ -370,6 +378,7 @@ async def shop_worker(
         existing_urls: Set of already processed URLs
         worker_id: ID of this worker for logging
         json_path: Path to the json file with the start urls
+        lock: Asyncio lock for safe JSON file access
     """
     while True:
         try:
@@ -487,7 +496,3 @@ async def crawl_batch_parallel(start_urls: List[str]):
     logging.info(f"📁 Data saved to: {csv_file_path}")
     total_in_csv = len(existing_urls) + total_processed
     logging.info(f"📊 Total unique URLs in CSV: {total_in_csv}\n{'=' * 80}")
-
-
-if __name__ == "__main__":
-    asyncio.run(crawl_batch_parallel(load_antique_shop_urls()[20:]))

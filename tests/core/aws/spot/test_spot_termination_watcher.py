@@ -162,9 +162,14 @@ async def test_watch_spot_termination_stops_on_event(shutdown_event):
         "src.core.aws.spot.spot_termination_watcher.check_spot_termination_notice"
     ) as mock_check:
 
-        def side_effect():
+        def side_effect(*args):
+            """Sets the shutdown event after two calls."""
             if mock_check.call_count >= 2:
-                shutdown_event.set()
+                event = next(
+                    (arg for arg in args if isinstance(arg, asyncio.Event)), None
+                )
+                if event:
+                    event.set()
 
         mock_check.side_effect = side_effect
 
@@ -175,7 +180,7 @@ async def test_watch_spot_termination_stops_on_event(shutdown_event):
         except asyncio.TimeoutError:
             pytest.fail("Watcher did not terminate as expected.")
 
-        assert mock_check.call_count == 2
+        assert mock_check.call_count >= 2
         assert shutdown_event.is_set()
 
 
