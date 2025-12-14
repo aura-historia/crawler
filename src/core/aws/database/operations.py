@@ -18,8 +18,6 @@ class DynamoDBOperations:
         self.client = get_dynamodb_client()
         self.table_name = os.getenv("DYNAMODB_TABLE_NAME")
 
-    # ==================== GetItem Operations ====================
-
     def get_shop_metadata(self, domain: str) -> Optional[ShopMetadata]:
         """
         Get shop metadata for a domain.
@@ -123,8 +121,6 @@ class DynamoDBOperations:
             )
             raise
 
-    # ==================== BatchWriteItem Operations ====================
-
     def _batch_write_items(self, items: list, item_type: str) -> dict:
         """
         Generic batch write operation for DynamoDB items.
@@ -198,7 +194,58 @@ class DynamoDBOperations:
         items = [entry.to_dynamodb_item() for entry in url_entries]
         return self._batch_write_items(items, "URL entries")
 
-    # ==================== Helper Operations ====================
+    def update_shop_metadata(
+        self,
+        domain: str,
+        last_crawled_date: Optional[str] = None,
+        last_scraped_date: Optional[str] = None,
+    ) -> dict:
+        """
+        Update shop metadata with new values.
+
+        Args:
+            domain: Shop domain
+            last_crawled_date: ISO 8601 timestamp for last crawl
+            last_scraped_date: ISO 8601 timestamp for last scrape
+
+        Returns:
+            UpdateItem response
+        """
+        update_expression_parts = []
+        expression_attribute_values = {}
+
+        if last_crawled_date:
+            update_expression_parts.append("lastCrawledDate = :crawled")
+            expression_attribute_values[":crawled"] = {"S": last_crawled_date}
+
+        if last_scraped_date:
+            update_expression_parts.append("lastScrapedDate = :scraped")
+            expression_attribute_values[":scraped"] = {"S": last_scraped_date}
+
+        if not update_expression_parts:
+            logger.warning("No fields to update for shop metadata.")
+            return {}
+
+        update_expression = "SET " + ", ".join(update_expression_parts)
+
+        try:
+            response = self.client.update_item(
+                TableName=self.table_name,
+                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": "META#"}},
+                UpdateExpression=update_expression,
+                ExpressionAttributeValues=expression_attribute_values,
+                ReturnValues="UPDATED_NEW",
+            )
+            logger.info(f"Updated shop metadata for {domain}")
+            return response["Attributes"]
+        except ClientError as e:
+            logger.error(
+                "Couldn't update shop metadata for %s. Here's why: %s: %s",
+                domain,
+                e.response["Error"]["Code"],
+                e.response["Error"]["Message"],
+            )
+            raise
 
     def _upsert_item(self, item: dict, context: str) -> None:
         """

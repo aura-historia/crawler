@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import signal
+from datetime import datetime
 from typing import Any, List, Optional
 
 from aiohttp import ClientError
@@ -209,6 +210,13 @@ async def handle_shop_message(
             )
 
         logger.info(f"Processed {urls_processed} URLs for domain {domain}")
+
+        # Update shop metadata with last crawled date
+        await asyncio.to_thread(
+            db.update_shop_metadata,
+            domain=domain,
+            last_crawled_date=datetime.now().isoformat(),
+        )
 
         await asyncio.to_thread(delete_message, message)
 

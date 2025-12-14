@@ -276,6 +276,9 @@ class TestHandleShopMessage:
             patch("src.core.worker.product_spider.crawl_config"),
             patch("src.core.worker.product_spider.BrowserConfig"),
         ):
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
+            )
             mock_crawler_instance = AsyncMock()
             mock_crawler_class.return_value.__aenter__.return_value = (
                 mock_crawler_instance
@@ -290,7 +293,7 @@ class TestHandleShopMessage:
             )
 
             mock_crawl.assert_called_once()
-            assert mock_thread.call_count == 1
+            db.update_shop_metadata.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_handle_invalid_message(self):
@@ -333,7 +336,7 @@ class TestHandleShopMessage:
                 "src.core.worker.product_spider.crawl_and_classify_urls",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("Crawl error"),
-            ),
+            ) as mock_crawl,
             patch(
                 "src.core.worker.product_spider.asyncio.to_thread",
                 new_callable=AsyncMock,
@@ -354,7 +357,9 @@ class TestHandleShopMessage:
                 batch_size=50,
             )
 
-            assert mock_thread.call_count == 0
+            mock_crawl.assert_called_once()
+            mock_thread.assert_not_called()
+            db.update_shop_metadata.assert_not_called()
 
 
 class TestProcessMessageBatch:

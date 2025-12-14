@@ -486,3 +486,109 @@ class TestGetProductUrls:
         ops = DynamoDBOperations()
         with pytest.raises(ClientError):
             ops.get_product_urls_by_domain("e.com")
+
+
+class TestUpdateOperations:
+    """Test UpdateItem operations."""
+
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    def test_update_shop_metadata_success(self, mock_get_client):
+        """Test successfully updating shop metadata."""
+        # Arrange
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+        mock_client.update_item.return_value = {
+            "Attributes": {"lastCrawledDate": {"S": "2025-12-14T12:00:00"}}
+        }
+
+        ops = DynamoDBOperations()
+        domain = "example.com"
+        crawled_date = "2025-12-14T12:00:00"
+
+        # Act
+        result = ops.update_shop_metadata(domain=domain, last_crawled_date=crawled_date)
+
+        # Assert
+        mock_client.update_item.assert_called_once_with(
+            TableName=ops.table_name,
+            Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": "META#"}},
+            UpdateExpression="SET lastCrawledDate = :crawled",
+            ExpressionAttributeValues={":crawled": {"S": crawled_date}},
+            ReturnValues="UPDATED_NEW",
+        )
+        assert result == {"lastCrawledDate": {"S": "2025-12-14T12:00:00"}}
+
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    def test_update_shop_metadata_client_error(self, mock_get_client):
+        """Test ClientError handling when updating shop metadata."""
+        # Arrange
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+        error_response = {
+            "Error": {
+                "Code": "ProvisionedThroughputExceededException",
+                "Message": "Rate exceeded",
+            }
+        }
+        mock_client.update_item.side_effect = ClientError(error_response, "UpdateItem")
+
+        ops = DynamoDBOperations()
+        domain = "example.com"
+
+        # Act & Assert
+        with pytest.raises(ClientError) as excinfo:
+            ops.update_shop_metadata(
+                domain=domain, last_scraped_date="2025-12-14T13:00:00"
+            )
+
+        assert (
+            excinfo.value.response["Error"]["Code"]
+            == "ProvisionedThroughputExceededException"
+        )
+
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    def test_update_shop_metadata_no_updates(self, mock_get_client):
+        """Test that no update is performed if no fields are provided."""
+        # Arrange
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+        ops = DynamoDBOperations()
+
+        # Act
+        result = ops.update_shop_metadata(domain="example.com")
+
+        # Assert
+        mock_client.update_item.assert_not_called()
+        assert result == {}
+
+    @patch("src.core.aws.database.operations.get_dynamodb_client")
+    def test_update_shop_metadata_both_dates(self, mock_get_client):
+        """Test that update expression is correct with both date fields."""
+        # Arrange
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+        mock_client.update_item.return_value = {"Attributes": {}}
+
+        ops = DynamoDBOperations()
+        domain = "example.com"
+        crawled_date = "2025-01-01T00:00:00"
+        scraped_date = "2025-01-02T00:00:00"
+
+        # Act
+        ops.update_shop_metadata(
+            domain=domain,
+            last_crawled_date=crawled_date,
+            last_scraped_date=scraped_date,
+        )
+
+        # Assert
+        mock_client.update_item.assert_called_once_with(
+            TableName=ops.table_name,
+            Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": "META#"}},
+            UpdateExpression="SET lastCrawledDate = :crawled, lastScrapedDate = :scraped",
+            ExpressionAttributeValues={
+                ":crawled": {"S": crawled_date},
+                ":scraped": {"S": scraped_date},
+            },
+            ReturnValues="UPDATED_NEW",
+        )
