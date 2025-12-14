@@ -25,9 +25,10 @@ python-dotenv
 pydantic_settings
 torch
 transformers
-pandas
+pandas==2.2.2
 datasets
 scikit-learn
 crawl4ai
 extruct
 google-search-results
+iptocc

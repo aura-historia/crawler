@@ -1,6 +1,8 @@
 import logging
 import os
 from typing import List, Optional
+import socket
+from iptocc import get_country_code
 
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
@@ -13,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 class DynamoDBOperations:
     """Operations for DynamoDB single-table design using boto3."""
+
+    METADATA_SK = "META#"
 
     def __init__(self):
         self.client = get_dynamodb_client()
@@ -31,7 +35,7 @@ class DynamoDBOperations:
         try:
             response = self.client.get_item(
                 TableName=self.table_name,
-                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": "META#"}},
+                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": self.METADATA_SK}},
             )
 
             if "Item" not in response:
@@ -45,6 +49,38 @@ class DynamoDBOperations:
             raise
         except Exception as e:
             logger.error(f"Error getting shop metadata for {domain}: {e}")
+            raise
+
+    def get_shop_country(self, domain: str) -> Optional[str]:
+        """
+        Get the country for a specific shop domain.
+
+        Args:
+            domain: Shop domain (e.g., 'example.com')
+
+        Returns:
+            The country code as a string, or None if not found.
+        """
+        try:
+            response = self.client.get_item(
+                TableName=self.table_name,
+                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": self.METADATA_SK}},
+                ProjectionExpression="country",
+            )
+
+            if "Item" in response and "country" in response["Item"]:
+                return response["Item"]["country"]["S"]
+            else:
+                logger.debug(f"Country not found for domain: {domain}")
+                return None
+
+        except ClientError as e:
+            logger.error(f"Error getting country for {domain}: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"An unexpected error occurred while getting country for {domain}: {e}"
+            )
             raise
 
     def get_url_entry(self, domain: str, url: str) -> Optional[URLEntry]:
@@ -231,7 +267,7 @@ class DynamoDBOperations:
         try:
             response = self.client.update_item(
                 TableName=self.table_name,
-                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": "META#"}},
+                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": self.METADATA_SK}},
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_attribute_values,
                 ReturnValues="UPDATED_NEW",
@@ -266,9 +302,28 @@ class DynamoDBOperations:
         """
         Insert or update shop metadata.
 
+        If the country is not provided, it will be determined from the domain's IP address.
+
         Args:
             metadata: ShopMetadata object
         """
+        if metadata.country is None:
+            try:
+                ip_address = socket.gethostbyname(metadata.domain)
+                country_code = get_country_code(ip_address)
+                metadata.country = country_code
+                logger.info(
+                    f"Determined country for {metadata.domain} as {country_code}"
+                )
+            except socket.gaierror:
+                logger.warning(
+                    f"Could not resolve IP for domain: {metadata.domain}. Country not set."
+                )
+            except Exception as e:
+                logger.error(
+                    f"An error occurred during country lookup for {metadata.domain}: {e}"
+                )
+
         self._upsert_item(
             metadata.to_dynamodb_item(), f"shop metadata for {metadata.domain}"
         )

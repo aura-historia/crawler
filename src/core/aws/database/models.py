@@ -37,17 +37,21 @@ def get_dynamodb_resource():
     return boto3.resource("dynamodb", **_get_dynamodb_config())
 
 
+METADATA_SK = "META#"
+
+
 @dataclass
 class ShopMetadata:
     """
     Shop metadata entry.
-    SK = 'META#'
+    SK = METADATA_SK
     """
 
     domain: str
     standards_used: List[str] = field(default_factory=list)
+    country: Optional[str] = field(default=None)
     pk: Optional[str] = field(default=None)
-    sk: str = field(default="META#")
+    sk: str = field(default=METADATA_SK)
     last_crawled_date: Optional[str] = field(default=None)
     last_scraped_date: Optional[str] = field(default=None)
 
@@ -64,6 +68,8 @@ class ShopMetadata:
             "domain": {"S": self.domain},
             "standards_used": {"L": [{"S": s} for s in self.standards_used]},
         }
+        if self.country:
+            item["country"] = {"S": self.country}
         if self.last_crawled_date:
             item["lastCrawledDate"] = {"S": self.last_crawled_date}
         if self.last_scraped_date:
@@ -80,6 +86,7 @@ class ShopMetadata:
             standards_used=[
                 s["S"] for s in item.get("standards_used", {}).get("L", [])
             ],
+            country=item.get("country", {}).get("S"),
             last_crawled_date=item.get("lastCrawledDate", {}).get("S"),
             last_scraped_date=item.get("lastScrapedDate", {}).get("S"),
         )

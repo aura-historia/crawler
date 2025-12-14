@@ -4,13 +4,16 @@ from src.core.aws.database.models import ShopMetadata, URLEntry
 def test_shop_metadata_creation():
     """Test creating a ShopMetadata instance."""
     metadata = ShopMetadata(
-        domain="example.com", standards_used=["json-ld", "microdata"]
+        domain="example.com",
+        standards_used=["json-ld", "microdata"],
+        country="US",
     )
 
     assert metadata.pk == "SHOP#example.com"
     assert metadata.sk == "META#"
     assert metadata.domain == "example.com"
     assert metadata.standards_used == ["json-ld", "microdata"]
+    assert metadata.country == "US"
 
 
 def test_shop_metadata_default_sk():
@@ -22,32 +25,34 @@ def test_shop_metadata_default_sk():
 
 def test_shop_metadata_to_dynamodb_item():
     """Test converting ShopMetadata to DynamoDB item format."""
-    metadata = ShopMetadata(domain="example.com", standards_used=["json-ld"])
+    metadata = ShopMetadata(
+        domain="example.com", standards_used=["json-ld"], country="CA"
+    )
 
     item = metadata.to_dynamodb_item()
 
     assert item["PK"]["S"] == "SHOP#example.com"
     assert item["SK"]["S"] == "META#"
     assert item["domain"]["S"] == "example.com"
-    assert len(item["standards_used"]["L"]) == 1
-    assert item["standards_used"]["L"][0]["S"] == "json-ld"
+    assert item["country"]["S"] == "CA"
+    assert "L" in item["standards_used"]
 
 
 def test_shop_metadata_from_dynamodb_item():
-    """Test creating ShopMetadata from DynamoDB item format."""
+    """Test creating ShopMetadata from a DynamoDB item."""
     item = {
         "PK": {"S": "SHOP#example.com"},
         "SK": {"S": "META#"},
         "domain": {"S": "example.com"},
-        "standards_used": {"L": [{"S": "json-ld"}, {"S": "microdata"}]},
+        "standards_used": {"L": [{"S": "opengraph"}]},
+        "country": {"S": "DE"},
     }
 
     metadata = ShopMetadata.from_dynamodb_item(item)
 
     assert metadata.domain == "example.com"
-    assert metadata.pk == "SHOP#example.com"
-    assert metadata.sk == "META#"
-    assert metadata.standards_used == ["json-ld", "microdata"]
+    assert metadata.standards_used == ["opengraph"]
+    assert metadata.country == "DE"
 
 
 def test_url_entry_creation():

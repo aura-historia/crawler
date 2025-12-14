@@ -22,6 +22,7 @@ class TestGetOperations:
                 "SK": {"S": "META#"},
                 "domain": {"S": "example.com"},
                 "standards_used": {"L": [{"S": "json-ld"}]},
+                "country": {"S": "US"},
             }
         }
 
@@ -34,6 +35,7 @@ class TestGetOperations:
         assert result is not None
         assert result.domain == "example.com"
         assert result.standards_used == ["json-ld"]
+        assert result.country == "US"
         mock_client.get_item.assert_called_once()
 
     @patch("src.core.aws.database.operations.get_dynamodb_client")
@@ -141,8 +143,12 @@ class TestBatchWriteOperations:
 
         ops = DynamoDBOperations()
 
-        metadata1 = ShopMetadata(domain="example1.com", standards_used=["json-ld"])
-        metadata2 = ShopMetadata(domain="example2.com", standards_used=["microdata"])
+        metadata1 = ShopMetadata(
+            domain="example1.com", standards_used=["json-ld"], country="US"
+        )
+        metadata2 = ShopMetadata(
+            domain="example2.com", standards_used=["microdata"], country="CA"
+        )
         metadata_list = [metadata1, metadata2]
 
         # Act
@@ -205,7 +211,7 @@ class TestBatchWriteOperations:
         }
 
         ops = DynamoDBOperations()
-        metadata = ShopMetadata(domain="example.com")
+        metadata = ShopMetadata(domain="example.com", country="DE")
 
         # Act
         result = ops.batch_write_shop_metadata([metadata])
@@ -228,7 +234,9 @@ class TestUpsertOperations:
         mock_client.put_item.return_value = {}
 
         ops = DynamoDBOperations()
-        metadata = ShopMetadata(domain="example.com", standards_used=["json-ld"])
+        metadata = ShopMetadata(
+            domain="example.com", standards_used=["json-ld"], country="FR"
+        )
 
         # Act
         ops.upsert_shop_metadata(metadata)
@@ -247,7 +255,7 @@ class TestUpsertOperations:
         )
 
         ops = DynamoDBOperations()
-        metadata = ShopMetadata(domain="example.com")
+        metadata = ShopMetadata(domain="example.com", country="GB")
 
         # Act & Assert
         with pytest.raises(ClientError):
