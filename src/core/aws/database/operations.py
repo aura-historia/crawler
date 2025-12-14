@@ -51,38 +51,6 @@ class DynamoDBOperations:
             logger.error(f"Error getting shop metadata for {domain}: {e}")
             raise
 
-    def get_shop_country(self, domain: str) -> Optional[str]:
-        """
-        Get the country for a specific shop domain.
-
-        Args:
-            domain: Shop domain (e.g., 'example.com')
-
-        Returns:
-            The country code as a string, or None if not found.
-        """
-        try:
-            response = self.client.get_item(
-                TableName=self.table_name,
-                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": self.METADATA_SK}},
-                ProjectionExpression="country",
-            )
-
-            if "Item" in response and "country" in response["Item"]:
-                return response["Item"]["country"]["S"]
-            else:
-                logger.debug(f"Country not found for domain: {domain}")
-                return None
-
-        except ClientError as e:
-            logger.error(f"Error getting country for {domain}: {e}")
-            raise
-        except Exception as e:
-            logger.error(
-                f"An unexpected error occurred while getting country for {domain}: {e}"
-            )
-            raise
-
     def get_url_entry(self, domain: str, url: str) -> Optional[URLEntry]:
         """
         Get URL entry for a specific URL.
