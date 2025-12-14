@@ -48,6 +48,8 @@ class ShopMetadata:
     standards_used: List[str] = field(default_factory=list)
     pk: Optional[str] = field(default=None)
     sk: str = field(default="META#")
+    last_crawled_date: Optional[str] = field(default=None)
+    last_scraped_date: Optional[str] = field(default=None)
 
     def __post_init__(self):
         """Set pk to domain if not provided."""
@@ -56,12 +58,17 @@ class ShopMetadata:
 
     def to_dynamodb_item(self) -> Dict[str, Any]:
         """Convert to DynamoDB item format."""
-        return {
+        item = {
             "PK": {"S": self.pk},
             "SK": {"S": self.sk},
             "domain": {"S": self.domain},
             "standards_used": {"L": [{"S": s} for s in self.standards_used]},
         }
+        if self.last_crawled_date:
+            item["lastCrawledDate"] = {"S": self.last_crawled_date}
+        if self.last_scraped_date:
+            item["lastScrapedDate"] = {"S": self.last_scraped_date}
+        return item
 
     @classmethod
     def from_dynamodb_item(cls, item: Dict[str, Any]) -> "ShopMetadata":
@@ -73,6 +80,8 @@ class ShopMetadata:
             standards_used=[
                 s["S"] for s in item.get("standards_used", {}).get("L", [])
             ],
+            last_crawled_date=item.get("lastCrawledDate", {}).get("S"),
+            last_scraped_date=item.get("lastScrapedDate", {}).get("S"),
         )
 
 

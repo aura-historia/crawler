@@ -337,15 +337,17 @@ class TestHandleDomainMessage:
                 new_callable=AsyncMock,
             ) as mock_thread,
         ):
-            mock_thread.side_effect = (
-                lambda func, *args: func(*args) if callable(func) else None
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
             )
 
             await handle_domain_message(
                 message, db, shutdown_event, queue, batch_size=10
             )
 
-            assert mock_delete.called or mock_thread.called
+            db.get_product_urls_by_domain.assert_called_once_with("example.com")
+            db.update_shop_metadata.assert_called_once()
+            mock_delete.assert_called_once_with(message)
 
     @pytest.mark.asyncio
     async def test_handle_domain_message_no_domain(self):

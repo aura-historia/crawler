@@ -2,7 +2,9 @@ import asyncio
 import json
 import os
 import signal
+from datetime import datetime
 from typing import Any, Dict, List, Optional
+
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from extruct import extract as extruct_extract
@@ -226,6 +228,13 @@ async def handle_domain_message(
             if await requeue_remaining("shutdown signal"):
                 await asyncio.to_thread(delete_message, message)
             return
+
+        # Update shop metadata with last scraped date
+        await asyncio.to_thread(
+            db.update_shop_metadata,
+            domain=domain,
+            last_scraped_date=datetime.now().isoformat(),
+        )
 
         await asyncio.to_thread(delete_message, message)
     except Exception as e:

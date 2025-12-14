@@ -18,7 +18,7 @@ def create_tables():
     - PK: 'SHOP#' + domain (e.g., 'SHOP#example.com')
     - SK: Two types:
         1. 'META#' - Shop metadata
-           Attributes: domain, standards_used (list)
+           Attributes: domain, standards_used (list), lastCrawledDate (str, ISO 8601), lastScrapedDate (str, ISO 8601)
         2. 'URL#<full_url>' - Individual URL data
            Attributes: standards_used, type (category/product/etc),
                       is_product (bool), hash (status+price), url
