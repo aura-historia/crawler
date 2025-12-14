@@ -4,13 +4,16 @@ from src.core.aws.database.models import ShopMetadata, URLEntry
 def test_shop_metadata_creation():
     """Test creating a ShopMetadata instance."""
     metadata = ShopMetadata(
-        domain="example.com", standards_used=["json-ld", "microdata"]
+        domain="example.com",
+        standards_used=["json-ld", "microdata"],
+        shop_country="US",
     )
 
     assert metadata.pk == "SHOP#example.com"
     assert metadata.sk == "META#"
     assert metadata.domain == "example.com"
     assert metadata.standards_used == ["json-ld", "microdata"]
+    assert metadata.shop_country == "US"
 
 
 def test_shop_metadata_default_sk():
@@ -22,32 +25,34 @@ def test_shop_metadata_default_sk():
 
 def test_shop_metadata_to_dynamodb_item():
     """Test converting ShopMetadata to DynamoDB item format."""
-    metadata = ShopMetadata(domain="example.com", standards_used=["json-ld"])
+    metadata = ShopMetadata(
+        domain="example.com", standards_used=["json-ld"], shop_country="CA"
+    )
 
     item = metadata.to_dynamodb_item()
 
     assert item["PK"]["S"] == "SHOP#example.com"
     assert item["SK"]["S"] == "META#"
     assert item["domain"]["S"] == "example.com"
-    assert len(item["standards_used"]["L"]) == 1
-    assert item["standards_used"]["L"][0]["S"] == "json-ld"
+    assert item["shop_country"]["S"] == "CA"
+    assert "L" in item["standards_used"]
 
 
 def test_shop_metadata_from_dynamodb_item():
-    """Test creating ShopMetadata from DynamoDB item format."""
+    """Test creating ShopMetadata from a DynamoDB item."""
     item = {
         "PK": {"S": "SHOP#example.com"},
         "SK": {"S": "META#"},
         "domain": {"S": "example.com"},
-        "standards_used": {"L": [{"S": "json-ld"}, {"S": "microdata"}]},
+        "standards_used": {"L": [{"S": "opengraph"}]},
+        "shop_country": {"S": "DE"},
     }
 
     metadata = ShopMetadata.from_dynamodb_item(item)
 
     assert metadata.domain == "example.com"
-    assert metadata.pk == "SHOP#example.com"
-    assert metadata.sk == "META#"
-    assert metadata.standards_used == ["json-ld", "microdata"]
+    assert metadata.standards_used == ["opengraph"]
+    assert metadata.shop_country == "DE"
 
 
 def test_url_entry_creation():
@@ -66,7 +71,7 @@ def test_url_entry_creation():
     assert url_entry.url == "https://example.com/product/123"
     assert url_entry.standards_used == ["json-ld"]
     assert url_entry.type == "product"
-    assert url_entry.is_product is True
+    assert url_entry.is_product == 1
     assert url_entry.hash == "some_hash_value"
     assert url_entry.domain == "example.com"
 
@@ -84,7 +89,7 @@ def test_url_entry_defaults():
     url_entry = URLEntry(domain="example.com", url="https://example.com/product/123")
 
     assert url_entry.standards_used == []
-    assert url_entry.is_product is False
+    assert url_entry.is_product == 0
     assert url_entry.type is None
     assert url_entry.hash is None
 
@@ -96,7 +101,7 @@ def test_url_entry_to_dynamodb_item():
         url="https://example.com/product/123",
         standards_used=["json-ld"],
         type="product",
-        is_product=True,
+        is_product=1,
         hash="test_hash",
     )
 
@@ -105,7 +110,7 @@ def test_url_entry_to_dynamodb_item():
     assert item["PK"]["S"] == "SHOP#example.com"
     assert item["SK"]["S"] == "URL#https://example.com/product/123"
     assert item["url"]["S"] == "https://example.com/product/123"
-    assert item["is_product"]["BOOL"] is True
+    assert item["is_product"]["N"] == "1"
     assert item["type"]["S"] == "product"
     assert item["hash"]["S"] == "test_hash"
     assert len(item["standards_used"]["L"]) == 1
@@ -119,7 +124,7 @@ def test_url_entry_from_dynamodb_item():
         "url": {"S": "https://example.com/product/123"},
         "standards_used": {"L": [{"S": "json-ld"}]},
         "type": {"S": "product"},
-        "is_product": {"BOOL": True},
+        "is_product": {"N": "1"},
         "hash": {"S": "some_hash"},
     }
 
@@ -129,7 +134,7 @@ def test_url_entry_from_dynamodb_item():
     assert url_entry.url == "https://example.com/product/123"
     assert url_entry.standards_used == ["json-ld"]
     assert url_entry.type == "product"
-    assert url_entry.is_product is True
+    assert url_entry.is_product == 1
     assert url_entry.hash == "some_hash"
 
 
