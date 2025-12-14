@@ -80,17 +80,17 @@ async def crawl_and_classify_urls(
 
             try:
                 # Classify the URL
-                is_product, confidence = classifier.classify_url(url)
+                is_product_bool, confidence = classifier.classify_url(url)
 
                 logger.info(
-                    f"URL: {url} | is_product: {is_product} | confidence: {confidence:.3f}"
+                    f"URL: {url} | is_product: {is_product_bool} | confidence: {confidence:.3f}"
                 )
 
                 # Create URL entry
                 url_entry = URLEntry(
                     domain=domain,
                     url=url,
-                    is_product=is_product,
+                    is_product=int(is_product_bool),
                     standards_used=[],
                 )
 
