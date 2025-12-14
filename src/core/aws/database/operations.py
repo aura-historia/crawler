@@ -22,68 +22,9 @@ class DynamoDBOperations:
         self.client = get_dynamodb_client()
         self.table_name = os.getenv("DYNAMODB_TABLE_NAME")
 
-    def get_shop_metadata(self, domain: str) -> Optional[ShopMetadata]:
-        """
-        Get shop metadata for a domain.
-
-        Args:
-            domain: Shop domain (e.g., 'example.com')
-
-        Returns:
-            ShopMetadata or None if not found
-        """
-        try:
-            response = self.client.get_item(
-                TableName=self.table_name,
-                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": self.METADATA_SK}},
-            )
-
-            if "Item" not in response:
-                logger.debug(f"Shop metadata not found for domain: {domain}")
-                return None
-
-            return ShopMetadata.from_dynamodb_item(response["Item"])
-
-        except ClientError as e:
-            logger.error(f"Error getting shop metadata for {domain}: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error getting shop metadata for {domain}: {e}")
-            raise
-
-    def get_url_entry(self, domain: str, url: str) -> Optional[URLEntry]:
-        """
-        Get URL entry for a specific URL.
-
-        Args:
-            domain: Shop domain
-            url: Full URL
-
-        Returns:
-            URLEntry or None if not found
-        """
-        try:
-            response = self.client.get_item(
-                TableName=self.table_name,
-                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": f"URL#{url}"}},
-            )
-
-            if "Item" not in response:
-                logger.debug(f"URL entry not found: {url}")
-                return None
-
-            return URLEntry.from_dynamodb_item(response["Item"])
-
-        except ClientError as e:
-            logger.error(f"Error getting URL entry for {url}: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error getting URL entry for {url}: {e}")
-            raise
-
     def get_product_urls_by_domain(self, domain: str) -> List[str]:
         """
-        Get all product URLs for a given domain.
+        Get all product URLs for a given domain using the GSI.
 
         Args:
             domain: Shop domain
@@ -98,13 +39,14 @@ class DynamoDBOperations:
             while True:
                 query_args = {
                     "TableName": self.table_name,
-                    "KeyConditionExpression": "PK = :pk AND begins_with(SK, :sk_prefix)",
-                    "FilterExpression": "is_product = :is_product",
+                    "IndexName": "IsProductIndex",
+                    "KeyConditionExpression": "PK = :pk AND is_product = :is_product",
                     "ExpressionAttributeValues": {
                         ":pk": {"S": f"SHOP#{domain}"},
-                        ":sk_prefix": {"S": "URL#"},
-                        ":is_product": {"BOOL": True},
+                        ":is_product": {"N": "1"},
                     },
+                    "ProjectionExpression": "#url_attr",
+                    "ExpressionAttributeNames": {"#url_attr": "url"},
                 }
                 if last_evaluated_key:
                     query_args["ExclusiveStartKey"] = last_evaluated_key
@@ -122,6 +64,105 @@ class DynamoDBOperations:
         except Exception as e:
             logger.error(
                 f"An unexpected error occurred while querying product URLs for {domain}: {e}"
+            )
+            raise
+
+    def get_shops_by_country_and_crawled_date(
+        self, country: str, start_date: str, end_date: str
+    ) -> List[str]:
+        """
+        Query shops by country and crawled date range using GSI.
+
+        Args:
+            country: The country to query.
+            start_date: The start of the date range (ISO 8601).
+            end_date: The end of the date range (ISO 8601).
+
+        Returns:
+            A list of domains.
+        """
+        return self._query_shops_by_country_and_date(
+            index_name="CountryLastCrawledIndex",
+            date_attribute_name="last_crawled",
+            country=country,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    def get_shops_by_country_and_scraped_date(
+        self, country: str, start_date: str, end_date: str
+    ) -> List[str]:
+        """
+        Query shops by country and scraped date range using GSI.
+
+        Args:
+            country: The country to query.
+            start_date: The start of the date range (ISO 8601).
+            end_date: The end of the date range (ISO 8601).
+
+        Returns:
+            A list of domains.
+        """
+        return self._query_shops_by_country_and_date(
+            index_name="CountryLastScrapedIndex",
+            date_attribute_name="last_scraped",
+            country=country,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    def _query_shops_by_country_and_date(
+        self,
+        index_name: str,
+        date_attribute_name: str,
+        country: str,
+        start_date: str,
+        end_date: str,
+    ) -> List[str]:
+        """
+        Generic helper to query shops by country and a date range from a GSI.
+
+        Args:
+            index_name: The name of the GSI to query.
+            date_attribute_name: The name of the date attribute to filter on (e.g., 'last_crawled').
+            country: The country to query.
+            start_date: The start of the date range (ISO 8601).
+            end_date: The end of the date range (ISO 8601).
+
+        Returns:
+            A list of domains.
+        """
+        domains = []
+        last_evaluated_key = None
+        try:
+            while True:
+                query_args = {
+                    "TableName": self.table_name,
+                    "IndexName": index_name,
+                    "KeyConditionExpression": f"shop_country = :country AND {date_attribute_name} BETWEEN :start AND :end",
+                    "ExpressionAttributeValues": {
+                        ":country": {"S": country},
+                        ":start": {"S": start_date},
+                        ":end": {"S": end_date},
+                    },
+                    "ProjectionExpression": "#domain_attr",
+                    "ExpressionAttributeNames": {"#domain_attr": "domain"},
+                }
+                if last_evaluated_key:
+                    query_args["ExclusiveStartKey"] = last_evaluated_key
+
+                response = self.client.query(**query_args)
+                domains.extend(
+                    [item["domain"]["S"] for item in response.get("Items", [])]
+                )
+
+                last_evaluated_key = response.get("LastEvaluatedKey")
+                if not last_evaluated_key:
+                    break
+            return domains
+        except ClientError as e:
+            logger.error(
+                f"Error querying shops by {date_attribute_name} for {country}: {e}"
             )
             raise
 
@@ -201,16 +242,16 @@ class DynamoDBOperations:
     def update_shop_metadata(
         self,
         domain: str,
-        last_crawled_date: Optional[str] = None,
-        last_scraped_date: Optional[str] = None,
+        last_crawled: Optional[str] = None,
+        last_scraped: Optional[str] = None,
     ) -> dict:
         """
         Update shop metadata with new values.
 
         Args:
             domain: Shop domain
-            last_crawled_date: ISO 8601 timestamp for last crawl
-            last_scraped_date: ISO 8601 timestamp for last scrape
+            last_crawled: ISO 8601 timestamp for last crawl
+            last_scraped: ISO 8601 timestamp for last scrape
 
         Returns:
             UpdateItem response
@@ -218,13 +259,13 @@ class DynamoDBOperations:
         update_expression_parts = []
         expression_attribute_values = {}
 
-        if last_crawled_date:
-            update_expression_parts.append("lastCrawledDate = :crawled")
-            expression_attribute_values[":crawled"] = {"S": last_crawled_date}
+        if last_crawled:
+            update_expression_parts.append("last_crawled = :crawled")
+            expression_attribute_values[":crawled"] = {"S": last_crawled}
 
-        if last_scraped_date:
-            update_expression_parts.append("lastScrapedDate = :scraped")
-            expression_attribute_values[":scraped"] = {"S": last_scraped_date}
+        if last_scraped:
+            update_expression_parts.append("last_scraped = :scraped")
+            expression_attribute_values[":scraped"] = {"S": last_scraped}
 
         if not update_expression_parts:
             logger.warning("No fields to update for shop metadata.")
@@ -275,11 +316,11 @@ class DynamoDBOperations:
         Args:
             metadata: ShopMetadata object
         """
-        if metadata.country is None:
+        if metadata.shop_country is None:
             try:
                 ip_address = socket.gethostbyname(metadata.domain)
                 country_code = get_country_code(ip_address)
-                metadata.country = country_code
+                metadata.shop_country = country_code
                 logger.info(
                     f"Determined country for {metadata.domain} as {country_code}"
                 )
@@ -304,51 +345,6 @@ class DynamoDBOperations:
             entry: URLEntry object
         """
         self._upsert_item(entry.to_dynamodb_item(), f"URL entry for {entry.url}")
-
-    def query_all_urls_for_domain(self, domain: str) -> List[URLEntry]:
-        """
-        Query all URL entries for a domain (excluding META#).
-
-        Args:
-            domain: Shop domain
-
-        Returns:
-            List of URLEntry objects
-        """
-        try:
-            results = []
-            last_evaluated_key = None
-
-            while True:
-                query_params = {
-                    "TableName": self.table_name,
-                    "KeyConditionExpression": "PK = :pk AND begins_with(SK, :sk_prefix)",
-                    "ExpressionAttributeValues": {
-                        ":pk": {"S": f"SHOP#{domain}"},
-                        ":sk_prefix": {"S": "URL#"},
-                    },
-                }
-
-                if last_evaluated_key:
-                    query_params["ExclusiveStartKey"] = last_evaluated_key
-
-                response = self.client.query(**query_params)
-
-                for item in response.get("Items", []):
-                    results.append(URLEntry.from_dynamodb_item(item))
-
-                last_evaluated_key = response.get("LastEvaluatedKey")
-                if not last_evaluated_key:
-                    break
-
-            return results
-
-        except ClientError as e:
-            logger.error(f"Error querying URLs for domain {domain}: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error querying URLs for domain {domain}: {e}")
-            raise
 
 
 # Global operations instance

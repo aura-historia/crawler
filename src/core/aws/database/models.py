@@ -49,11 +49,11 @@ class ShopMetadata:
 
     domain: str
     standards_used: List[str] = field(default_factory=list)
-    country: Optional[str] = field(default=None)
+    shop_country: Optional[str] = field(default=None)
     pk: Optional[str] = field(default=None)
     sk: str = field(default=METADATA_SK)
-    last_crawled_date: Optional[str] = field(default=None)
-    last_scraped_date: Optional[str] = field(default=None)
+    last_crawled: Optional[str] = field(default=None)
+    last_scraped: Optional[str] = field(default=None)
 
     def __post_init__(self):
         """Set pk to domain if not provided."""
@@ -68,12 +68,12 @@ class ShopMetadata:
             "domain": {"S": self.domain},
             "standards_used": {"L": [{"S": s} for s in self.standards_used]},
         }
-        if self.country:
-            item["country"] = {"S": self.country}
-        if self.last_crawled_date:
-            item["lastCrawledDate"] = {"S": self.last_crawled_date}
-        if self.last_scraped_date:
-            item["lastScrapedDate"] = {"S": self.last_scraped_date}
+        if self.shop_country:
+            item["shop_country"] = {"S": self.shop_country}
+        if self.last_crawled:
+            item["last_crawled"] = {"S": self.last_crawled}
+        if self.last_scraped:
+            item["last_scraped"] = {"S": self.last_scraped}
         return item
 
     @classmethod
@@ -86,9 +86,9 @@ class ShopMetadata:
             standards_used=[
                 s["S"] for s in item.get("standards_used", {}).get("L", [])
             ],
-            country=item.get("country", {}).get("S"),
-            last_crawled_date=item.get("lastCrawledDate", {}).get("S"),
-            last_scraped_date=item.get("lastScrapedDate", {}).get("S"),
+            shop_country=item.get("shop_country", {}).get("S"),
+            last_crawled=item.get("last_crawled", {}).get("S"),
+            last_scraped=item.get("last_scraped", {}).get("S"),
         )
 
 
@@ -100,7 +100,7 @@ class URLEntry:
     url: str
     standards_used: List[str] = field(default_factory=list)
     type: Optional[str] = field(default=None)
-    is_product: bool = field(default=False)
+    is_product: int = field(default=0)
     hash: Optional[str] = field(default=None)
     pk: Optional[str] = field(default=None)
     sk: Optional[str] = field(default=None)
@@ -119,7 +119,7 @@ class URLEntry:
             "SK": {"S": self.sk},
             "url": {"S": self.url},
             "standards_used": {"L": [{"S": s} for s in self.standards_used]},
-            "is_product": {"BOOL": self.is_product},
+            "is_product": {"N": str(self.is_product)},  # Store as Number
         }
 
         if self.type is not None:
@@ -145,7 +145,7 @@ class URLEntry:
                 s["S"] for s in item.get("standards_used", {}).get("L", [])
             ],
             type=item.get("type", {}).get("S"),
-            is_product=item.get("is_product", {}).get("BOOL", False),
+            is_product=int(item.get("is_product", {}).get("N", "0")),
             hash=item.get("hash", {}).get("S"),
         )
 

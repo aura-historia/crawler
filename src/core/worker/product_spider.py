@@ -215,7 +215,7 @@ async def handle_shop_message(
         await asyncio.to_thread(
             db.update_shop_metadata,
             domain=domain,
-            last_crawled_date=datetime.now().isoformat(),
+            last_crawled=datetime.now().isoformat(),
         )
 
         await asyncio.to_thread(delete_message, message)

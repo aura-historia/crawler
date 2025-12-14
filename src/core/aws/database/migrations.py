@@ -3,10 +3,13 @@ import os
 import sys
 
 from botocore.exceptions import ClientError
+from dotenv import load_dotenv
+
 from src.core.aws.database.models import get_dynamodb_client
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+load_dotenv()
 
 
 def create_tables():
@@ -50,6 +53,55 @@ def create_tables():
             AttributeDefinitions=[
                 {"AttributeName": "PK", "AttributeType": "S"},
                 {"AttributeName": "SK", "AttributeType": "S"},
+                {"AttributeName": "shop_country", "AttributeType": "S"},
+                {"AttributeName": "last_crawled", "AttributeType": "S"},
+                {"AttributeName": "last_scraped", "AttributeType": "S"},
+                {"AttributeName": "is_product", "AttributeType": "N"},
+            ],
+            LocalSecondaryIndexes=[
+                {
+                    "IndexName": "IsProductIndex",
+                    "KeySchema": [
+                        {"AttributeName": "PK", "KeyType": "HASH"},
+                        {"AttributeName": "is_product", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {
+                        "ProjectionType": "INCLUDE",
+                        "NonKeyAttributes": ["url", "standards_used"],
+                    },
+                }
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "CountryLastCrawledIndex",
+                    "KeySchema": [
+                        {"AttributeName": "shop_country", "KeyType": "HASH"},
+                        {"AttributeName": "last_crawled", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {
+                        "ProjectionType": "INCLUDE",
+                        "NonKeyAttributes": ["domain"],
+                    },
+                    "ProvisionedThroughput": {
+                        "ReadCapacityUnits": 10,
+                        "WriteCapacityUnits": 10,
+                    },
+                },
+                {
+                    "IndexName": "CountryLastScrapedIndex",
+                    "KeySchema": [
+                        {"AttributeName": "shop_country", "KeyType": "HASH"},
+                        {"AttributeName": "last_scraped", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {
+                        "ProjectionType": "INCLUDE",
+                        "NonKeyAttributes": ["domain"],
+                    },
+                    "ProvisionedThroughput": {
+                        "ReadCapacityUnits": 10,
+                        "WriteCapacityUnits": 10,
+                    },
+                },
             ],
             BillingMode="PROVISIONED",
             ProvisionedThroughput={"ReadCapacityUnits": 25, "WriteCapacityUnits": 25},
