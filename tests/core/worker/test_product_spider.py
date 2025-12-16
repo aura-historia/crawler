@@ -1,6 +1,7 @@
 import asyncio
 import json
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 
 from src.core.worker.product_spider import (
@@ -12,7 +13,15 @@ from src.core.worker.product_spider import (
 
 
 def setup_mock_arun(results_to_yield):
-    """Creates a mock async generator function for crawler.arun."""
+    """
+    Create a mock async generator function for crawler.arun.
+
+    Parameters:
+        results_to_yield (list): List of mock result objects to yield.
+
+    Returns:
+        callable: Async function that returns an async generator.
+    """
 
     async def mock_generator():
         for result in results_to_yield:
@@ -26,7 +35,15 @@ def setup_mock_arun(results_to_yield):
 
 
 def create_mock_messages(count):
-    """Creates a list of mock messages with unique domains."""
+    """
+    Create a list of mock SQS messages with unique domains.
+
+    Parameters:
+        count (int): Number of mock messages to create.
+
+    Returns:
+        list: List of Mock objects representing SQS messages.
+    """
     messages = []
     for i in range(count):
         msg = Mock()

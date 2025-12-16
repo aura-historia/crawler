@@ -14,7 +14,7 @@ from src.core.worker.product_scraper import (
 
 
 class FakeResult:
-    """Mock crawl result object."""
+    """Mock crawl result object for testing AsyncWebCrawler responses."""
 
     def __init__(
         self,
@@ -30,7 +30,7 @@ class FakeResult:
 
 
 class FakeCrawler:
-    """Mock AsyncWebCrawler."""
+    """Mock AsyncWebCrawler for testing without making real HTTP requests."""
 
     def __init__(self, results=None, raise_on=None):
         self._results = results or []

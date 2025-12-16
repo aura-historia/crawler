@@ -32,3 +32,4 @@ crawl4ai
 extruct
 google-search-results
 iptocc
+tldextract

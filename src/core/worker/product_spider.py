@@ -86,11 +86,11 @@ async def crawl_and_classify_urls(
                     f"URL: {url} | is_product: {is_product_bool} | confidence: {confidence:.3f}"
                 )
 
-                # Create URL entry
+                # Create URL entry with type field
                 url_entry = URLEntry(
                     domain=domain,
                     url=url,
-                    is_product=int(is_product_bool),
+                    type="product" if is_product_bool else "other",
                     standards_used=[],
                 )
 
@@ -191,6 +191,8 @@ async def handle_shop_message(
 
     logger.info(f"Processing shop: {domain}, starting from: {start_url}")
 
+    crawl_start_time = datetime.now().isoformat()
+
     try:
         # Build crawler configuration
         browser_config = BrowserConfig(headless=True)
@@ -211,11 +213,13 @@ async def handle_shop_message(
 
         logger.info(f"Processed {urls_processed} URLs for domain {domain}")
 
-        # Update shop metadata with last crawled date
+        # Update shop metadata with crawl timestamps
+        crawl_end_time = datetime.now().isoformat()
         await asyncio.to_thread(
             db.update_shop_metadata,
             domain=domain,
-            last_crawled=datetime.now().isoformat(),
+            last_crawled_start=crawl_start_time,
+            last_crawled_end=crawl_end_time,
         )
 
         await asyncio.to_thread(delete_message, message)

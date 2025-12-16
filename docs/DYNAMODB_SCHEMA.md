@@ -10,8 +10,8 @@
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `PK` | String (HASH) | Partition key: 'SHOP#' + domain (e.g., 'SHOP#example.com') |
-| `SK` | String (RANGE) | Sort key: 'META#' or 'URL#<full_url>' |
+| `pk` | String (HASH) | Partition key: 'SHOP#' + domain (e.g., 'SHOP#example.com') |
+| `sk` | String (RANGE) | Sort key: 'META#' or 'URL#<full_url>' |
 
 ## Item Types
 
@@ -24,25 +24,31 @@ Stores information about a shop/domain and the standards it uses.
 **Attributes:**
 ```json
 {
-  "PK": "SHOP#example.com",
-  "SK": "META#",
+  "pk": "SHOP#example.com",
+  "sk": "META#",
   "domain": "example.com",
+  "core_domain_name": "example",
   "standards_used": ["json-ld", "microdata"],
-  "shop_country": "US",
-  "last_crawled": "2023-10-27T10:00:00Z",
-  "last_scraped": "2023-10-27T12:00:00Z"
+  "shop_country": "COUNTRY#DE",
+  "last_crawled_start": "2023-10-27T00:00:00Z",
+  "last_crawled_end": "2023-10-27T23:59:59Z",
+  "last_scraped_start": "2023-10-27T12:00:00Z",
+  "last_scraped_end": "2023-10-27T23:59:59Z"
 }
 ```
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `PK` | String | "SHOP#" + domain name |
-| `SK` | String | Fixed value: "META#" |
+| `pk` | String | "SHOP#" + domain name |
+| `sk` | String | Fixed value: "META#" |
 | `domain` | String | Domain name (duplicate for convenience) |
+| `core_domain_name` | String | The core domain name, extracted (e.g., 'example' from 'www.example.co.uk'). Used by a GSI to find related domains. |
 | `standards_used` | List[String] | List of standards used by this shop (e.g., json-ld, microdata, opengraph) |
-| `shop_country` | String | ISO 3166-1 alpha-2 country code for the shop. |
-| `last_crawled` | String | ISO 8601 timestamp of the last crawl. |
-| `last_scraped` | String | ISO 8601 timestamp of the last scrape. |
+| `shop_country` | String | Country identifier prefixed with `COUNTRY#` (e.g., `COUNTRY#DE`). |
+| `last_crawled_start` | String | ISO 8601 timestamp marking when the latest crawl began. |
+| `last_crawled_end` | String | ISO 8601 timestamp marking when the latest crawl finished. |
+| `last_scraped_start` | String | ISO 8601 timestamp marking when the latest scrape began. |
+| `last_scraped_end` | String | ISO 8601 timestamp marking when the latest scrape finished. |
 
 ### 2. URL Entry (URL#)
 
@@ -53,56 +59,59 @@ Stores information about individual URLs from a domain.
 **Attributes:**
 ```json
 {
-  "PK": "SHOP#example.com",
-  "SK": "URL#https://example.com/products/item-123",
+  "pk": "SHOP#example.com",
+  "sk": "URL#https://example.com/products/item-123",
   "url": "https://example.com/products/item-123",
   "standards_used": ["json-ld", "microdata"],
   "type": "product",
-  "is_product": 1,
   "hash": "a1b2c3d4..."
 }
 ```
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `PK` | String | "SHOP#" + domain name |
-| `SK` | String | "URL#" + full URL |
+| `pk` | String | "SHOP#" + domain name |
+| `sk` | String | "URL#" + full URL |
 | `url` | String | Full URL |
 | `standards_used` | List[String] | List of standards used for this URL (json-ld, microdata, etc.) |
-| `type` | String | Type of page (category, product, listing, etc.) |
-| `is_product` | Number | Whether this is a product page (1 for true, 0 for false). Used for GSI. |
+| `type` | String | Type of page (category, product, listing, etc.). Used for product discovery queries. |
 | `hash` | String | SHA256 hash of status+price to detect changes |
-
-## Local Secondary Indexes (LSIs)
-
-### 1. `IsProductIndex`
-
-- **Purpose:** Efficiently query for all product URLs within a specific domain.
-- **Key Schema:**
-    - **HASH Key:** `PK` (String)
-    - **RANGE Key:** `is_product` (Number)
-- **Projection:** Includes `url`, `standards_used`.
-- **Example Query:** Find all URLs where `PK` is `SHOP#example.com` and `is_product = 1`.
 
 ## Global Secondary Indexes (GSIs)
 
-### 2. `CountryLastCrawledIndex`
+Each GSI uses dedicated attributes (`gsi<n>_pk`, `gsi<n>_sk`) so items only project into the index they target.
 
-- **Purpose:** Find shops from a specific country that were crawled within a given date range.
+### GSI1 – ProductTypeIndex
+
+- **Purpose:** Query all URLs of a specific type (e.g., products) within a shop.
 - **Key Schema:**
-    - **HASH Key:** `shop_country` (String)
-    - **RANGE Key:** `last_crawled` (String, ISO 8601)
-- **Projection:** Includes `domain`.
-- **Example Query:** Find all domains where `shop_country = 'US'` and `last_crawled` is between `2023-01-01` and `2023-01-31`.
+    - **HASH Key (`gsi1_pk`):** Mirrors the item's `pk` (e.g., `SHOP#example.com`).
+    - **RANGE Key (`gsi1_sk`):** Mirrors the item's `type` (e.g., `product`).
+- **Projection:** `ALL`
 
-### 3. `CountryLastScrapedIndex`
+### GSI2 – CountryLastCrawledIndex
 
-- **Purpose:** Find shops from a specific country that were scraped for product data within a given date range.
+- **Purpose:** Find shops from a specific country that were crawled within a date range.
 - **Key Schema:**
-    - **HASH Key:** `shop_country` (String)
-    - **RANGE Key:** `last_scraped` (String, ISO 8601)
-- **Projection:** Includes `domain`.
-- **Example Query:** Find all domains where `shop_country = 'DE'` and `last_scraped` is between `2023-02-01` and `2023-02-28`.
+    - **HASH Key (`gsi2_pk`):** `shop_country` (e.g., `COUNTRY#DE`).
+    - **RANGE Key (`gsi2_sk`):** `last_crawled_start`.
+- **Projection:** `domain`
+
+### GSI3 – CountryLastScrapedIndex
+
+- **Purpose:** Find shops from a specific country that were scraped for product data within a date range.
+- **Key Schema:**
+    - **HASH Key (`gsi3_pk`):** `shop_country` (e.g., `COUNTRY#DE`).
+    - **RANGE Key (`gsi3_sk`):** `last_scraped_start`.
+- **Projection:** `domain`
+
+### GSI4 – CoreDomainNameIndex
+
+- **Purpose:** Associate different domains that share the same core domain name.
+- **Key Schema:**
+    - **HASH Key (`gsi4_pk`):** `core_domain_name`.
+    - **RANGE Key (`gsi4_sk`):** `domain` (ensures the domain itself is part of the index key).
+- **Projection:** Includes nothing
 
 ## How to start local DynamoDB + DynamoDB Admin
 
