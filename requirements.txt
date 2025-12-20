@@ -1,3 +1,5 @@
+responses
+urllib3
 aioresponses
 botocore
 aiohttp

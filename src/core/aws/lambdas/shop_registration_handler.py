@@ -1,18 +1,15 @@
 import os
 from typing import Any, Dict, List, Optional, Tuple
-
-import requests
 from requests import Session
 
 from src.core.aws.database.models import METADATA_SK, ShopMetadata
 from src.core.aws.database.operations import db_operations
 from src.core.utils.logger import logger
+from src.core.utils.network import http_session
 
 import tldextract
 
 BACKEND_API_URL = os.getenv("BACKEND_API_URL")
-
-http_session = requests.Session()
 
 
 def get_core_domain_name(domain: str) -> str:
