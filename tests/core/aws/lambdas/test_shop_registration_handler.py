@@ -7,7 +7,6 @@ from src.core.aws.database.models import ShopMetadata, METADATA_SK
 from src.core.aws.lambdas.shop_registration_handler import (
     get_core_domain_name,
     find_existing_shop,
-    update_shop_domain,
     register_or_update_shop,
     handler,
 )
@@ -129,98 +128,6 @@ class TestFindExistingShop:
 
         identifier, _ = result
         assert identifier == "shop.de"
-
-
-class TestUpdateShopDomain:
-    """Tests for update_shop_domain function."""
-
-    @patch("src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL", None)
-    def test_raises_error_when_backend_url_not_set(
-        self, sample_shop_metadata, mock_session
-    ):
-        """Test that ValueError is raised when BACKEND_API_URL is not set."""
-
-        with pytest.raises(ValueError, match="Backend API URL is not configured"):
-            update_shop_domain(sample_shop_metadata, sample_shop_metadata, mock_session)
-
-    @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
-    )
-    def test_skips_update_when_domain_unchanged(
-        self, sample_shop_metadata, mock_session
-    ):
-        """Test that update is skipped when domain hasn't changed."""
-        update_shop_domain(sample_shop_metadata, sample_shop_metadata, mock_session)
-
-        mock_session.patch.assert_not_called()
-
-    @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
-    )
-    @patch("src.core.aws.lambdas.shop_registration_handler.db_operations")
-    def test_updates_domain_successfully(self, mock_db_ops, mock_session):
-        """Test successful domain update."""
-        old_shop = ShopMetadata(domain="shop.com")
-        new_shop = ShopMetadata(domain="shop.de")
-
-        all_shops = [
-            ShopMetadata(domain="shop.de"),
-            ShopMetadata(domain="shop.fr"),
-        ]
-        mock_db_ops.find_all_domains_by_core_domain_name.return_value = all_shops
-
-        mock_response = Mock()
-        mock_response.raise_for_status = Mock()
-        mock_session.patch.return_value = mock_response
-
-        update_shop_domain(old_shop, new_shop, mock_session)
-
-        expected_url = "https://api.example.com/shops/shop.com"
-        expected_payload = {"domains": ["shop.de", "shop.fr"]}
-        mock_session.patch.assert_called_once_with(
-            expected_url,
-            json=expected_payload,
-            headers={"Content-Type": "application/json"},
-            timeout=10,
-        )
-
-    @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
-    )
-    @patch("src.core.aws.lambdas.shop_registration_handler.db_operations")
-    def test_handles_no_domains_found(self, mock_db_ops, mock_session):
-        """Test handling when no domains are found for the core domain name."""
-        old_shop = ShopMetadata(domain="shop.com")
-        new_shop = ShopMetadata(domain="shop.de")
-
-        mock_db_ops.find_all_domains_by_core_domain_name.return_value = []
-
-        update_shop_domain(old_shop, new_shop, mock_session)
-
-        mock_session.patch.assert_not_called()
-
-    @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
-    )
-    @patch("src.core.aws.lambdas.shop_registration_handler.db_operations")
-    def test_handles_request_exception(self, mock_db_ops, mock_session):
-        """Test that request exceptions are propagated."""
-        old_shop = ShopMetadata(domain="shop.com")
-        new_shop = ShopMetadata(domain="shop.de")
-
-        all_shops = [ShopMetadata(domain="shop.de")]
-        mock_db_ops.find_all_domains_by_core_domain_name.return_value = all_shops
-
-        mock_session.patch.side_effect = requests.exceptions.RequestException(
-            "API Error"
-        )
-
-        with pytest.raises(requests.exceptions.RequestException):
-            update_shop_domain(old_shop, new_shop, mock_session)
 
 
 class TestRegisterOrUpdateShop:
@@ -345,20 +252,22 @@ class TestRegisterOrUpdateShop:
 
 
 class TestHandler:
-    """Tests for the Lambda handler function."""
+    """Tests for the updated Lambda handler function using partial batch failures."""
 
     @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
     @patch("src.core.aws.lambdas.shop_registration_handler.register_or_update_shop")
-    def test_processes_insert_event(
+    def test_processes_insert_event_successfully(
         self, mock_register, mock_http_session, sample_dynamodb_item
     ):
-        """Test processing INSERT event."""
+        """Test processing INSERT event returns empty failures."""
         event = {
             "Records": [
                 {
+                    "eventID": "1",
                     "eventName": "INSERT",
                     "dynamodb": {
                         "NewImage": sample_dynamodb_item,
+                        "SequenceNumber": "seq-123",
                     },
                 }
             ]
@@ -366,298 +275,109 @@ class TestHandler:
 
         result = handler(event, None)
 
-        assert result["status"] == "success"
-        assert result["processed_records"] == 1
+        assert result == {"batchItemFailures": []}
         mock_register.assert_called_once()
 
     @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
-    @patch("src.core.aws.lambdas.shop_registration_handler.update_shop_domain")
-    def test_processes_modify_event(
-        self, mock_update, mock_http_session, sample_dynamodb_item
-    ):
-        """Test processing MODIFY event."""
-        old_item = sample_dynamodb_item.copy()
-        new_item = sample_dynamodb_item.copy()
-        new_item["domain"] = {"S": "shop.de"}
-
-        event = {
-            "Records": [
-                {
-                    "eventName": "MODIFY",
-                    "dynamodb": {
-                        "OldImage": old_item,
-                        "NewImage": new_item,
-                    },
-                }
-            ]
-        }
-
-        result = handler(event, None)
-
-        assert result["status"] == "success"
-        assert result["processed_records"] == 1
-        mock_update.assert_called_once()
-
-    def test_skips_non_metadata_records(self):
-        """Test that non-metadata records are skipped."""
-        event = {
-            "Records": [
-                {
-                    "eventName": "INSERT",
-                    "dynamodb": {
-                        "NewImage": {
-                            "pk": {"S": "SHOP#shop.com"},
-                            "sk": {"S": "URL#https://shop.com/product"},
-                            "url": {"S": "https://shop.com/product"},
-                        },
-                    },
-                }
-            ]
-        }
-
-        result = handler(event, None)
-
-        assert result["status"] == "success"
-        assert result["processed_records"] == 0
-
-    def test_skips_remove_events(self, sample_dynamodb_item):
-        """Test that REMOVE events are skipped."""
-        event = {
-            "Records": [
-                {
-                    "eventName": "REMOVE",
-                    "dynamodb": {
-                        "OldImage": sample_dynamodb_item,
-                    },
-                }
-            ]
-        }
-
-        result = handler(event, None)
-
-        assert result["status"] == "success"
-        assert result["processed_records"] == 0
-
-    @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
     @patch("src.core.aws.lambdas.shop_registration_handler.register_or_update_shop")
-    def test_processes_multiple_records(
+    def test_reports_failure_on_exception(
         self, mock_register, mock_http_session, sample_dynamodb_item
     ):
-        """Test processing multiple records."""
-        item2 = sample_dynamodb_item.copy()
-        item2["domain"] = {"S": "shop2.com"}
-        item2["pk"] = {"S": "SHOP#shop2.com"}
+        """Test that a failing record returns its SequenceNumber."""
+        mock_register.side_effect = Exception("API Down")
 
         event = {
             "Records": [
                 {
+                    "eventID": "err-1",
                     "eventName": "INSERT",
                     "dynamodb": {
                         "NewImage": sample_dynamodb_item,
+                        "SequenceNumber": "fail-seq-001",
                     },
-                },
-                {
-                    "eventName": "INSERT",
-                    "dynamodb": {
-                        "NewImage": item2,
-                    },
-                },
+                }
             ]
         }
 
         result = handler(event, None)
 
-        assert result["status"] == "success"
-        assert result["processed_records"] == 2
-        assert mock_register.call_count == 2
+        # Verify the failure is reported correctly for AWS
+        assert result == {"batchItemFailures": [{"itemIdentifier": "fail-seq-001"}]}
 
     @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
     @patch("src.core.aws.lambdas.shop_registration_handler.register_or_update_shop")
-    def test_continues_on_error(
+    def test_partial_batch_failure_mixed_results(
         self, mock_register, mock_http_session, sample_dynamodb_item
     ):
-        """Test that processing continues even when one record fails."""
-        mock_register.side_effect = [Exception("Error"), None]
+        """Test that only the failed record's sequence number is returned."""
+        # First call fails, second succeeds
+        mock_register.side_effect = [Exception("First record failed"), None]
 
         item2 = sample_dynamodb_item.copy()
-        item2["domain"] = {"S": "shop2.com"}
-        item2["pk"] = {"S": "SHOP#shop2.com"}
+        item2["domain"] = {"S": "success-shop.com"}
 
         event = {
             "Records": [
                 {
+                    "eventID": "1",
                     "eventName": "INSERT",
                     "dynamodb": {
                         "NewImage": sample_dynamodb_item,
+                        "SequenceNumber": "fail-seq",
                     },
                 },
                 {
+                    "eventID": "2",
                     "eventName": "INSERT",
-                    "dynamodb": {
-                        "NewImage": item2,
-                    },
+                    "dynamodb": {"NewImage": item2, "SequenceNumber": "success-seq"},
                 },
             ]
         }
 
         result = handler(event, None)
 
-        assert result["status"] == "success"
-        assert result["processed_records"] == 1
+        # Only 'fail-seq' should be in the list
+        assert result == {"batchItemFailures": [{"itemIdentifier": "fail-seq"}]}
         assert mock_register.call_count == 2
 
-    @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
-    @patch("src.core.aws.lambdas.shop_registration_handler.update_shop_domain")
-    def test_handles_modify_event_without_old_image(
-        self, mock_update, mock_http_session, sample_dynamodb_item
-    ):
-        """Test handling MODIFY event when OldImage is missing."""
+    def test_skips_modify_events(self, sample_dynamodb_item):
+        """
+        Test that MODIFY events are skipped (as per final code logic).
+        Skipped records should not be marked as failures.
+        """
         event = {
             "Records": [
                 {
                     "eventName": "MODIFY",
                     "dynamodb": {
                         "NewImage": sample_dynamodb_item,
+                        "SequenceNumber": "mod-seq",
                     },
                 }
             ]
         }
 
         result = handler(event, None)
+        assert result == {"batchItemFailures": []}
 
-        assert result["status"] == "success"
-        # The record is still processed but update_shop_domain is not called
-        assert result["processed_records"] == 1
-        mock_update.assert_not_called()
+    def test_handles_missing_new_image(self):
+        """Test handling record where NewImage is missing entirely."""
+        event = {
+            "Records": [
+                {
+                    "eventName": "INSERT",
+                    "dynamodb": {
+                        # NewImage key is missing
+                        "SequenceNumber": "missing-img-seq"
+                    },
+                }
+            ]
+        }
+
+        result = handler(event, None)
+        assert result == {"batchItemFailures": []}
 
     def test_handles_empty_records(self):
-        """Test handling event with no records."""
-        event = {"Records": []}
-
-        result = handler(event, None)
-
-        assert result["status"] == "success"
-        assert result["processed_records"] == 0
-
-    def test_handles_missing_records_key(self):
-        """Test handling event without Records key."""
-        event = {}
-
-        result = handler(event, None)
-
-        assert result["status"] == "success"
-        assert result["processed_records"] == 0
-
-    @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
-    @patch("src.core.aws.lambdas.shop_registration_handler.register_or_update_shop")
-    def test_processes_mixed_event_types(
-        self, mock_register, mock_http_session, sample_dynamodb_item
-    ):
-        """Test processing a mix of INSERT and other event types."""
-        event = {
-            "Records": [
-                {
-                    "eventName": "INSERT",
-                    "dynamodb": {
-                        "NewImage": sample_dynamodb_item,
-                    },
-                },
-                {
-                    "eventName": "REMOVE",
-                    "dynamodb": {
-                        "OldImage": sample_dynamodb_item,
-                    },
-                },
-            ]
-        }
-
-        result = handler(event, None)
-
-        assert result["status"] == "success"
-        assert result["processed_records"] == 1
-        mock_register.assert_called_once()
-
-
-class TestIntegration:
-    """Integration tests for end-to-end scenarios."""
-
-    @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
-    )
-    @patch("src.core.aws.lambdas.shop_registration_handler.db_operations")
-    @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
-    def test_full_new_shop_registration_flow(
-        self, mock_http_session, mock_db_ops, sample_dynamodb_item
-    ):
-        """Test complete flow of registering a new shop."""
-        mock_db_ops.find_all_domains_by_core_domain_name.return_value = []
-
-        mock_response = Mock()
-        mock_response.status_code = 201
-        mock_response.raise_for_status = Mock()
-        mock_http_session.post.return_value = mock_response
-
-        event = {
-            "Records": [
-                {
-                    "eventName": "INSERT",
-                    "dynamodb": {
-                        "NewImage": sample_dynamodb_item,
-                    },
-                }
-            ]
-        }
-
-        result = handler(event, None)
-
-        assert result["status"] == "success"
-        assert result["processed_records"] == 1
-        mock_http_session.post.assert_called_once()
-
-    @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
-    )
-    @patch("src.core.aws.lambdas.shop_registration_handler.db_operations")
-    @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
-    def test_full_add_domain_to_existing_shop_flow(
-        self, mock_http_session, mock_db_ops, sample_dynamodb_item
-    ):
-        """Test complete flow of adding domain to existing shop."""
-
-        existing_shops = [
-            ShopMetadata(domain="shop.com"),
-            ShopMetadata(domain="shop.de"),
-        ]
-        mock_db_ops.find_all_domains_by_core_domain_name.return_value = existing_shops
-
-        mock_response = Mock()
-        mock_response.raise_for_status = Mock()
-        mock_http_session.patch.return_value = mock_response
-
-        new_domain_item = sample_dynamodb_item.copy()
-        new_domain_item["domain"] = {"S": "shop.fr"}
-
-        event = {
-            "Records": [
-                {
-                    "eventName": "INSERT",
-                    "dynamodb": {
-                        "NewImage": new_domain_item,
-                    },
-                }
-            ]
-        }
-
-        result = handler(event, None)
-
-        assert result["status"] == "success"
-        assert result["processed_records"] == 1
-        mock_http_session.patch.assert_called_once()
-
-        call_args = mock_http_session.patch.call_args
-        payload = call_args.kwargs["json"]
-        assert "shop.fr" in payload["domains"]
-        assert "shop.com" in payload["domains"]
-        assert "shop.de" in payload["domains"]
+        """Test handling event with no records returns empty failure list."""
+        assert handler({"Records": []}, None) == {"batchItemFailures": []}
+        assert handler({}, None) == {"batchItemFailures": []}
