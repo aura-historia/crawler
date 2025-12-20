@@ -124,6 +124,7 @@ def create_tables():
                     },
                 },
             ],
+            StreamSpecification={"StreamEnabled": True, "StreamViewType": "NEW_IMAGE"},
             BillingMode="PROVISIONED",
             ProvisionedThroughput={"ReadCapacityUnits": 25, "WriteCapacityUnits": 25},
         )
