@@ -1,4 +1,5 @@
 import pytest
+import socket
 from unittest.mock import Mock, patch
 from botocore.exceptions import ClientError
 
@@ -340,3 +341,150 @@ class TestQueryByDateGSI:
 
         with pytest.raises(ClientError):
             db_ops.get_shops_by_country_and_scraped_date("FR", "d1", "d2")
+
+
+class TestFindShopsByCoreName:
+    """Tests for find_all_domains_by_core_domain_name (GSI4)."""
+
+    def test_find_all_domains_with_pagination_and_exclusion(
+        self, db_ops, mock_boto_client
+    ):
+        """Test GSI4 query with pagination and the domain_to_exclude filter."""
+        mock_boto_client.query.side_effect = [
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#a.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "a.com"},
+                    }
+                ],
+                "LastEvaluatedKey": {"pk": {"S": "key1"}},
+            },
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#b.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "b.com"},
+                    }
+                ]
+            },
+        ]
+
+        with patch(
+            "src.core.aws.database.models.ShopMetadata.from_dynamodb_item"
+        ) as mock_from:
+            # Mocking model conversion to avoid internal model dependency logic
+            mock_from.side_effect = [Mock(domain="a.com"), Mock(domain="b.com")]
+
+            result = db_ops.find_all_domains_by_core_domain_name(
+                "example", domain_to_exclude="exclude.com"
+            )
+
+        assert len(result) == 2
+        assert mock_boto_client.query.call_count == 2
+
+        # Verify FilterExpression was added
+        called_args = mock_boto_client.query.call_args.kwargs
+        assert called_args["FilterExpression"] == "#d <> :domain_to_exclude"
+        assert called_args["ExpressionAttributeValues"][":domain_to_exclude"] == {
+            "S": "exclude.com"
+        }
+
+    def test_find_all_domains_handles_missing_gsi4_warning(
+        self, db_ops, mock_boto_client
+    ):
+        """Test the specific ClientError branch for a missing GSI4 index."""
+        error_response = {
+            "Error": {"Message": "The table does not have the specified index: GSI4"}
+        }
+        mock_boto_client.query.side_effect = ClientError(error_response, "Query")
+
+        result = db_ops.find_all_domains_by_core_domain_name("example")
+
+        assert result == []  # Should catch error and return empty list
+
+    def test_find_all_domains_unexpected_error(self, db_ops, mock_boto_client):
+        """Test generic Exception catch-all in find_all_domains."""
+        mock_boto_client.query.side_effect = Exception("Unknown error")
+
+        result = db_ops.find_all_domains_by_core_domain_name("example")
+        assert result == []
+
+
+class TestInternalHandlersAndEdgeCases:
+    """Tests for generic error handlers and remaining logic branches."""
+
+    def test_get_product_urls_unexpected_exception(self, db_ops, mock_boto_client):
+        """Test the generic Exception catch-all in get_product_urls_by_domain."""
+        mock_boto_client.query.side_effect = RuntimeError("Panic")
+
+        with pytest.raises(RuntimeError):
+            db_ops.get_product_urls_by_domain("a.com")
+
+    def test_batch_write_items_unexpected_exception(self, db_ops, mock_boto_client):
+        """Test the generic Exception catch-all in _batch_write_items."""
+        mock_boto_client.batch_write_item.side_effect = Exception("Batch crash")
+
+        with pytest.raises(Exception, match="Batch crash"):
+            db_ops._batch_write_items([{"pk": {"S": "1"}}], "type")
+
+    @patch("src.core.aws.database.operations.socket.gethostbyname")
+    def test_upsert_shop_metadata_socket_gaierror(
+        self, mock_gethost, db_ops, mock_boto_client
+    ):
+        """Test handling of socket.error (DNS resolution failure)."""
+        mock_gethost.side_effect = socket.gaierror()
+        metadata = ShopMetadata(domain="nonexistent.local")
+
+        db_ops.upsert_shop_metadata(metadata)
+
+        # Should finish execution and call put_item even if DNS fails
+        mock_boto_client.put_item.assert_called_once()
+        assert metadata.shop_country is None
+
+    @patch(
+        "src.core.aws.database.operations.socket.gethostbyname", return_value="1.1.1.1"
+    )
+    @patch("src.core.aws.database.operations.get_country_code")
+    def test_upsert_shop_metadata_generic_lookup_error(
+        self, mock_country, mock_gethost, db_ops, mock_boto_client
+    ):
+        """Test handling of generic exception during country lookup."""
+        mock_country.side_effect = Exception("IP lookup service down")
+        metadata = ShopMetadata(domain="example.com")
+
+        db_ops.upsert_shop_metadata(metadata)
+
+        # Should log error but proceed to upsert item
+        mock_boto_client.put_item.assert_called_once()
+
+    def test_update_shop_metadata_all_possible_timestamps(
+        self, db_ops, mock_boto_client
+    ):
+        """Test update logic covering every possible timestamp branch."""
+        mock_boto_client.update_item.return_value = {"Attributes": {}}
+
+        db_ops.update_shop_metadata(
+            domain="a.com",
+            last_crawled_start="T1",
+            last_crawled_end="T2",
+            last_scraped_start="T3",
+            last_scraped_end="T4",
+        )
+
+        expr = mock_boto_client.update_item.call_args.kwargs["UpdateExpression"]
+        assert "last_crawled_start =" in expr
+        assert "last_crawled_end =" in expr
+        assert "last_scraped_start =" in expr
+        assert "last_scraped_end =" in expr
+        assert "gsi2_sk =" in expr
+        assert "gsi3_sk =" in expr
+
+    def test_upsert_item_generic_exception(self, db_ops, mock_boto_client):
+        """Test _upsert_item's generic exception handler."""
+        mock_boto_client.put_item.side_effect = ValueError("Format error")
+
+        with pytest.raises(ValueError):
+            db_ops._upsert_item({}, "context")

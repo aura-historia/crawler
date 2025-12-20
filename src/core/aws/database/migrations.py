@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
@@ -138,13 +137,3 @@ def create_tables():
     except Exception as ex:
         logger.error(f"Unexpected error: {ex}")
         raise
-
-
-if __name__ == "__main__":
-    print("Running DynamoDB migrations...")
-    try:
-        create_tables()
-    except Exception as e:
-        logger.error(f"Something went wrong during migrations: {e}")
-        sys.exit(1)
-    print("Done.")

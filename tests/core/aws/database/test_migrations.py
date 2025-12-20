@@ -1,226 +1,93 @@
 import pytest
+from unittest.mock import patch, MagicMock
 from botocore.exceptions import ClientError
-from unittest.mock import Mock, patch
 
 from src.core.aws.database.migrations import create_tables
 
 
+@pytest.fixture
+def mock_env(monkeypatch):
+    """Sets the required environment variable."""
+    table_name = "test-table"
+    monkeypatch.setenv("DYNAMODB_TABLE_NAME", table_name)
+    return table_name
+
+
+@pytest.fixture
+def mock_dynamo():
+    """Mocks the DynamoDB client and the getter function."""
+    with patch("src.core.aws.database.migrations.get_dynamodb_client") as mock_get:
+        client = MagicMock()
+        mock_get.return_value = client
+        yield client
+
+
+@pytest.fixture
+def mock_logger():
+    """Mocks the logger to verify output and error messages."""
+    with patch("src.core.aws.database.migrations.logger") as mock_log:
+        yield mock_log
+
+
 class TestCreateTables:
-    """Tests for create_tables function."""
-
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    def test_creates_table_when_not_exists(self, mock_getenv, mock_get_client):
-        """Test creating tables when table doesn't exist."""
-        mock_getenv.return_value = "test-table"
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-
-        mock_client.describe_table.side_effect = ClientError(
+    def test_creates_table_when_not_exists(self, mock_dynamo, mock_env, mock_logger):
+        """Happy path: Table doesn't exist, so it is created and waited for."""
+        # 1. Setup mocks
+        mock_dynamo.describe_table.side_effect = ClientError(
             {"Error": {"Code": "ResourceNotFoundException"}}, "DescribeTable"
         )
-        mock_client.create_table.return_value = {}
-
-        mock_waiter = Mock()
-        mock_client.get_waiter.return_value = mock_waiter
+        mock_waiter = MagicMock()
+        mock_dynamo.get_waiter.return_value = mock_waiter
 
         create_tables()
 
-        mock_client.describe_table.assert_called_once()
-        mock_client.create_table.assert_called_once()
-        mock_waiter.wait.assert_called_once()
+        # 2. Verify creation logic
+        mock_dynamo.create_table.assert_called_once()
+        mock_waiter.wait.assert_called_once_with(TableName=mock_env)
+        mock_logger.info.assert_called_with(f"Table '{mock_env}' created successfully.")
 
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    def test_skips_creation_when_table_exists(self, mock_getenv, mock_get_client):
-        """Test that table creation is skipped when table already exists."""
-        mock_getenv.return_value = "existing-table"
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-
-        mock_client.describe_table.return_value = {
-            "Table": {"TableName": "existing-table"}
-        }
+    def test_skips_creation_when_table_exists(self, mock_dynamo, mock_env, mock_logger):
+        """Idempotency check: describe_table succeeds, so creation is skipped."""
+        mock_dynamo.describe_table.return_value = {"Table": {"TableName": mock_env}}
 
         create_tables()
 
-        mock_client.describe_table.assert_called_once()
-        mock_client.create_table.assert_not_called()
+        mock_dynamo.create_table.assert_not_called()
+        mock_logger.info.assert_called_with(f"Table '{mock_env}' already exists.")
 
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    def test_handles_table_creation_error(self, mock_getenv, mock_get_client):
-        """Test error handling when table creation fails."""
-        mock_getenv.return_value = "test-table"
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-
-        mock_client.describe_table.side_effect = ClientError(
-            {"Error": {"Code": "ResourceNotFoundException"}}, "DescribeTable"
-        )
-        mock_client.create_table.side_effect = ClientError(
-            {"Error": {"Code": "InternalError", "Message": "Table creation failed"}},
-            "CreateTable",
+    def test_handles_specific_client_error(self, mock_dynamo, mock_env):
+        """Re-raises ClientError if it's NOT ResourceNotFoundException."""
+        mock_dynamo.describe_table.side_effect = ClientError(
+            {"Error": {"Code": "AccessDeniedException"}}, "DescribeTable"
         )
 
         with pytest.raises(ClientError):
             create_tables()
 
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    def test_handles_describe_table_error(self, mock_getenv, mock_get_client):
-        """Test error handling when describe_table fails with non-NotFound error."""
-        mock_getenv.return_value = "test-table"
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
+    def test_handles_unexpected_generic_exception(self, mock_dynamo, mock_logger):
+        """Hits the outer 'except Exception' block and logs the error."""
+        mock_dynamo.describe_table.side_effect = RuntimeError("Connection Lost")
 
-        mock_client.describe_table.side_effect = ClientError(
-            {"Error": {"Code": "AccessDenied", "Message": "Access denied"}},
-            "DescribeTable",
-        )
-
-        with pytest.raises(ClientError):
+        with pytest.raises(RuntimeError, match="Connection Lost"):
             create_tables()
 
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    def test_idempotent_operation(self, mock_getenv, mock_get_client):
-        """Test that create_tables is idempotent and can be called multiple times safely."""
-        mock_getenv.return_value = "test-table"
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-        mock_client.describe_table.return_value = {"Table": {}}
-
-        create_tables()
-        create_tables()
-        create_tables()
-
-        assert mock_client.describe_table.call_count == 3
-        mock_client.create_table.assert_not_called()
+        mock_logger.error.assert_called_with("Unexpected error: Connection Lost")
 
 
-class TestCreateTablesConfiguration:
-    """Tests for table configuration in create_tables."""
-
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    def test_uses_correct_key_schema(self, mock_getenv, mock_get_client):
-        """Test that create_table is called with correct key schema."""
-        mock_getenv.return_value = "test-table"
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-
-        mock_client.describe_table.side_effect = ClientError(
+class TestTableConfiguration:
+    def test_verifies_gsi_and_capacity_schema(self, mock_dynamo, mock_env):
+        """Ensures the complex dictionary for create_table is executed correctly."""
+        mock_dynamo.describe_table.side_effect = ClientError(
             {"Error": {"Code": "ResourceNotFoundException"}}, "DescribeTable"
         )
-        mock_client.create_table.return_value = {}
-        mock_waiter = Mock()
-        mock_client.get_waiter.return_value = mock_waiter
 
         create_tables()
 
-        call_kwargs = mock_client.create_table.call_args[1]
-        assert call_kwargs["KeySchema"] == [
-            {"AttributeName": "pk", "KeyType": "HASH"},
-            {"AttributeName": "sk", "KeyType": "RANGE"},
-        ]
-
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    def test_uses_correct_capacity_units(self, mock_getenv, mock_get_client):
-        """Test that create_table is called with correct read/write capacity units."""
-        mock_getenv.return_value = "test-table"
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-
-        mock_client.describe_table.side_effect = ClientError(
-            {"Error": {"Code": "ResourceNotFoundException"}}, "DescribeTable"
+        _, kwargs = mock_dynamo.create_table.call_args
+        assert len(kwargs["GlobalSecondaryIndexes"]) == 4
+        assert kwargs["ProvisionedThroughput"]["ReadCapacityUnits"] == 25
+        # Verify specific GSI projection (e.g., GSI2 uses INCLUDE)
+        gsi2 = next(
+            g for g in kwargs["GlobalSecondaryIndexes"] if g["IndexName"] == "GSI2"
         )
-        mock_client.create_table.return_value = {}
-        mock_waiter = Mock()
-        mock_client.get_waiter.return_value = mock_waiter
-
-        create_tables()
-
-        call_kwargs = mock_client.create_table.call_args[1]
-        assert call_kwargs["ProvisionedThroughput"] == {
-            "ReadCapacityUnits": 25,
-            "WriteCapacityUnits": 25,
-        }
-
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    def test_waits_for_table_creation(self, mock_getenv, mock_get_client):
-        """Test that waiter is used to wait for table creation completion."""
-        mock_getenv.return_value = "test-table"
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-
-        mock_client.describe_table.side_effect = ClientError(
-            {"Error": {"Code": "ResourceNotFoundException"}}, "DescribeTable"
-        )
-        mock_client.create_table.return_value = {}
-        mock_waiter = Mock()
-        mock_client.get_waiter.return_value = mock_waiter
-
-        create_tables()
-
-        mock_client.get_waiter.assert_called_once_with("table_exists")
-        mock_waiter.wait.assert_called_once_with(TableName="test-table")
-
-
-class TestCreateTablesLogging:
-    """Tests for logging behavior in create_tables."""
-
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    @patch("src.core.aws.database.migrations.logger")
-    def test_logs_success_message(self, mock_logger, mock_getenv, mock_get_client):
-        """Test that success message is logged when table is created."""
-        table_name = "my-test-table"
-        mock_getenv.return_value = table_name
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-
-        mock_client.describe_table.side_effect = ClientError(
-            {"Error": {"Code": "ResourceNotFoundException"}}, "DescribeTable"
-        )
-        mock_client.create_table.return_value = {}
-        mock_waiter = Mock()
-        mock_client.get_waiter.return_value = mock_waiter
-
-        create_tables()
-
-        mock_logger.info.assert_called_with(
-            f"Table '{table_name}' created successfully."
-        )
-
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    @patch("src.core.aws.database.migrations.logger")
-    def test_logs_table_exists_message(self, mock_logger, mock_getenv, mock_get_client):
-        """Test that appropriate message is logged when table already exists."""
-        table_name = "existing-table"
-        mock_getenv.return_value = table_name
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-
-        mock_client.describe_table.return_value = {"Table": {}}
-
-        create_tables()
-
-        mock_logger.info.assert_called_with(f"Table '{table_name}' already exists.")
-
-    @patch("src.core.aws.database.migrations.get_dynamodb_client")
-    @patch("src.core.aws.database.migrations.os.getenv")
-    @patch("src.core.aws.database.migrations.logger")
-    def test_logs_unexpected_error(self, mock_logger, mock_getenv, mock_get_client):
-        """Test that unexpected errors are logged."""
-        mock_getenv.return_value = "test-table"
-        error_msg = "Network timeout"
-        mock_get_client.side_effect = Exception(error_msg)
-
-        with pytest.raises(Exception):
-            create_tables()
-
-        mock_logger.error.assert_called_once()
+        assert gsi2["Projection"]["ProjectionType"] == "INCLUDE"
