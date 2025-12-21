@@ -262,6 +262,15 @@ class DynamoDBOperations:
         if not items:
             return {"UnprocessedItems": {}}
 
+        unique_items = list(
+            {(item["pk"]["S"], item["sk"]["S"]): item for item in items}.values()
+        )
+
+        if len(unique_items) < len(items):
+            logger.info(
+                f"Filtered out {len(items) - len(unique_items)} duplicate items from batch."
+            )
+
         try:
             # DynamoDB batch_write_item supports max 25 items per request
             unprocessed_items = []
