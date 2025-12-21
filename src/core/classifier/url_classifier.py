@@ -2,6 +2,7 @@ from typing import Tuple, List
 from pathlib import Path
 import torch
 import torch.nn.functional as f
+from huggingface_hub import hf_hub_download
 from transformers import BertTokenizer, AutoConfig, AutoModelForMaskedLM
 
 from src.core.utils.logger import logger
@@ -35,9 +36,10 @@ class URLBertClassifier(torch.nn.Module):
         root_dir = Path(__file__).resolve().parent
 
         if model_path is None:
-            model_path = root_dir / "fine_tuned_model" / "urlbert_products_best.pth"
-        else:
-            model_path = Path(model_path)
+            model_path = hf_hub_download(
+                repo_id="abdefi/product_bert",
+                filename="urlbert_products_best.pth",
+            )
 
         if tokenizer_path is None:
             tokenizer_path = root_dir / "bert_tokenizer" / "vocab.txt"
@@ -62,11 +64,6 @@ class URLBertClassifier(torch.nn.Module):
 
         # Load model with correct architecture
         try:
-            if not model_path.exists():
-                raise FileNotFoundError(f"Model file not found: {model_path}")
-
-            logger.info(f"Loading model from {model_path}")
-
             # Create config
             config_kwargs = {"vocab_size": self.VOCAB_SIZE, "hidden_dropout_prob": 0.1}
             config = AutoConfig.from_pretrained(str(config_path), **config_kwargs)
