@@ -6,7 +6,6 @@ from pathlib import Path
 from src.core.classifier.url_classifier import URLBertClassifier
 
 
-@pytest.mark.skipif()
 class TestURLClassifier:
     @pytest.fixture(scope="class")
     def classifier(self):
