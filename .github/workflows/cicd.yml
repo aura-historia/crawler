@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout repository
@@ -33,6 +33,9 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+      - name: Prune Docker volumes
+        run: docker volume prune -f
 
   ruff:
     runs-on: ubuntu-latest
