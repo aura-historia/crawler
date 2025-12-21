@@ -263,7 +263,10 @@ class DynamoDBOperations:
             return {"UnprocessedItems": {}}
 
         unique_items = list(
-            {(item["pk"]["S"], item["sk"]["S"]): item for item in items}.values()
+            {
+                (item["pk"]["S"], item.get("sk", {}).get("S", "")): item
+                for item in items
+            }.values()
         )
 
         if len(unique_items) < len(items):

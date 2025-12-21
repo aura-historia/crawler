@@ -427,8 +427,10 @@ class TestInternalHandlersAndEdgeCases:
         """Test the generic Exception catch-all in _batch_write_items."""
         mock_boto_client.batch_write_item.side_effect = Exception("Batch crash")
 
+        items = [{"pk": {"S": "1"}, "sk": {"S": "META#"}}]
+
         with pytest.raises(Exception, match="Batch crash"):
-            db_ops._batch_write_items([{"pk": {"S": "1"}}], "type")
+            db_ops._batch_write_items(items, "type")
 
     @patch("src.core.aws.database.operations.socket.gethostbyname")
     def test_upsert_shop_metadata_socket_gaierror(

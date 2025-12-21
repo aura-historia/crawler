@@ -1,5 +1,7 @@
 import pytest
 import os
+
+from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 from testcontainers.localstack import LocalStackContainer
 from src.core.aws.database.migrations import create_tables
 from src.core.aws.database.operations import DynamoDBOperations
@@ -10,9 +12,13 @@ def dynamodb_setup():
     """Start LocalStack for eu-central-1 with the specific table name."""
     os.environ["TESTCONTAINERS_RYUK_DISABLED"] = "true"
 
-    with LocalStackContainer("localstack/localstack:3.8.1").with_services(
+    container = LocalStackContainer("localstack/localstack:3.8.1").with_services(
         "dynamodb"
-    ) as ls:
+    )
+
+    container.waiting_for(LogMessageWaitStrategy("Ready."))
+
+    with container as ls:
         endpoint_url = ls.get_url()
 
         os.environ["DYNAMODB_ENDPOINT_URL"] = endpoint_url
