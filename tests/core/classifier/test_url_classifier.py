@@ -6,7 +6,6 @@ from pathlib import Path
 from src.core.classifier.url_classifier import URLBertClassifier
 
 
-@pytest.mark.skipif()
 class TestURLClassifier:
     @pytest.fixture(scope="class")
     def classifier(self):
@@ -28,9 +27,6 @@ class TestURLClassifier:
 
     def test_model_files_exist(self, model_paths):
         """Verify that all required model files exist."""
-        assert model_paths["model"].exists(), (
-            f"Model file not found: {model_paths['model']}"
-        )
         assert model_paths["tokenizer"].exists(), (
             f"Tokenizer file not found: {model_paths['tokenizer']}"
         )

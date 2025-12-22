@@ -17,6 +17,8 @@ class DynamoDBOperations:
     """Operations for DynamoDB single-table design using boto3."""
 
     METADATA_SK = "META#"
+    DOMAIN_ATTR = "#domain_attr"
+    URL_ATTR = "#url_attr"
 
     def __init__(self):
         self.client = get_dynamodb_client()
@@ -24,7 +26,7 @@ class DynamoDBOperations:
 
     def get_product_urls_by_domain(self, domain: str) -> List[str]:
         """
-        Get all product URLs for a given domain using the GSI.
+        Get all product URLs for a given domain using GSI1.
 
         Args:
             domain: Shop domain
@@ -39,14 +41,14 @@ class DynamoDBOperations:
             while True:
                 query_args = {
                     "TableName": self.table_name,
-                    "IndexName": "IsProductIndex",
-                    "KeyConditionExpression": "PK = :pk AND is_product = :is_product",
+                    "IndexName": "GSI1",
+                    "KeyConditionExpression": "gsi1_pk = :pk AND gsi1_sk = :type",
                     "ExpressionAttributeValues": {
                         ":pk": {"S": f"SHOP#{domain}"},
-                        ":is_product": {"N": "1"},
+                        ":type": {"S": "product"},
                     },
-                    "ProjectionExpression": "#url_attr",
-                    "ExpressionAttributeNames": {"#url_attr": "url"},
+                    "ProjectionExpression": self.URL_ATTR,
+                    "ExpressionAttributeNames": {self.URL_ATTR: "url"},
                 }
                 if last_evaluated_key:
                     query_args["ExclusiveStartKey"] = last_evaluated_key
@@ -67,23 +69,95 @@ class DynamoDBOperations:
             )
             raise
 
+    def find_all_domains_by_core_domain_name(
+        self, core_domain_name: str, domain_to_exclude: Optional[str] = None
+    ) -> List[ShopMetadata]:
+        """
+        Finds ALL shops by their core domain name using GSI4.
+
+        Args:
+            core_domain_name: The core domain name (e.g., 'example').
+            domain_to_exclude: Optional domain to exclude from the search results.
+
+        Returns:
+            List of ShopMetadata objects. Empty list if no matches found.
+        """
+        shops = []
+        last_evaluated_key = None
+
+        try:
+            while True:
+                query_args = {
+                    "TableName": self.table_name,
+                    "IndexName": "GSI4",
+                    "KeyConditionExpression": "gsi4_pk = :cdn",
+                    "ExpressionAttributeValues": {
+                        ":cdn": {"S": core_domain_name},
+                    },
+                }
+
+                # Add filter if domain_to_exclude is specified
+                if domain_to_exclude:
+                    query_args["FilterExpression"] = "#d <> :domain_to_exclude"
+                    query_args["ExpressionAttributeNames"] = {"#d": "domain"}
+                    query_args["ExpressionAttributeValues"][":domain_to_exclude"] = {
+                        "S": domain_to_exclude
+                    }
+
+                if last_evaluated_key:
+                    query_args["ExclusiveStartKey"] = last_evaluated_key
+
+                response = self.client.query(**query_args)
+
+                for item in response.get("Items", []):
+                    shops.append(ShopMetadata.from_dynamodb_item(item))
+
+                last_evaluated_key = response.get("LastEvaluatedKey")
+                if not last_evaluated_key:
+                    break
+
+            logger.info(
+                f"Found {len(shops)} shop(s) with core domain name '{core_domain_name}'"
+            )
+            return shops
+        except ClientError as e:
+            if "does not have the specified index" in e.response.get("Error", {}).get(
+                "Message", ""
+            ):
+                logger.warning(
+                    "GSI 'GSI4' not found. Cannot search by core domain name."
+                )
+            else:
+                logger.error(
+                    f"Error finding shops by core domain name '{core_domain_name}': {e}"
+                )
+            return []
+        except Exception as e:
+            logger.error(
+                f"Unexpected error querying shops by core domain name '{core_domain_name}': {e}"
+            )
+            return []
+
     def get_shops_by_country_and_crawled_date(
         self, country: str, start_date: str, end_date: str
     ) -> List[str]:
         """
-        Query shops by country and crawled date range using GSI.
+        Query shops by country and crawled date range using GSI2.
 
         Args:
-            country: The country to query.
+            country: The country to query (will be prefixed with COUNTRY# if not already).
             start_date: The start of the date range (ISO 8601).
             end_date: The end of the date range (ISO 8601).
 
         Returns:
             A list of domains.
         """
+        if not country.startswith("COUNTRY#"):
+            country = f"COUNTRY#{country}"
+
         return self._query_shops_by_country_and_date(
-            index_name="CountryLastCrawledIndex",
-            date_attribute_name="last_crawled",
+            index_name="GSI2",
+            date_attribute_name="gsi2_sk",
             country=country,
             start_date=start_date,
             end_date=end_date,
@@ -93,19 +167,23 @@ class DynamoDBOperations:
         self, country: str, start_date: str, end_date: str
     ) -> List[str]:
         """
-        Query shops by country and scraped date range using GSI.
+        Query shops by country and scraped date range using GSI3.
 
         Args:
-            country: The country to query.
+            country: The country to query (will be prefixed with COUNTRY# if not already).
             start_date: The start of the date range (ISO 8601).
             end_date: The end of the date range (ISO 8601).
 
         Returns:
             A list of domains.
         """
+        # Ensure country has COUNTRY# prefix
+        if not country.startswith("COUNTRY#"):
+            country = f"COUNTRY#{country}"
+
         return self._query_shops_by_country_and_date(
-            index_name="CountryLastScrapedIndex",
-            date_attribute_name="last_scraped",
+            index_name="GSI3",
+            date_attribute_name="gsi3_sk",
             country=country,
             start_date=start_date,
             end_date=end_date,
@@ -123,9 +201,9 @@ class DynamoDBOperations:
         Generic helper to query shops by country and a date range from a GSI.
 
         Args:
-            index_name: The name of the GSI to query.
-            date_attribute_name: The name of the date attribute to filter on (e.g., 'last_crawled').
-            country: The country to query.
+            index_name: The name of the GSI to query (GSI2 or GSI3).
+            date_attribute_name: The name of the sort key attribute (gsi2_sk or gsi3_sk).
+            country: The country to query (with COUNTRY# prefix).
             start_date: The start of the date range (ISO 8601).
             end_date: The end of the date range (ISO 8601).
 
@@ -134,19 +212,23 @@ class DynamoDBOperations:
         """
         domains = []
         last_evaluated_key = None
+
+        # Determine the partition key attribute based on index
+        pk_attribute = "gsi2_pk" if index_name == "GSI2" else "gsi3_pk"
+
         try:
             while True:
                 query_args = {
                     "TableName": self.table_name,
                     "IndexName": index_name,
-                    "KeyConditionExpression": f"shop_country = :country AND {date_attribute_name} BETWEEN :start AND :end",
+                    "KeyConditionExpression": f"{pk_attribute} = :country AND {date_attribute_name} BETWEEN :start AND :end",
                     "ExpressionAttributeValues": {
                         ":country": {"S": country},
                         ":start": {"S": start_date},
                         ":end": {"S": end_date},
                     },
-                    "ProjectionExpression": "#domain_attr",
-                    "ExpressionAttributeNames": {"#domain_attr": "domain"},
+                    "ProjectionExpression": self.DOMAIN_ATTR,
+                    "ExpressionAttributeNames": {self.DOMAIN_ATTR: "domain"},
                 }
                 if last_evaluated_key:
                     query_args["ExclusiveStartKey"] = last_evaluated_key
@@ -179,6 +261,18 @@ class DynamoDBOperations:
         """
         if not items:
             return {"UnprocessedItems": {}}
+
+        unique_items = list(
+            {
+                (item["pk"]["S"], item.get("sk", {}).get("S", "")): item
+                for item in items
+            }.values()
+        )
+
+        if len(unique_items) < len(items):
+            logger.info(
+                f"Filtered out {len(items) - len(unique_items)} duplicate items from batch."
+            )
 
         try:
             # DynamoDB batch_write_item supports max 25 items per request
@@ -242,16 +336,23 @@ class DynamoDBOperations:
     def update_shop_metadata(
         self,
         domain: str,
-        last_crawled: Optional[str] = None,
-        last_scraped: Optional[str] = None,
+        last_crawled_start: Optional[str] = None,
+        last_crawled_end: Optional[str] = None,
+        last_scraped_start: Optional[str] = None,
+        last_scraped_end: Optional[str] = None,
     ) -> dict:
         """
-        Update shop metadata with new values.
+        Update shop metadata with new timestamp values.
+
+        Important: GSI keys (gsi2_sk, gsi3_sk) must be explicitly updated.
+        DynamoDB does NOT automatically sync them when base attributes change.
 
         Args:
             domain: Shop domain
-            last_crawled: ISO 8601 timestamp for last crawl
-            last_scraped: ISO 8601 timestamp for last scrape
+            last_crawled_start: ISO 8601 timestamp for crawl start
+            last_crawled_end: ISO 8601 timestamp for crawl end
+            last_scraped_start: ISO 8601 timestamp for scrape start
+            last_scraped_end: ISO 8601 timestamp for scrape end
 
         Returns:
             UpdateItem response
@@ -259,13 +360,23 @@ class DynamoDBOperations:
         update_expression_parts = []
         expression_attribute_values = {}
 
-        if last_crawled:
-            update_expression_parts.append("last_crawled = :crawled")
-            expression_attribute_values[":crawled"] = {"S": last_crawled}
+        if last_crawled_start:
+            update_expression_parts.append("last_crawled_start = :crawled_start")
+            update_expression_parts.append("gsi2_sk = :crawled_start")
+            expression_attribute_values[":crawled_start"] = {"S": last_crawled_start}
 
-        if last_scraped:
-            update_expression_parts.append("last_scraped = :scraped")
-            expression_attribute_values[":scraped"] = {"S": last_scraped}
+        if last_crawled_end:
+            update_expression_parts.append("last_crawled_end = :crawled_end")
+            expression_attribute_values[":crawled_end"] = {"S": last_crawled_end}
+
+        if last_scraped_start:
+            update_expression_parts.append("last_scraped_start = :scraped_start")
+            update_expression_parts.append("gsi3_sk = :scraped_start")
+            expression_attribute_values[":scraped_start"] = {"S": last_scraped_start}
+
+        if last_scraped_end:
+            update_expression_parts.append("last_scraped_end = :scraped_end")
+            expression_attribute_values[":scraped_end"] = {"S": last_scraped_end}
 
         if not update_expression_parts:
             logger.warning("No fields to update for shop metadata.")
@@ -276,7 +387,7 @@ class DynamoDBOperations:
         try:
             response = self.client.update_item(
                 TableName=self.table_name,
-                Key={"PK": {"S": f"SHOP#{domain}"}, "SK": {"S": self.METADATA_SK}},
+                Key={"pk": {"S": f"SHOP#{domain}"}, "sk": {"S": self.METADATA_SK}},
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_attribute_values,
                 ReturnValues="UPDATED_NEW",

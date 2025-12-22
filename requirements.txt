@@ -1,3 +1,6 @@
+testcontainers
+responses
+urllib3
 aioresponses
 botocore
 aiohttp
@@ -32,3 +35,4 @@ crawl4ai
 extruct
 google-search-results
 iptocc
+tldextract

@@ -173,6 +173,9 @@ async def handle_domain_message(
         return
 
     logger.info("Processing domain: %s", domain)
+
+    scrape_start_time = datetime.now().isoformat()
+
     product_urls = await asyncio.to_thread(db.get_product_urls_by_domain, domain)
 
     start_index = 0
@@ -229,11 +232,13 @@ async def handle_domain_message(
                 await asyncio.to_thread(delete_message, message)
             return
 
-        # Update shop metadata with last scraped date
+        # Update shop metadata with scrape timestamps
+        scrape_end_time = datetime.now().isoformat()
         await asyncio.to_thread(
             db.update_shop_metadata,
             domain=domain,
-            last_scraped=datetime.now().isoformat(),
+            last_scraped_start=scrape_start_time,
+            last_scraped_end=scrape_end_time,
         )
 
         await asyncio.to_thread(delete_message, message)

@@ -4,6 +4,7 @@ import hashlib
 import os
 
 import boto3
+import tldextract
 
 
 def _get_dynamodb_config() -> Dict[str, Any]:
@@ -52,43 +53,71 @@ class ShopMetadata:
     shop_country: Optional[str] = field(default=None)
     pk: Optional[str] = field(default=None)
     sk: str = field(default=METADATA_SK)
-    last_crawled: Optional[str] = field(default=None)
-    last_scraped: Optional[str] = field(default=None)
+    last_crawled_start: Optional[str] = field(default=None)
+    last_crawled_end: Optional[str] = field(default=None)
+    last_scraped_start: Optional[str] = field(default=None)
+    last_scraped_end: Optional[str] = field(default=None)
+    core_domain_name: Optional[str] = field(default=None)
 
     def __post_init__(self):
         """Set pk to domain if not provided."""
         if self.pk is None:
             self.pk = f"SHOP#{self.domain}"
+        # Extract and store the core domain name (e.g., 'example' from 'example.com')
+        self.core_domain_name = tldextract.extract(self.domain).domain
+        # Format shop_country with COUNTRY# prefix if not already formatted
+        if self.shop_country and not self.shop_country.startswith("COUNTRY#"):
+            self.shop_country = f"COUNTRY#{self.shop_country}"
 
     def to_dynamodb_item(self) -> Dict[str, Any]:
         """Convert to DynamoDB item format."""
         item = {
-            "PK": {"S": self.pk},
-            "SK": {"S": self.sk},
+            "pk": {"S": self.pk},
+            "sk": {"S": self.sk},
             "domain": {"S": self.domain},
             "standards_used": {"L": [{"S": s} for s in self.standards_used]},
+            "core_domain_name": {"S": self.core_domain_name},
         }
         if self.shop_country:
             item["shop_country"] = {"S": self.shop_country}
-        if self.last_crawled:
-            item["last_crawled"] = {"S": self.last_crawled}
-        if self.last_scraped:
-            item["last_scraped"] = {"S": self.last_scraped}
+            # GSI2/GSI3: Country-based indexes
+            item["gsi2_pk"] = {"S": self.shop_country}
+            item["gsi3_pk"] = {"S": self.shop_country}
+        if self.last_crawled_start:
+            item["last_crawled_start"] = {"S": self.last_crawled_start}
+            # GSI2: Country + crawled date
+            if self.shop_country:
+                item["gsi2_sk"] = {"S": self.last_crawled_start}
+        if self.last_crawled_end:
+            item["last_crawled_end"] = {"S": self.last_crawled_end}
+        if self.last_scraped_start:
+            item["last_scraped_start"] = {"S": self.last_scraped_start}
+            # GSI3: Country + scraped date
+            if self.shop_country:
+                item["gsi3_sk"] = {"S": self.last_scraped_start}
+        if self.last_scraped_end:
+            item["last_scraped_end"] = {"S": self.last_scraped_end}
+        # GSI4: Core domain index
+        if self.core_domain_name:
+            item["gsi4_pk"] = {"S": self.core_domain_name}
+            item["gsi4_sk"] = {"S": self.domain}
         return item
 
     @classmethod
     def from_dynamodb_item(cls, item: Dict[str, Any]) -> "ShopMetadata":
         """Create instance from DynamoDB item."""
         return cls(
-            pk=item["PK"]["S"],
-            sk=item["SK"]["S"],
+            pk=item["pk"]["S"],
+            sk=item["sk"]["S"],
             domain=item["domain"]["S"],
             standards_used=[
                 s["S"] for s in item.get("standards_used", {}).get("L", [])
             ],
             shop_country=item.get("shop_country", {}).get("S"),
-            last_crawled=item.get("last_crawled", {}).get("S"),
-            last_scraped=item.get("last_scraped", {}).get("S"),
+            last_crawled_start=item.get("last_crawled_start", {}).get("S"),
+            last_crawled_end=item.get("last_crawled_end", {}).get("S"),
+            last_scraped_start=item.get("last_scraped_start", {}).get("S"),
+            last_scraped_end=item.get("last_scraped_end", {}).get("S"),
         )
 
 
@@ -100,7 +129,6 @@ class URLEntry:
     url: str
     standards_used: List[str] = field(default_factory=list)
     type: Optional[str] = field(default=None)
-    is_product: int = field(default=0)
     hash: Optional[str] = field(default=None)
     pk: Optional[str] = field(default=None)
     sk: Optional[str] = field(default=None)
@@ -115,15 +143,17 @@ class URLEntry:
     def to_dynamodb_item(self) -> Dict[str, Any]:
         """Convert to DynamoDB item format."""
         item = {
-            "PK": {"S": self.pk},
-            "SK": {"S": self.sk},
+            "pk": {"S": self.pk},
+            "sk": {"S": self.sk},
             "url": {"S": self.url},
             "standards_used": {"L": [{"S": s} for s in self.standards_used]},
-            "is_product": {"N": str(self.is_product)},  # Store as Number
         }
 
         if self.type is not None:
             item["type"] = {"S": self.type}
+            # GSI1: Product type index
+            item["gsi1_pk"] = {"S": self.pk}
+            item["gsi1_sk"] = {"S": self.type}
 
         if self.hash is not None:
             item["hash"] = {"S": self.hash}
@@ -133,19 +163,18 @@ class URLEntry:
     @classmethod
     def from_dynamodb_item(cls, item: Dict[str, Any]) -> "URLEntry":
         """Create instance from DynamoDB item."""
-        pk = item["PK"]["S"]
-        # Extract domain from PK (remove SHOP# prefix if present)
+        pk = item["pk"]["S"]
+        # Extract domain from pk (remove SHOP# prefix if present)
         domain = pk.replace("SHOP#", "", 1) if pk.startswith("SHOP#") else pk
         return cls(
             pk=pk,
-            sk=item["SK"]["S"],
+            sk=item["sk"]["S"],
             domain=domain,
             url=item["url"]["S"],
             standards_used=[
                 s["S"] for s in item.get("standards_used", {}).get("L", [])
             ],
             type=item.get("type", {}).get("S"),
-            is_product=int(item.get("is_product", {}).get("N", "0")),
             hash=item.get("hash", {}).get("S"),
         )
 

@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
@@ -18,13 +17,20 @@ def create_tables():
     This is an idempotent operation.
 
     Table structure:
-    - PK: 'SHOP#' + domain (e.g., 'SHOP#example.com')
-    - SK: Two types:
+    - pk: 'SHOP#' + domain (e.g., 'SHOP#example.com')
+    - sk: Two types:
         1. 'META#' - Shop metadata
-           Attributes: domain, standards_used (list), lastCrawledDate (str, ISO 8601), lastScrapedDate (str, ISO 8601)
+           Attributes: domain, standards_used (list), shop_country (COUNTRY#XX),
+                      last_crawled_start/end, last_scraped_start/end (ISO 8601),
+                      core_domain_name
         2. 'URL#<full_url>' - Individual URL data
-           Attributes: standards_used, type (category/product/etc),
-                      is_product (bool), hash (status+price), url
+           Attributes: standards_used, type (category/product/etc), hash (status+price), url
+
+    GSIs:
+    - GSI1: Product type index (gsi1_pk=SHOP#domain, gsi1_sk=type)
+    - GSI2: Country + crawled date (gsi2_pk=COUNTRY#XX, gsi2_sk=last_crawled_start)
+    - GSI3: Country + scraped date (gsi3_pk=COUNTRY#XX, gsi3_sk=last_scraped_start)
+    - GSI4: Core domain name (gsi4_pk=core_domain_name, gsi4_sk=domain)
 
     Operations:
     - Query: Use GetItem for direct access
@@ -47,36 +53,39 @@ def create_tables():
         dynamodb.create_table(
             TableName=table_name,
             KeySchema=[
-                {"AttributeName": "PK", "KeyType": "HASH"},
-                {"AttributeName": "SK", "KeyType": "RANGE"},
+                {"AttributeName": "pk", "KeyType": "HASH"},
+                {"AttributeName": "sk", "KeyType": "RANGE"},
             ],
             AttributeDefinitions=[
-                {"AttributeName": "PK", "AttributeType": "S"},
-                {"AttributeName": "SK", "AttributeType": "S"},
-                {"AttributeName": "shop_country", "AttributeType": "S"},
-                {"AttributeName": "last_crawled", "AttributeType": "S"},
-                {"AttributeName": "last_scraped", "AttributeType": "S"},
-                {"AttributeName": "is_product", "AttributeType": "N"},
-            ],
-            LocalSecondaryIndexes=[
-                {
-                    "IndexName": "IsProductIndex",
-                    "KeySchema": [
-                        {"AttributeName": "PK", "KeyType": "HASH"},
-                        {"AttributeName": "is_product", "KeyType": "RANGE"},
-                    ],
-                    "Projection": {
-                        "ProjectionType": "INCLUDE",
-                        "NonKeyAttributes": ["url", "standards_used"],
-                    },
-                }
+                {"AttributeName": "pk", "AttributeType": "S"},
+                {"AttributeName": "sk", "AttributeType": "S"},
+                {"AttributeName": "gsi1_pk", "AttributeType": "S"},
+                {"AttributeName": "gsi1_sk", "AttributeType": "S"},
+                {"AttributeName": "gsi2_pk", "AttributeType": "S"},
+                {"AttributeName": "gsi2_sk", "AttributeType": "S"},
+                {"AttributeName": "gsi3_pk", "AttributeType": "S"},
+                {"AttributeName": "gsi3_sk", "AttributeType": "S"},
+                {"AttributeName": "gsi4_pk", "AttributeType": "S"},
+                {"AttributeName": "gsi4_sk", "AttributeType": "S"},
             ],
             GlobalSecondaryIndexes=[
                 {
-                    "IndexName": "CountryLastCrawledIndex",
+                    "IndexName": "GSI1",
                     "KeySchema": [
-                        {"AttributeName": "shop_country", "KeyType": "HASH"},
-                        {"AttributeName": "last_crawled", "KeyType": "RANGE"},
+                        {"AttributeName": "gsi1_pk", "KeyType": "HASH"},
+                        {"AttributeName": "gsi1_sk", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                    "ProvisionedThroughput": {
+                        "ReadCapacityUnits": 10,
+                        "WriteCapacityUnits": 10,
+                    },
+                },
+                {
+                    "IndexName": "GSI2",
+                    "KeySchema": [
+                        {"AttributeName": "gsi2_pk", "KeyType": "HASH"},
+                        {"AttributeName": "gsi2_sk", "KeyType": "RANGE"},
                     ],
                     "Projection": {
                         "ProjectionType": "INCLUDE",
@@ -88,10 +97,10 @@ def create_tables():
                     },
                 },
                 {
-                    "IndexName": "CountryLastScrapedIndex",
+                    "IndexName": "GSI3",
                     "KeySchema": [
-                        {"AttributeName": "shop_country", "KeyType": "HASH"},
-                        {"AttributeName": "last_scraped", "KeyType": "RANGE"},
+                        {"AttributeName": "gsi3_pk", "KeyType": "HASH"},
+                        {"AttributeName": "gsi3_sk", "KeyType": "RANGE"},
                     ],
                     "Projection": {
                         "ProjectionType": "INCLUDE",
@@ -102,7 +111,20 @@ def create_tables():
                         "WriteCapacityUnits": 10,
                     },
                 },
+                {
+                    "IndexName": "GSI4",
+                    "KeySchema": [
+                        {"AttributeName": "gsi4_pk", "KeyType": "HASH"},
+                        {"AttributeName": "gsi4_sk", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                    "ProvisionedThroughput": {
+                        "ReadCapacityUnits": 10,
+                        "WriteCapacityUnits": 10,
+                    },
+                },
             ],
+            StreamSpecification={"StreamEnabled": True, "StreamViewType": "NEW_IMAGE"},
             BillingMode="PROVISIONED",
             ProvisionedThroughput={"ReadCapacityUnits": 25, "WriteCapacityUnits": 25},
         )
@@ -116,13 +138,3 @@ def create_tables():
     except Exception as ex:
         logger.error(f"Unexpected error: {ex}")
         raise
-
-
-if __name__ == "__main__":
-    print("Creating DynamoDB table...")
-    try:
-        create_tables()
-    except Exception as e:
-        logger.error(f"Something went wrong while connecting to DynamoDB: {e}")
-        sys.exit(1)
-    print("Done.")
