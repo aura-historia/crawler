@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -17,15 +18,22 @@ sqs = boto3.resource(
 )
 
 
-def send_message(queue, message_body, message_attributes=None):
+def send_message(
+    queue: Any, message_body: str, message_attributes: Optional[dict] = None
+) -> dict:
     """
     Send a message to an Amazon SQS queue.
 
-    :param queue: The queue that receives the message.
-    :param message_body: The body text of the message.
-    :param message_attributes: Custom attributes of the message. These are key-value
-                               pairs that can be whatever you want.
-    :return: The response from SQS that contains the assigned message ID.
+    Parameters:
+        queue (Any): The queue that receives the message.
+        message_body (str): The body text of the message.
+        message_attributes (dict, optional): Custom attributes of the message as key-value pairs.
+
+    Returns:
+        dict: The response from SQS that contains the assigned message ID.
+
+    Raises:
+        ClientError: If sending the message fails.
     """
     if not message_attributes:
         message_attributes = {}
@@ -41,18 +49,19 @@ def send_message(queue, message_body, message_attributes=None):
         return response
 
 
-def send_messages(queue, messages):
+def send_messages(queue: Any, messages: list[dict]) -> dict:
     """
     Send a batch of messages in a single request to an SQS queue.
-    This request may return overall success even when some messages were not sent.
-    The caller must inspect the Successful and Failed lists in the response and
-    resend any failed messages.
 
-    :param queue: The queue to receive the messages.
-    :param messages: The messages to send to the queue. These are simplified to
-                     contain only the message body and attributes.
-    :return: The response from SQS that contains the list of successful and failed
-             messages.
+    Parameters:
+        queue (Any): The queue to receive the messages.
+        messages (list[dict]): List of messages, each with 'body' and 'attributes'.
+
+    Returns:
+        dict: The response from SQS with lists of successful and failed messages.
+
+    Raises:
+        ClientError: If sending the batch fails.
     """
     try:
         entries = [
@@ -85,18 +94,20 @@ def send_messages(queue, messages):
         return response
 
 
-def receive_messages(queue, max_number, wait_time):
+def receive_messages(queue: Any, max_number: int, wait_time: int) -> list:
     """
     Receive a batch of messages in a single request from an SQS queue.
 
-    :param queue: The queue from which to receive messages.
-    :param max_number: The maximum number of messages to receive. The actual number
-                       of messages received might be less.
-    :param wait_time: The maximum time to wait (in seconds) before returning. When
-                      this number is greater than zero, long polling is used. This
-                      can result in reduced costs and fewer false empty responses.
-    :return: The list of Message objects received. These each contain the body
-             of the message and metadata and custom attributes.
+    Parameters:
+        queue (Any): The queue from which to receive messages.
+        max_number (int): Maximum number of messages to receive.
+        wait_time (int): Maximum time to wait (seconds) before returning.
+
+    Returns:
+        list: List of Message objects received.
+
+    Raises:
+        ClientError: If receiving messages fails.
     """
     try:
         messages = queue.receive_messages(
@@ -113,14 +124,18 @@ def receive_messages(queue, max_number, wait_time):
         return messages
 
 
-def delete_message(message):
+def delete_message(message: Any) -> None:
     """
-    Delete a message from a queue. Clients must delete messages after they
-    are received and processed to remove them from the queue.
+    Delete a message from a queue after processing.
 
-    :param message: The message to delete. The message's queue URL is contained in
-                    the message's metadata.
-    :return: None
+    Parameters:
+        message (Any): The message to delete.
+
+    Returns:
+        None
+
+    Raises:
+        ClientError: If deleting the message fails.
     """
     try:
         message.delete()
@@ -130,14 +145,19 @@ def delete_message(message):
         raise error
 
 
-def delete_messages(queue, messages):
+def delete_messages(queue: Any, messages: list) -> dict:
     """
     Delete a batch of messages from a queue in a single request.
 
-    :param queue: The queue from which to delete the messages.
-    :param messages: The list of messages to delete.
-    :return: The response from SQS that contains the list of successful and failed
-             message deletions.
+    Parameters:
+        queue (Any): The queue from which to delete the messages.
+        messages (list): List of messages to delete.
+
+    Returns:
+        dict: The response from SQS with lists of successful and failed deletions.
+
+    Raises:
+        ClientError: If deleting the batch fails.
     """
     try:
         entries = [
@@ -164,9 +184,15 @@ def parse_message_body(message: Any) -> tuple[Optional[str], Optional[str]]:
     """
     Parse the JSON body of an SQS message produced by this project.
 
-    :param message: An object representing an SQS message with a `body` attribute.
-    :return Tuple of domain, next_url where either value can be None if absent.
+    Parameters:
+        message (Any): SQS message object with a `body` attribute.
 
+    Returns:
+        tuple[Optional[str], Optional[str]]: Tuple of domain and next_url, or None if absent.
+
+    Raises:
+        json.JSONDecodeError: If the message body is not valid JSON.
+        TypeError, AttributeError: If the message object is malformed.
     """
     try:
         body = json.loads(getattr(message, "body", "{}"))
@@ -185,3 +211,48 @@ def parse_message_body(message: Any) -> tuple[Optional[str], Optional[str]]:
             getattr(message, "body", None),
         )
         return None, None
+
+
+def visibility_heartbeat(
+    queue: Any,
+    message: Any,
+    stop_event: asyncio.Event,
+    extend_timeout: int = 1800,
+    interval: int = 1200,
+) -> asyncio.Task:
+    """
+    Periodically extends the visibility timeout of an SQS message until a stop event is set.
+
+    Parameters:
+        queue (Any): The SQS queue object.
+        message (Any): The SQS message object whose visibility timeout will be extended.
+        stop_event (asyncio.Event): Event to signal when to stop extending visibility.
+        extend_timeout (int, optional): Timeout (in seconds) to set on each extension. Default is 1800 (30 min).
+        interval (int, optional): Interval (in seconds) between extensions. Default is 1200 (20 min).
+
+    Returns:
+        asyncio.Task: The asyncio task running the heartbeat loop.
+    """
+
+    async def _heartbeat():
+        try:
+            while not stop_event.is_set():
+                await asyncio.sleep(interval)
+                try:
+                    await asyncio.to_thread(
+                        queue.change_message_visibility,
+                        ReceiptHandle=message.receipt_handle,
+                        VisibilityTimeout=extend_timeout,
+                    )
+                except Exception as e:
+                    logger.exception(
+                        "Failed to extend visibility for message %s: %s",
+                        getattr(message, "message_id", None),
+                        e,
+                    )
+        except asyncio.CancelledError:
+            logger.exception("Cancelled heartbeat")
+            raise
+
+    task = asyncio.create_task(_heartbeat())
+    return task
