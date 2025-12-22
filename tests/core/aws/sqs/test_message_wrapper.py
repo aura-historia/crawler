@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from unittest.mock import MagicMock
 from src.core.aws.sqs import message_wrapper
@@ -144,3 +146,77 @@ def test_delete_messages_client_error(mock_sqs_queue):
     mock_sqs_queue.delete_messages.side_effect = ClientError({}, "DeleteMessages")
     with pytest.raises(ClientError):
         message_wrapper.delete_messages(mock_sqs_queue, [])
+
+
+def test_parse_message_body_valid():
+    """Test parse_message_body with valid JSON and both fields present."""
+    message = MagicMock()
+    message.body = '{"domain": "example.com", "next": "url2"}'
+    domain, next_url = message_wrapper.parse_message_body(message)
+    assert domain == "example.com"
+    assert next_url == "url2"
+
+
+def test_parse_message_body_missing_fields():
+    """Test parse_message_body with missing fields."""
+    message = MagicMock()
+    message.body = '{"domain": "example.com"}'
+    domain, next_url = message_wrapper.parse_message_body(message)
+    assert domain == "example.com"
+    assert next_url is None
+
+
+def test_parse_message_body_invalid_json():
+    """Test parse_message_body with invalid JSON."""
+    message = MagicMock()
+    message.body = "{invalid json}"
+    domain, next_url = message_wrapper.parse_message_body(message)
+    assert domain is None
+    assert next_url is None
+
+
+def test_parse_message_body_no_body():
+    """Test parse_message_body with missing body attribute."""
+    message = MagicMock()
+    del message.body
+    domain, next_url = message_wrapper.parse_message_body(message)
+    assert domain is None
+    assert next_url is None
+
+
+@pytest.mark.asyncio
+async def test_visibility_heartbeat(monkeypatch):
+    """
+    Test that visibility_heartbeat periodically calls change_message_visibility and stops on event.
+    """
+    queue = MagicMock()
+    message = MagicMock()
+    message.receipt_handle = "handle_123"
+    calls = []
+
+    # Simulate change_message_visibility function
+    def fake_change_message_visibility(**kwargs):
+        calls.append(kwargs)
+
+    queue.change_message_visibility = fake_change_message_visibility
+
+    monkeypatch.setattr(
+        asyncio, "to_thread", lambda func, *args, **kwargs: func(*args, **kwargs)
+    )
+    stop_event = asyncio.Event()
+
+    task = message_wrapper.visibility_heartbeat(
+        queue, message, stop_event, extend_timeout=5, interval=1
+    )
+
+    async def stop_soon():
+        await asyncio.sleep(2.5)
+        stop_event.set()
+
+    await asyncio.gather(task, stop_soon())
+
+    assert len(calls) >= 1, f"change_message_visibility was not called: {calls}"
+
+    for call_kwargs in calls:
+        assert call_kwargs["ReceiptHandle"] == "handle_123"
+        assert call_kwargs["VisibilityTimeout"] == 5
