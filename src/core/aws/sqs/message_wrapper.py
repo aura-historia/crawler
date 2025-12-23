@@ -214,7 +214,6 @@ def parse_message_body(message: Any) -> tuple[Optional[str], Optional[str]]:
 
 
 def visibility_heartbeat(
-    queue: Any,
     message: Any,
     stop_event: asyncio.Event,
     extend_timeout: int = 1800,
@@ -224,7 +223,6 @@ def visibility_heartbeat(
     Periodically extends the visibility timeout of an SQS message until a stop event is set.
 
     Parameters:
-        queue (Any): The SQS queue object.
         message (Any): The SQS message object whose visibility timeout will be extended.
         stop_event (asyncio.Event): Event to signal when to stop extending visibility.
         extend_timeout (int, optional): Timeout (in seconds) to set on each extension. Default is 1800 (30 min).
@@ -240,8 +238,7 @@ def visibility_heartbeat(
                 await asyncio.sleep(interval)
                 try:
                     await asyncio.to_thread(
-                        queue.change_message_visibility,
-                        ReceiptHandle=message.receipt_handle,
+                        message.change_visibility,
                         VisibilityTimeout=extend_timeout,
                     )
                 except Exception as e:

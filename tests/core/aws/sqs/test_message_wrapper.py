@@ -189,7 +189,6 @@ async def test_visibility_heartbeat(monkeypatch):
     """
     Test that visibility_heartbeat periodically calls change_message_visibility and stops on event.
     """
-    queue = MagicMock()
     message = MagicMock()
     message.receipt_handle = "handle_123"
     calls = []
@@ -198,7 +197,7 @@ async def test_visibility_heartbeat(monkeypatch):
     def fake_change_message_visibility(**kwargs):
         calls.append(kwargs)
 
-    queue.change_message_visibility = fake_change_message_visibility
+    message.change_visibility = fake_change_message_visibility
 
     monkeypatch.setattr(
         asyncio, "to_thread", lambda func, *args, **kwargs: func(*args, **kwargs)
@@ -206,7 +205,7 @@ async def test_visibility_heartbeat(monkeypatch):
     stop_event = asyncio.Event()
 
     task = message_wrapper.visibility_heartbeat(
-        queue, message, stop_event, extend_timeout=5, interval=1
+        message, stop_event, extend_timeout=5, interval=1
     )
 
     async def stop_soon():
@@ -218,5 +217,4 @@ async def test_visibility_heartbeat(monkeypatch):
     assert len(calls) >= 1, f"change_message_visibility was not called: {calls}"
 
     for call_kwargs in calls:
-        assert call_kwargs["ReceiptHandle"] == "handle_123"
         assert call_kwargs["VisibilityTimeout"] == 5

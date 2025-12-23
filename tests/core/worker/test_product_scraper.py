@@ -317,7 +317,16 @@ class TestHandleDomainMessage:
         queue = Mock()
         shutdown_event = asyncio.Event()
 
+        # Create a fake heartbeat task
+        async def dummy_heartbeat():
+            pass
+
+        fake_heartbeat_task = asyncio.create_task(dummy_heartbeat())
         with (
+            patch(
+                "src.core.worker.product_scraper.visibility_heartbeat",
+                return_value=fake_heartbeat_task,
+            ),
             patch(
                 "src.core.worker.product_scraper.parse_message_body",
                 return_value=("example.com", None),

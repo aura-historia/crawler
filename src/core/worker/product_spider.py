@@ -14,6 +14,7 @@ from src.core.aws.database.models import URLEntry
 from src.core.aws.sqs.message_wrapper import (
     receive_messages,
     delete_message,
+    visibility_heartbeat,
 )
 from src.core.aws.sqs.queue_wrapper import get_queue
 from src.core.utils.logger import logger
@@ -191,6 +192,9 @@ async def handle_shop_message(
 
     logger.info(f"Processing shop: {domain}, starting from: {start_url}")
 
+    stop_event = asyncio.Event()
+    heartbeat_task = visibility_heartbeat(message, stop_event)
+
     crawl_start_time = datetime.now().isoformat()
 
     try:
@@ -229,6 +233,10 @@ async def handle_shop_message(
         logger.warning(
             f"Message not deleted for {domain} - will reappear in queue after visibility timeout"
         )
+    finally:
+        if heartbeat_task:
+            stop_event.set()
+            await heartbeat_task
 
 
 async def process_message_batch(
