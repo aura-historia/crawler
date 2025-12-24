@@ -15,6 +15,7 @@ from src.core.aws.sqs.message_wrapper import (
     send_message,
     delete_message,
     parse_message_body,
+    visibility_heartbeat,
 )
 from src.core.aws.sqs.queue_wrapper import get_queue
 from src.core.utils.logger import logger
@@ -174,78 +175,85 @@ async def handle_domain_message(
 
     logger.info("Processing domain: %s", domain)
 
-    scrape_start_time = datetime.now().isoformat()
-
-    product_urls = await asyncio.to_thread(db.get_product_urls_by_domain, domain)
-
-    start_index = 0
-    if next_url:
-        try:
-            start_index = product_urls.index(next_url)
-        except ValueError:
-            pass
-
-    urls_to_crawl = product_urls[start_index:]
-    if not urls_to_crawl:
-        await asyncio.to_thread(delete_message, message)
-        return
-
-    logger.info(urls_to_crawl)
-    logger.info(f"Found {len(urls_to_crawl)} URLs to crawl")
-
-    items_processed = 0
-
-    async def requeue_remaining(reason: str) -> bool:
-        current_absolute_index = start_index + items_processed
-        if current_absolute_index >= len(product_urls):
-            return False
-
-        next_url_candidate = product_urls[current_absolute_index]
-        body = json.dumps({"domain": domain, "next": next_url_candidate})
-
-        logger.info(body)
-
-        try:
-            await asyncio.to_thread(send_message, queue, body)
-            logger.info("Requeued domain %s due to %s", domain, reason)
-            return True
-        except Exception as exc:
-            logger.exception("Failed to requeue: %s", exc)
-            return False
+    stop_event = asyncio.Event()
+    heartbeat_task = visibility_heartbeat(message, stop_event)
 
     try:
-        browser_config, run_config = build_product_scraper_components()
+        scrape_start_time = datetime.now().isoformat()
 
-        async with AsyncWebCrawler(config=browser_config) as crawler:
-            items_processed = await scrape(
-                crawler=crawler,
-                urls=urls_to_crawl,
-                shutdown_event=shutdown_event,
-                run_config=run_config,
-                batch_size=batch_size,
-            )
+        product_urls = await asyncio.to_thread(db.get_product_urls_by_domain, domain)
 
-        logger.info("Items processed for domain %s: %d", domain, items_processed)
+        start_index = 0
+        if next_url:
+            try:
+                start_index = product_urls.index(next_url)
+            except ValueError:
+                pass
 
-        if shutdown_event.is_set():
-            if await requeue_remaining("shutdown signal"):
-                await asyncio.to_thread(delete_message, message)
+        urls_to_crawl = product_urls[start_index:]
+        if not urls_to_crawl:
+            await asyncio.to_thread(delete_message, message)
             return
 
-        # Update shop metadata with scrape timestamps
-        scrape_end_time = datetime.now().isoformat()
-        await asyncio.to_thread(
-            db.update_shop_metadata,
-            domain=domain,
-            last_scraped_start=scrape_start_time,
-            last_scraped_end=scrape_end_time,
-        )
+        logger.info(urls_to_crawl)
+        logger.info(f"Found {len(urls_to_crawl)} URLs to crawl")
 
-        await asyncio.to_thread(delete_message, message)
-    except Exception as e:
-        logger.exception("Error handling domain %s: %s", domain, e)
-        if await requeue_remaining("processing error"):
+        items_processed = 0
+
+        async def requeue_remaining(reason: str) -> bool:
+            current_absolute_index = start_index + items_processed
+            if current_absolute_index >= len(product_urls):
+                return False
+
+            next_url_candidate = product_urls[current_absolute_index]
+            body = json.dumps({"domain": domain, "next": next_url_candidate})
+
+            logger.info(body)
+
+            try:
+                await asyncio.to_thread(send_message, queue, body)
+                logger.info("Requeued domain %s due to %s", domain, reason)
+                return True
+            except Exception as exc:
+                logger.exception("Failed to requeue: %s", exc)
+                return False
+
+        try:
+            browser_config, run_config = build_product_scraper_components()
+
+            async with AsyncWebCrawler(config=browser_config) as crawler:
+                items_processed = await scrape(
+                    crawler=crawler,
+                    urls=urls_to_crawl,
+                    shutdown_event=shutdown_event,
+                    run_config=run_config,
+                    batch_size=batch_size,
+                )
+
+            logger.info("Items processed for domain %s: %d", domain, items_processed)
+
+            if shutdown_event.is_set():
+                if await requeue_remaining("shutdown signal"):
+                    await asyncio.to_thread(delete_message, message)
+                return
+
+            # Update shop metadata with scrape timestamps
+            scrape_end_time = datetime.now().isoformat()
+            await asyncio.to_thread(
+                db.update_shop_metadata,
+                domain=domain,
+                last_scraped_start=scrape_start_time,
+                last_scraped_end=scrape_end_time,
+            )
+
             await asyncio.to_thread(delete_message, message)
+        except Exception as e:
+            logger.exception("Error handling domain %s: %s", domain, e)
+            if await requeue_remaining("processing error"):
+                await asyncio.to_thread(delete_message, message)
+    finally:
+        stop_event.set()
+        await heartbeat_task
 
 
 async def process_message_batch(
