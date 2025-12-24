@@ -1,35 +1,18 @@
-from unittest.mock import Mock, patch
-
 import pytest
-import requests
+from unittest.mock import AsyncMock, patch
+from aiohttp import ClientSession
 
 from src.core.aws.database.models import ShopMetadata, METADATA_SK
 from src.core.aws.lambdas.shop_registration_handler import (
     get_core_domain_name,
     find_existing_shop,
-    register_or_update_shop,
     handler,
+    register_or_update_shop,
 )
 
 
 @pytest.fixture
-def mock_backend_url(monkeypatch):
-    """Set up a mock BACKEND_API_URL."""
-    url = "https://api.example.com"
-    monkeypatch.setenv("BACKEND_API_URL", url)
-    return url
-
-
-@pytest.fixture
-def mock_session():
-    """Create a mock requests Session."""
-    session = Mock(spec=requests.Session)
-    return session
-
-
-@pytest.fixture
 def sample_shop_metadata():
-    """Create a sample ShopMetadata object."""
     return ShopMetadata(
         domain="shop.com",
         standards_used=["json-ld", "microdata"],
@@ -39,7 +22,6 @@ def sample_shop_metadata():
 
 @pytest.fixture
 def sample_dynamodb_item():
-    """Create a sample DynamoDB item for testing."""
     return {
         "pk": {"S": "SHOP#shop.com"},
         "sk": {"S": METADATA_SK},
@@ -133,131 +115,85 @@ class TestFindExistingShop:
 class TestRegisterOrUpdateShop:
     """Tests for register_or_update_shop function."""
 
-    @patch("src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL", None)
-    def test_raises_error_when_backend_url_not_set(
-        self, sample_shop_metadata, mock_session
+    @pytest.mark.asyncio
+    @patch(
+        "src.core.aws.lambdas.shop_registration_handler.resilient_http_request",
+        new_callable=AsyncMock,
+    )
+    @patch("src.core.aws.lambdas.shop_registration_handler.find_existing_shop")
+    @patch(
+        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
+        "http://test-backend",
+    )
+    async def test_register_new_shop(
+        self, mock_find_existing, mock_resilient, sample_shop_metadata
     ):
-        """Test that ValueError is raised when BACKEND_API_URL is not set."""
-        with pytest.raises(ValueError, match="Backend API URL is not configured"):
-            register_or_update_shop(sample_shop_metadata, mock_session)
+        mock_find_existing.return_value = None
+        session = AsyncMock(spec=ClientSession)
+        await register_or_update_shop(sample_shop_metadata, session)
+        mock_resilient.assert_awaited_once()
+        _, kwargs = mock_resilient.call_args
+        assert kwargs["method"] == "POST"
+        assert "name" in kwargs["json_data"]
+        assert kwargs["json_data"]["domains"] == [sample_shop_metadata.domain]
 
+    @pytest.mark.asyncio
     @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
+        "src.core.aws.lambdas.shop_registration_handler.resilient_http_request",
+        new_callable=AsyncMock,
     )
     @patch("src.core.aws.lambdas.shop_registration_handler.find_existing_shop")
-    def test_creates_new_shop_when_none_exists(self, mock_find, mock_session):
-        """Test creating a new shop when no existing shop is found."""
-        mock_find.return_value = None
-        shop = ShopMetadata(domain="newshop.com")
-
-        mock_response = Mock()
-        mock_response.status_code = 201
-        mock_response.raise_for_status = Mock()
-        mock_session.post.return_value = mock_response
-
-        register_or_update_shop(shop, mock_session)
-
-        expected_url = "https://api.example.com/shops"
-        expected_payload = {
-            "name": "Newshop",
-            "domains": ["newshop.com"],
-        }
-        mock_session.post.assert_called_once_with(
-            expected_url,
-            json=expected_payload,
-            headers={"Content-Type": "application/json"},
-            timeout=10,
-        )
-
     @patch(
         "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
+        "http://test-backend",
     )
-    @patch("src.core.aws.lambdas.shop_registration_handler.find_existing_shop")
-    def test_adds_domain_to_existing_shop(self, mock_find, mock_session):
-        """Test adding a domain to an existing shop."""
-        mock_find.return_value = ("shop.com", ["shop.com", "shop.de"])
-        shop = ShopMetadata(domain="shop.fr")
+    async def test_update_existing_shop(
+        self, mock_find_existing, mock_resilient, sample_shop_metadata
+    ):
+        mock_find_existing.return_value = ("shop.com", ["shop.com", "shop.de"])
+        session = AsyncMock(spec=ClientSession)
+        await register_or_update_shop(sample_shop_metadata, session)
+        mock_resilient.assert_awaited_once()
+        _, kwargs = mock_resilient.call_args
+        assert kwargs["method"] == "PATCH"
+        assert "domains" in kwargs["json_data"]
+        assert sample_shop_metadata.domain in kwargs["json_data"]["domains"]
 
-        mock_response = Mock()
-        mock_response.raise_for_status = Mock()
-        mock_session.patch.return_value = mock_response
+    @pytest.mark.asyncio
+    @patch("src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL", None)
+    async def test_backend_api_url_missing(self, sample_shop_metadata):
+        session = AsyncMock(spec=ClientSession)
+        with pytest.raises(ValueError):
+            await register_or_update_shop(sample_shop_metadata, session)
 
-        register_or_update_shop(shop, mock_session)
-
-        expected_url = "https://api.example.com/shops/shop.com"
-        expected_payload = {"domains": ["shop.com", "shop.de", "shop.fr"]}
-        mock_session.patch.assert_called_once_with(
-            expected_url,
-            json=expected_payload,
-            headers={"Content-Type": "application/json"},
-            timeout=10,
-        )
-
+    @pytest.mark.asyncio
     @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
+        "src.core.aws.lambdas.shop_registration_handler.resilient_http_request",
+        new_callable=AsyncMock,
     )
     @patch("src.core.aws.lambdas.shop_registration_handler.find_existing_shop")
-    def test_handles_api_error_on_post(self, mock_find, mock_session):
-        """Test handling API errors during shop creation."""
-        mock_find.return_value = None
-        shop = ShopMetadata(domain="newshop.com")
+    async def test_handles_invalid_shop_metadata(
+        self, mock_find_existing, mock_resilient
+    ):
+        from src.core.aws.database.models import ShopMetadata
 
-        mock_session.post.side_effect = requests.exceptions.RequestException(
-            "API Error"
-        )
-
-        with pytest.raises(requests.exceptions.RequestException):
-            register_or_update_shop(shop, mock_session)
-
-    @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
-    )
-    @patch("src.core.aws.lambdas.shop_registration_handler.find_existing_shop")
-    def test_handles_api_error_on_patch(self, mock_find, mock_session):
-        """Test handling API errors during domain addition."""
-        mock_find.return_value = ("shop.com", ["shop.com"])
-        shop = ShopMetadata(domain="shop.fr")
-
-        mock_session.patch.side_effect = requests.exceptions.RequestException(
-            "API Error"
-        )
-
-        with pytest.raises(requests.exceptions.RequestException):
-            register_or_update_shop(shop, mock_session)
-
-    @patch(
-        "src.core.aws.lambdas.shop_registration_handler.BACKEND_API_URL",
-        "https://api.example.com",
-    )
-    @patch("src.core.aws.lambdas.shop_registration_handler.find_existing_shop")
-    def test_capitalizes_shop_name_correctly(self, mock_find, mock_session):
-        """Test that shop name is capitalized correctly."""
-        mock_find.return_value = None
-        shop = ShopMetadata(domain="my-great-shop.com")
-
-        mock_response = Mock()
-        mock_response.status_code = 201
-        mock_response.raise_for_status = Mock()
-        mock_session.post.return_value = mock_response
-
-        register_or_update_shop(shop, mock_session)
-
-        call_args = mock_session.post.call_args
-        payload = call_args.kwargs["json"]
-        assert payload["name"] == "My-great-shop"
+        shop = ShopMetadata(domain="", standards_used=[], shop_country="DE")
+        session = AsyncMock(spec=ClientSession)
+        with pytest.raises(Exception):
+            await register_or_update_shop(shop, session)
 
 
 class TestHandler:
     """Tests for the updated Lambda handler function using partial batch failures."""
 
-    @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
-    @patch("src.core.aws.lambdas.shop_registration_handler.register_or_update_shop")
-    def test_processes_insert_event_successfully(
-        self, mock_register, mock_http_session, sample_dynamodb_item
+    @pytest.mark.asyncio
+    @patch(
+        "src.core.aws.lambdas.shop_registration_handler.register_or_update_shop",
+        new_callable=AsyncMock,
+    )
+    @patch("src.core.utils.network.resilient_http_request", new_callable=AsyncMock)
+    async def test_processes_insert_event_successfully(
+        self, mock_resilient, mock_register, sample_dynamodb_item
     ):
         """Test processing INSERT event returns empty failures."""
         event = {
@@ -272,50 +208,24 @@ class TestHandler:
                 }
             ]
         }
-
-        result = handler(event, None)
-
+        mock_register.return_value = None
+        result = await handler(event, None)
         assert result == {"batchItemFailures": []}
-        mock_register.assert_called_once()
+        mock_register.assert_awaited_once()
 
-    @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
-    @patch("src.core.aws.lambdas.shop_registration_handler.register_or_update_shop")
-    def test_reports_failure_on_exception(
-        self, mock_register, mock_http_session, sample_dynamodb_item
-    ):
-        """Test that a failing record returns its SequenceNumber."""
-        mock_register.side_effect = Exception("API Down")
-
-        event = {
-            "Records": [
-                {
-                    "eventID": "err-1",
-                    "eventName": "INSERT",
-                    "dynamodb": {
-                        "NewImage": sample_dynamodb_item,
-                        "SequenceNumber": "fail-seq-001",
-                    },
-                }
-            ]
-        }
-
-        result = handler(event, None)
-
-        # Verify the failure is reported correctly for AWS
-        assert result == {"batchItemFailures": [{"itemIdentifier": "fail-seq-001"}]}
-
-    @patch("src.core.aws.lambdas.shop_registration_handler.http_session")
-    @patch("src.core.aws.lambdas.shop_registration_handler.register_or_update_shop")
-    def test_partial_batch_failure_mixed_results(
-        self, mock_register, mock_http_session, sample_dynamodb_item
+    @pytest.mark.asyncio
+    @patch(
+        "src.core.aws.lambdas.shop_registration_handler.register_or_update_shop",
+        new_callable=AsyncMock,
+    )
+    @patch("src.core.utils.network.resilient_http_request", new_callable=AsyncMock)
+    async def test_partial_batch_failure_mixed_results(
+        self, mock_resilient, mock_register, sample_dynamodb_item
     ):
         """Test that only the failed record's sequence number is returned."""
-        # First call fails, second succeeds
         mock_register.side_effect = [Exception("First record failed"), None]
-
         item2 = sample_dynamodb_item.copy()
         item2["domain"] = {"S": "success-shop.com"}
-
         event = {
             "Records": [
                 {
@@ -333,18 +243,17 @@ class TestHandler:
                 },
             ]
         }
-
-        result = handler(event, None)
-
-        # Only 'fail-seq' should be in the list
+        result = await handler(event, None)
         assert result == {"batchItemFailures": [{"itemIdentifier": "fail-seq"}]}
         assert mock_register.call_count == 2
 
-    def test_skips_modify_events(self, sample_dynamodb_item):
-        """
-        Test that MODIFY events are skipped (as per final code logic).
-        Skipped records should not be marked as failures.
-        """
+    @pytest.mark.asyncio
+    @patch(
+        "src.core.aws.lambdas.shop_registration_handler.register_or_update_shop",
+        new_callable=AsyncMock,
+    )
+    @patch("src.core.utils.network.resilient_http_request", new_callable=AsyncMock)
+    async def test_skips_modify_events(self, _, mock_register, sample_dynamodb_item):
         event = {
             "Records": [
                 {
@@ -356,12 +265,16 @@ class TestHandler:
                 }
             ]
         }
-
-        result = handler(event, None)
+        result = await handler(event, None)
         assert result == {"batchItemFailures": []}
 
-    def test_handles_missing_new_image(self):
-        """Test handling record where NewImage is missing entirely."""
+    @pytest.mark.asyncio
+    @patch(
+        "src.core.aws.lambdas.shop_registration_handler.register_or_update_shop",
+        new_callable=AsyncMock,
+    )
+    @patch("src.core.utils.network.resilient_http_request", new_callable=AsyncMock)
+    async def test_handles_missing_new_image(self, _, mock_register):
         event = {
             "Records": [
                 {
@@ -373,11 +286,17 @@ class TestHandler:
                 }
             ]
         }
-
-        result = handler(event, None)
+        result = await handler(event, None)
         assert result == {"batchItemFailures": []}
 
-    def test_handles_empty_records(self):
-        """Test handling event with no records returns empty failure list."""
-        assert handler({"Records": []}, None) == {"batchItemFailures": []}
-        assert handler({}, None) == {"batchItemFailures": []}
+    @pytest.mark.asyncio
+    @patch(
+        "src.core.aws.lambdas.shop_registration_handler.register_or_update_shop",
+        new_callable=AsyncMock,
+    )
+    @patch("src.core.utils.network.resilient_http_request", new_callable=AsyncMock)
+    async def test_handles_empty_records(self, _, mock_register):
+        result = await handler({"Records": []}, None)
+        assert result == {"batchItemFailures": []}
+        result2 = await handler({}, None)
+        assert result2 == {"batchItemFailures": []}

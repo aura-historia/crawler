@@ -1,3 +1,4 @@
+aiohttp-retry
 testcontainers
 responses
 urllib3

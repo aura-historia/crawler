@@ -1,11 +1,11 @@
 import os
 from typing import Any, Dict, List, Optional, Tuple
-from requests import Session
+from aiohttp import ClientSession
 
 from src.core.aws.database.models import METADATA_SK, ShopMetadata
 from src.core.aws.database.operations import db_operations
 from src.core.utils.logger import logger
-from src.core.utils.network import http_session
+from src.core.utils.network import resilient_http_request
 
 import tldextract
 
@@ -64,9 +64,9 @@ def find_existing_shop(new_domain: str) -> Optional[Tuple[str, List[str]]]:
     return all_domains[0], all_domains
 
 
-def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
+async def register_or_update_shop(shop: ShopMetadata, session: ClientSession) -> None:
     """
-    Registers a new shop or updates an existing one with a new domain.
+    Registers a new shop or updates an existing one with a new domain using resilient_http_request.
 
     Args:
         shop: The shop data from the DynamoDB stream.
@@ -101,8 +101,15 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
             f"Total domains: {len(all_domains_for_backend)}"
         )
 
-        response = session.patch(patch_url, json=payload, headers=headers, timeout=10)
-        response.raise_for_status()
+        await resilient_http_request(
+            patch_url,
+            session,
+            method="PATCH",
+            json_data=payload,
+            headers=headers,
+            timeout_seconds=10,
+            retry_attempts=3,
+        )
         logger.info(f"Successfully added domain '{shop.domain}'")
     else:
         shop_name = get_core_domain_name(shop.domain).capitalize()
@@ -112,14 +119,19 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
         }
 
         logger.info(f"Creating new shop for domain '{shop.domain}'")
-        response = session.post(
-            shops_endpoint, json=payload, headers=headers, timeout=10
+        await resilient_http_request(
+            shops_endpoint,
+            session,
+            method="POST",
+            json_data=payload,
+            headers=headers,
+            timeout_seconds=10,
+            retry_attempts=3,
         )
-        response.raise_for_status()
-        logger.info(f"Successfully created shop. Status: {response.status_code}")
+        logger.info(f"Successfully created shop for domain '{shop.domain}'")
 
 
-def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
+async def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
     """
     AWS Lambda handler for processing DynamoDB Stream events.
 
@@ -134,28 +146,28 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
         Dict containing the list of batch item failures for retry.
     """
     batch_item_failures = []
+    async with ClientSession() as session:
+        for record in event.get("Records", []):
+            record_id = record.get("eventID")
 
-    for record in event.get("Records", []):
-        record_id = record.get("eventID")
+            try:
+                event_name = record.get("eventName")
+                if event_name != "INSERT":
+                    continue
 
-        try:
-            event_name = record.get("eventName")
-            if event_name != "INSERT":
-                continue
+                dynamodb_data = record.get("dynamodb", {})
+                new_image = dynamodb_data.get("NewImage")
 
-            dynamodb_data = record.get("dynamodb", {})
-            new_image = dynamodb_data.get("NewImage")
+                if not new_image or new_image.get("sk", {}).get("S") != METADATA_SK:
+                    continue
 
-            if not new_image or new_image.get("sk", {}).get("S") != METADATA_SK:
-                continue
+                new_shop = ShopMetadata.from_dynamodb_item(new_image)
+                await register_or_update_shop(new_shop, session)
 
-            new_shop = ShopMetadata.from_dynamodb_item(new_image)
-            register_or_update_shop(new_shop, http_session)
-
-        except Exception as e:
-            logger.error(f"Failed to process record {record_id}: {e}")
-            batch_item_failures.append(
-                {"itemIdentifier": record.get("dynamodb", {}).get("SequenceNumber")}
-            )
+            except Exception as e:
+                logger.error(f"Failed to process record {record_id}: {e}")
+                batch_item_failures.append(
+                    {"itemIdentifier": record.get("dynamodb", {}).get("SequenceNumber")}
+                )
 
     return {"batchItemFailures": batch_item_failures}
