@@ -403,6 +403,42 @@ class DynamoDBOperations:
             )
             raise
 
+    def update_url_hash(self, domain: str, url: str, new_hash: str) -> dict:
+        """
+        Update only the hash field for a given URL entry.
+
+        Args:
+            domain: Shop domain
+            url: Product URL
+            new_hash: New hash value to set
+
+        Returns:
+            UpdateItem response
+        """
+        try:
+            response = self.client.update_item(
+                TableName=self.table_name,
+                Key={
+                    "pk": {"S": f"SHOP#{domain}"},
+                    "sk": {"S": f"URL#{url}"},
+                },
+                UpdateExpression="SET #h = :new_hash",
+                ExpressionAttributeNames={"#h": "hash"},
+                ExpressionAttributeValues={":new_hash": {"S": new_hash}},
+                ReturnValues="UPDATED_NEW",
+            )
+            logger.info(f"Updated hash for {url} in {domain}")
+            return response["Attributes"]
+        except ClientError as e:
+            logger.error(
+                "Couldn't update hash for %s in %s. Here's why: %s: %s",
+                url,
+                domain,
+                e.response["Error"]["Code"],
+                e.response["Error"]["Message"],
+            )
+            raise
+
     def _upsert_item(self, item: dict, context: str) -> None:
         """
         Generic upsert operation for DynamoDB items.
@@ -456,6 +492,33 @@ class DynamoDBOperations:
             entry: URLEntry object
         """
         self._upsert_item(entry.to_dynamodb_item(), f"URL entry for {entry.url}")
+
+    def get_url_entry(self, domain: str, url: str) -> Optional[URLEntry]:
+        """
+        Retrieve a single URL entry by domain and url.
+
+        Args:
+            domain: Shop domain
+            url: Product URL
+
+        Returns:
+            URLEntry object if found, else None
+        """
+        try:
+            response = self.client.get_item(
+                TableName=self.table_name,
+                Key={
+                    "pk": {"S": f"SHOP#{domain}"},
+                    "sk": {"S": f"URL#{url}"},
+                },
+            )
+            item = response.get("Item")
+            if item:
+                return URLEntry.from_dynamodb_item(item)
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching URL entry for {url} in {domain}: {e}")
+            return None
 
 
 # Global operations instance

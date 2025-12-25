@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from extruct import extract as extruct_extract
 from w3lib.html import get_base_url
-from src.core.aws.database.operations import DynamoDBOperations
+from src.core.aws.database.operations import DynamoDBOperations, db_operations
 from src.core.aws.sqs.message_wrapper import (
     receive_messages,
     send_message,
@@ -27,6 +27,7 @@ from src.core.aws.spot.spot_termination_watcher import (
 )
 from src.core.utils.standards_extractor import extract_standard
 from crawl4ai import AsyncWebCrawler
+from src.core.aws.database.models import URLEntry
 
 load_dotenv()
 
@@ -93,6 +94,7 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
 
 async def scrape(
     crawler: AsyncWebCrawler,
+    domain: str,
     urls: List[str],
     shutdown_event: asyncio.Event,
     run_config: Any,
@@ -103,6 +105,7 @@ async def scrape(
 
     Args:
         crawler: Initialized `AsyncWebCrawler` instance (context-managed by caller).
+        domain: Domain being processed.
         urls: URLs to fetch.
         shutdown_event: Cooperative cancellation flag checked before each request.
         run_config: Dict passed to `crawler.arun(url, config=run_config)`.
@@ -131,7 +134,10 @@ async def scrape(
             try:
                 extracted = await process_result(result)
                 if extracted:
-                    await q.put(extracted)
+                    hash_changed = await update_hash(extracted, domain, url)
+                    if hash_changed:
+                        await q.put(extracted)
+
             except Exception as proc_error:
                 logger.exception("Processing error for %s: %s", url, proc_error)
 
@@ -149,6 +155,38 @@ async def scrape(
             logger.exception("Error in batch sender: %s", ce)
 
     return processed_count
+
+
+async def update_hash(extracted, domain, url) -> bool:
+    """
+    Update the hash of a URL entry in the database based on status and price.
+
+    Args:
+        extracted: Extracted structured data from the webpage.
+        domain: The domain of the URL.
+        url: The URL being processed.
+    Returns:
+        True if the hash was updated, False otherwise.
+    """
+
+    status = extracted.get("state")
+    price = extracted.get("price").get("amount")
+
+    print(status, price)
+
+    new_hash = URLEntry.calculate_hash(status, price)
+    old_entry = await asyncio.to_thread(db_operations.get_url_entry, domain, url)
+    old_hash = old_entry.hash if old_entry else None
+    if (not old_hash and new_hash) or (old_hash != new_hash):
+        try:
+            await asyncio.to_thread(
+                db_operations.update_url_hash, domain, url, new_hash
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update hash for {url}: {e}")
+
+    return False
 
 
 async def handle_domain_message(
@@ -224,6 +262,7 @@ async def handle_domain_message(
             async with AsyncWebCrawler(config=browser_config) as crawler:
                 items_processed = await scrape(
                     crawler=crawler,
+                    domain=domain,
                     urls=urls_to_crawl,
                     shutdown_event=shutdown_event,
                     run_config=run_config,
