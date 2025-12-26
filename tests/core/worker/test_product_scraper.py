@@ -75,7 +75,7 @@ def mock_extract_standard():
             "standard": True,
             "preferred": preferred,
             "price": {"amount": 1.0},
-            "status": "AVAILABLE",
+            "state": "AVAILABLE",
         }
 
     with patch(
