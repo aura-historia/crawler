@@ -75,7 +75,7 @@ class TestCreateTables:
 
 
 class TestTableConfiguration:
-    def test_verifies_gsi_and_capacity_schema(self, mock_dynamo, mock_env):
+    def test_verifies_gsi(self, mock_dynamo, mock_env):
         """Ensures the complex dictionary for create_table is executed correctly."""
         mock_dynamo.describe_table.side_effect = ClientError(
             {"Error": {"Code": "ResourceNotFoundException"}}, "DescribeTable"
@@ -85,7 +85,6 @@ class TestTableConfiguration:
 
         _, kwargs = mock_dynamo.create_table.call_args
         assert len(kwargs["GlobalSecondaryIndexes"]) == 4
-        assert kwargs["ProvisionedThroughput"]["ReadCapacityUnits"] == 25
         # Verify specific GSI projection (e.g., GSI2 uses INCLUDE)
         gsi2 = next(
             g for g in kwargs["GlobalSecondaryIndexes"] if g["IndexName"] == "GSI2"

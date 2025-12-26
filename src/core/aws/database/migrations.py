@@ -76,10 +76,6 @@ def create_tables():
                         {"AttributeName": "gsi1_sk", "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
-                    "ProvisionedThroughput": {
-                        "ReadCapacityUnits": 10,
-                        "WriteCapacityUnits": 10,
-                    },
                 },
                 {
                     "IndexName": "GSI2",
@@ -90,10 +86,6 @@ def create_tables():
                     "Projection": {
                         "ProjectionType": "INCLUDE",
                         "NonKeyAttributes": ["domain"],
-                    },
-                    "ProvisionedThroughput": {
-                        "ReadCapacityUnits": 10,
-                        "WriteCapacityUnits": 10,
                     },
                 },
                 {
@@ -106,10 +98,6 @@ def create_tables():
                         "ProjectionType": "INCLUDE",
                         "NonKeyAttributes": ["domain"],
                     },
-                    "ProvisionedThroughput": {
-                        "ReadCapacityUnits": 10,
-                        "WriteCapacityUnits": 10,
-                    },
                 },
                 {
                     "IndexName": "GSI4",
@@ -118,15 +106,10 @@ def create_tables():
                         {"AttributeName": "gsi4_sk", "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
-                    "ProvisionedThroughput": {
-                        "ReadCapacityUnits": 10,
-                        "WriteCapacityUnits": 10,
-                    },
                 },
             ],
             StreamSpecification={"StreamEnabled": True, "StreamViewType": "NEW_IMAGE"},
-            BillingMode="PROVISIONED",
-            ProvisionedThroughput={"ReadCapacityUnits": 25, "WriteCapacityUnits": 25},
+            BillingMode="PAY_PER_REQUEST",
         )
 
         # Wait for table to be created
