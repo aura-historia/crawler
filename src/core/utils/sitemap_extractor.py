@@ -14,9 +14,3 @@ async def sitemap_extractor(domains: list[str]) -> dict[str, list[str]]:
         return {
             domain: [item["url"] for item in urls] for domain, urls in results.items()
         }
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(sitemap_extractor([""]))

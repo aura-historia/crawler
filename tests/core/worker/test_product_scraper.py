@@ -70,7 +70,13 @@ def mock_extract_standard():
 
     async def fake_extract(_extracted_raw, url, preferred=None, **_extras):
         await asyncio.sleep(0)
-        return {"url": url, "standard": True, "preferred": preferred}
+        return {
+            "url": url,
+            "standard": True,
+            "preferred": preferred,
+            "price": {"amount": 1.0},
+            "state": "AVAILABLE",
+        }
 
     with patch(
         "src.core.worker.product_scraper.extract_standard", new=fake_extract
@@ -190,6 +196,24 @@ class TestBatchSender:
 class TestScrape:
     """Tests for scrape function."""
 
+    @pytest.fixture(autouse=True)
+    def patch_db_operations_for_scrape(self, monkeypatch):
+        import src.core.worker.product_scraper as ps
+
+        class DummyEntry:
+            hash = None
+
+        mock_db_ops = Mock()
+        mock_db_ops.get_url_entry = Mock(return_value=DummyEntry())
+        mock_db_ops.update_url_hash = Mock(return_value=True)
+
+        async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
+            return func(*args, **kwargs)
+
+        monkeypatch.setattr(ps.asyncio, "to_thread", fake_to_thread)
+        monkeypatch.setattr(ps, "db_operations", mock_db_ops)
+        yield
+
     @pytest.mark.asyncio
     async def test_scrape_success(
         self,
@@ -214,6 +238,7 @@ class TestScrape:
 
         count = await scrape(
             cast(AsyncWebCrawler, cast(object, crawler)),
+            "example.com",
             urls,
             shutdown_event,
             run_config={},
@@ -245,6 +270,7 @@ class TestScrape:
 
         count = await scrape(
             cast(AsyncWebCrawler, cast(object, crawler)),
+            "example.com",
             urls,
             shutdown_event,
             run_config={},
@@ -282,6 +308,7 @@ class TestScrape:
 
         count = await scrape(
             cast(AsyncWebCrawler, cast(object, crawler)),
+            "example.com",
             urls,
             shutdown_event,
             run_config={},
@@ -293,6 +320,24 @@ class TestScrape:
 
 class TestHandleDomainMessage:
     """Tests for handle_domain_message function."""
+
+    @pytest.fixture(autouse=True)
+    def patch_db_operations_for_scrape(self, monkeypatch):
+        import src.core.worker.product_scraper as ps
+
+        class DummyEntry:
+            hash = None
+
+        mock_db_ops = Mock()
+        mock_db_ops.get_url_entry = Mock(return_value=DummyEntry())
+        mock_db_ops.update_url_hash = Mock(return_value=True)
+
+        async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
+            return func(*args, **kwargs)
+
+        monkeypatch.setattr(ps.asyncio, "to_thread", fake_to_thread)
+        monkeypatch.setattr(ps, "db_operations", mock_db_ops)
+        yield
 
     @pytest.mark.asyncio
     async def test_handle_domain_message_success(
@@ -537,3 +582,104 @@ class TestMain:
             mock_batch.assert_not_called()
             assert mock_watch.call_count == 1
             assert ps.shutdown_event.is_set()
+
+
+class TestUpdateHash:
+    """Tests for the update_hash function (hash update logic)."""
+
+    @pytest.mark.asyncio
+    async def test_update_hash_new_hash(self, monkeypatch):
+        """Should update hash if no old entry exists."""
+        from src.core.worker import product_scraper
+
+        db_ops = Mock()
+        get_url_entry = db_ops.get_url_entry
+        update_url_hash = db_ops.update_url_hash
+
+        async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
+            if func is get_url_entry:
+                return None
+            if func is update_url_hash:
+                return True
+
+        monkeypatch.setattr(product_scraper.asyncio, "to_thread", fake_to_thread)
+        monkeypatch.setattr(product_scraper, "db_operations", db_ops)
+        monkeypatch.setattr(
+            product_scraper,
+            "URLEntry",
+            __import__("src.core.aws.database.models", fromlist=["URLEntry"]).URLEntry,
+        )
+
+        extracted = {"state": "in_stock", "price": {"amount": 9.99}}
+        result = await product_scraper.update_hash(
+            extracted, "example.com", "https://example.com/1"
+        )
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_update_hash_no_change(self, monkeypatch):
+        """Should not update hash if hash is unchanged."""
+        from src.core.worker import product_scraper
+
+        db_ops = Mock()
+        get_url_entry = db_ops.get_url_entry
+        update_url_hash = db_ops.update_url_hash
+
+        class DummyEntry:
+            hash = __import__(
+                "src.core.aws.database.models", fromlist=["URLEntry"]
+            ).URLEntry.calculate_hash("in_stock", 9.99)
+
+        async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
+            if func is get_url_entry:
+                return DummyEntry()
+            if func is update_url_hash:
+                raise AssertionError("Should not be called")
+            return None
+
+        monkeypatch.setattr(product_scraper.asyncio, "to_thread", fake_to_thread)
+        monkeypatch.setattr(product_scraper, "db_operations", db_ops)
+        monkeypatch.setattr(
+            product_scraper,
+            "URLEntry",
+            __import__("src.core.aws.database.models", fromlist=["URLEntry"]).URLEntry,
+        )
+
+        extracted = {"state": "in_stock", "price": {"amount": 9.99}}
+        result = await product_scraper.update_hash(
+            extracted, "example.com", "https://example.com/1"
+        )
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_update_hash_update_error(self, monkeypatch):
+        """Should log error and return False if update fails."""
+        from src.core.worker import product_scraper
+
+        db_ops = Mock()
+        get_url_entry = db_ops.get_url_entry
+        update_url_hash = db_ops.update_url_hash
+
+        class DummyEntry:
+            hash = None
+
+        async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
+            if func is get_url_entry:
+                return DummyEntry()
+            if func is update_url_hash:
+                raise RuntimeError("db error")
+            return None
+
+        monkeypatch.setattr(product_scraper.asyncio, "to_thread", fake_to_thread)
+        monkeypatch.setattr(product_scraper, "db_operations", db_ops)
+        monkeypatch.setattr(
+            product_scraper,
+            "URLEntry",
+            __import__("src.core.aws.database.models", fromlist=["URLEntry"]).URLEntry,
+        )
+
+        extracted = {"state": "in_stock", "price": {"amount": 9.99}}
+        result = await product_scraper.update_hash(
+            extracted, "example.com", "https://example.com/1"
+        )
+        assert result is False

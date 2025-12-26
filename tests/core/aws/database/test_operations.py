@@ -269,6 +269,39 @@ class TestUpdateOperations:
                 domain="example.com", last_scraped_start="2025-12-14T13:00:00"
             )
 
+    def test_update_url_hash_success(self, db_ops, mock_boto_client):
+        """Should return Attributes when update_item succeeds and call boto3 with correct params."""
+        mock_boto_client.update_item.return_value = {
+            "Attributes": {"hash": {"S": "newhash"}}
+        }
+
+        attrs = db_ops.update_url_hash(
+            "example.com", "https://example.com/product/1", "newhash"
+        )
+
+        assert attrs == {"hash": {"S": "newhash"}}
+        mock_boto_client.update_item.assert_called_once()
+
+        called_kwargs = mock_boto_client.update_item.call_args.kwargs
+        assert called_kwargs["TableName"] == db_ops.table_name
+        assert called_kwargs["Key"] == {
+            "pk": {"S": "SHOP#example.com"},
+            "sk": {"S": "URL#https://example.com/product/1"},
+        }
+        assert called_kwargs["ExpressionAttributeValues"][":new_hash"] == {
+            "S": "newhash"
+        }
+
+    def test_update_url_hash_propagates_client_error(self, db_ops, mock_boto_client):
+        """Should propagate ClientError when the underlying client fails."""
+        error = ClientError(
+            {"Error": {"Code": "Internal", "Message": "fail"}}, "UpdateItem"
+        )
+        mock_boto_client.update_item.side_effect = error
+
+        with pytest.raises(ClientError):
+            db_ops.update_url_hash("example.com", "https://example.com/product/1", "h")
+
 
 class TestQueryByDateGSI:
     """Tests for querying shops by date ranges using Global Secondary Indexes."""
