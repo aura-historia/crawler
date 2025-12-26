@@ -1,18 +1,24 @@
-import httpx
 import os
-import sys
+from aiohttp import ClientSession
+from src.core.utils.network import resilient_http_request
 from dotenv import load_dotenv
+
+load_dotenv()
 
 
 async def send_items(items):
-    async with httpx.AsyncClient() as client:
-        load_dotenv()
-        api_url = os.getenv("AWS_API_URL")
-        if not api_url:
-            print("ERROR: AWS_API_URL environment variable is not set.")
-            sys.exit(1)
-
-        response = await client.put(
-            api_url, json={"items": items}, headers={"Content-Type": "application/json"}
+    api_url = os.getenv("AWS_API_URL")
+    if not api_url:
+        print("ERROR: AWS_API_URL environment variable is not set.")
+        return
+    headers = {"Content-Type": "application/json"}
+    async with ClientSession() as session:
+        await resilient_http_request(
+            api_url,
+            session,
+            method="PUT",
+            json_data={"items": items},
+            headers=headers,
+            timeout_seconds=10,
+            retry_attempts=3,
         )
-        print(f"Response: {response}")

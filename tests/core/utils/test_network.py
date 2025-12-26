@@ -1,56 +1,67 @@
 import pytest
-import responses
-from requests.exceptions import RetryError
-from src.core.utils.network import http_session
+from aiohttp import ClientSession
+from aioresponses import aioresponses
+from src.core.utils.network import resilient_http_request
+
+pytestmark = pytest.mark.asyncio
 
 
-class TestResilientSession:
-    @responses.activate
-    def test_retry_on_502_error(self):
-        """Test that the session retries on a 502 status code."""
+class TestResilientHttpRequest:
+    @pytest.mark.asyncio
+    async def test_retry_on_502_error(self):
         url = "https://api.example.com/test"
+        with aioresponses() as m:
+            m.get(url, status=502)
+            m.get(url, status=502)
+            m.get(url, status=200, payload={"message": "success"})
+            async with ClientSession() as session:
+                result = await resilient_http_request(
+                    url, session, retry_attempts=3, timeout_seconds=1, return_json=True
+                )
+        assert result == {"message": "success"}
+        total_calls = sum(len(v) for v in m.requests.values())
+        assert total_calls == 3
 
-        responses.add(responses.GET, url, status=502)
-        responses.add(responses.GET, url, status=502)
-        responses.add(responses.GET, url, status=200, json={"message": "success"})
-
-        response = http_session.get(url)
-
-        assert response.status_code == 200
-        assert len(responses.calls) == 3
-
-    @responses.activate
-    def test_max_retries_exceeded(self):
-        """Test that RetryError is raised after 3 failed attempts (total=3)."""
+    @pytest.mark.asyncio
+    async def test_max_retries_exceeded(self):
         url = "https://api.example.com/fail"
+        with aioresponses() as m:
+            for _ in range(4):
+                m.get(url, status=504)
+            async with ClientSession() as session:
+                with pytest.raises(Exception):
+                    await resilient_http_request(
+                        url, session, retry_attempts=3, timeout_seconds=1
+                    )
+        total_calls = sum(len(v) for v in m.requests.values())
+        assert total_calls == 3
 
-        for _ in range(4):
-            responses.add(responses.GET, url, status=504)
-
-        with pytest.raises(RetryError):
-            http_session.get(url)
-
-        assert len(responses.calls) == 4
-
-    @responses.activate
-    def test_no_retry_on_404(self):
-        """Test that it does NOT retry on a 404 (not in forcelist)."""
+    @pytest.mark.asyncio
+    async def test_no_retry_on_404(self):
         url = "https://api.example.com/404"
-        responses.add(responses.GET, url, status=404)
+        with aioresponses() as m:
+            m.get(url, status=404)
+            async with ClientSession() as session:
+                with pytest.raises(Exception):
+                    await resilient_http_request(url, session)
+        total_calls = sum(len(v) for v in m.requests.values())
+        assert total_calls == 1
 
-        response = http_session.get(url)
-
-        assert response.status_code == 404
-        assert len(responses.calls) == 1
-
-    @responses.activate
-    def test_patch_method_retries(self):
-        """Verify that PATCH also retries."""
+    @pytest.mark.asyncio
+    async def test_patch_method_retries(self):
         url = "https://api.example.com/update"
-        responses.add(responses.PATCH, url, status=500)
-        responses.add(responses.PATCH, url, status=200)
-
-        response = http_session.patch(url, json={"key": "val"})
-
-        assert response.status_code == 200
-        assert len(responses.calls) == 2
+        with aioresponses() as m:
+            m.patch(url, status=500)
+            m.patch(url, status=200, payload={"ok": True})
+            async with ClientSession() as session:
+                result = await resilient_http_request(
+                    url,
+                    session,
+                    method="PATCH",
+                    json_data={"key": "val"},
+                    return_json=True,
+                    timeout_seconds=1,
+                )
+        assert result == {"ok": True}
+        total_calls = sum(len(v) for v in m.requests.values())
+        assert total_calls == 2
