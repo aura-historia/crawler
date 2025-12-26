@@ -196,6 +196,24 @@ class TestBatchSender:
 class TestScrape:
     """Tests for scrape function."""
 
+    @pytest.fixture(autouse=True)
+    def patch_db_operations_for_scrape(self, monkeypatch):
+        import src.core.worker.product_scraper as ps
+
+        class DummyEntry:
+            hash = None
+
+        mock_db_ops = Mock()
+        mock_db_ops.get_url_entry = Mock(return_value=DummyEntry())
+        mock_db_ops.update_url_hash = Mock(return_value=True)
+
+        async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
+            return func(*args, **kwargs)
+
+        monkeypatch.setattr(ps.asyncio, "to_thread", fake_to_thread)
+        monkeypatch.setattr(ps, "db_operations", mock_db_ops)
+        yield
+
     @pytest.mark.asyncio
     async def test_scrape_success(
         self,
@@ -302,6 +320,24 @@ class TestScrape:
 
 class TestHandleDomainMessage:
     """Tests for handle_domain_message function."""
+
+    @pytest.fixture(autouse=True)
+    def patch_db_operations_for_scrape(self, monkeypatch):
+        import src.core.worker.product_scraper as ps
+
+        class DummyEntry:
+            hash = None
+
+        mock_db_ops = Mock()
+        mock_db_ops.get_url_entry = Mock(return_value=DummyEntry())
+        mock_db_ops.update_url_hash = Mock(return_value=True)
+
+        async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
+            return func(*args, **kwargs)
+
+        monkeypatch.setattr(ps.asyncio, "to_thread", fake_to_thread)
+        monkeypatch.setattr(ps, "db_operations", mock_db_ops)
+        yield
 
     @pytest.mark.asyncio
     async def test_handle_domain_message_success(
