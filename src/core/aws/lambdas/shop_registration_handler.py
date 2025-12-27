@@ -9,6 +9,7 @@ from urllib3.util.retry import Retry
 from src.core.aws.database.models import METADATA_SK, ShopMetadata
 from src.core.aws.database.operations import db_operations
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BACKEND_API_URL = os.getenv("BACKEND_API_URL")
@@ -41,7 +42,6 @@ def _build_retry_session(
     )
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("https://", adapter)
-    session.mount("http://", adapter)
     session.headers.update({"User-Agent": "aura-shop-registration/1.0"})
     return session
 

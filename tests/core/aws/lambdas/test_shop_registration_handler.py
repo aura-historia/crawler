@@ -1,11 +1,13 @@
 from unittest.mock import Mock, patch
 import pytest
+import requests
 
 from src.core.aws.database.models import ShopMetadata, METADATA_SK
 from src.core.aws.lambdas.shop_registration_handler import (
     find_existing_shop,
     handler,
     register_or_update_shop,
+    resilient_http_request_sync,
 )
 
 
@@ -260,3 +262,91 @@ class TestHandler:
         result2 = handler({}, None)
         assert result2 == {"batchItemFailures": []}
         mock_register.assert_not_called()
+
+
+class TestResilientHttpRequestSync:
+    def test_returns_text_on_200(self):
+        """Returns response.text when status is 200 and return_json is False."""
+        session = Mock()
+        response = Mock()
+        response.raise_for_status = Mock()
+        response.text = "ok"
+        response.json = Mock(side_effect=RuntimeError("json should not be called"))
+
+        session.headers = {"User-Agent": "aura-shop-registration/1.0"}
+        session.request = Mock(return_value=response)
+
+        result = resilient_http_request_sync(
+            "http://example.test/", session, method="GET", return_json=False
+        )
+
+        assert result == "ok"
+        session.request.assert_called_once()
+        _, kwargs = session.request.call_args
+        assert kwargs["method"] == "GET"
+        assert kwargs["url"] == "http://example.test/"
+
+    def test_returns_json_on_200_and_return_json_true(self):
+        """Returns parsed JSON when return_json=True."""
+        session = Mock()
+        response = Mock()
+        response.raise_for_status = Mock()
+        response.text = '{"a": 1}'
+        response.json = Mock(return_value={"a": 1})
+
+        session.headers = {}
+        session.request = Mock(return_value=response)
+
+        result = resilient_http_request_sync(
+            "http://example.test/", session, method="POST", return_json=True
+        )
+
+        assert result == {"a": 1}
+
+    def test_invalid_json_raises_when_return_json_true(self):
+        """If response.json() raises ValueError, the error is propagated."""
+        session = Mock()
+        response = Mock()
+        response.raise_for_status = Mock()
+        response.text = "not json"
+        response.json = Mock(side_effect=ValueError("Invalid JSON"))
+
+        session.headers = {}
+        session.request = Mock(return_value=response)
+
+        with pytest.raises(ValueError):
+            resilient_http_request_sync(
+                "http://example.test/", session, return_json=True
+            )
+
+    def test_non_2xx_raises_http_error_after_raise_for_status(self):
+        """HTTP errors raised by raise_for_status are propagated."""
+        session = Mock()
+        response = Mock()
+        response.raise_for_status = Mock(side_effect=requests.HTTPError("Server error"))
+
+        session.headers = {}
+        session.request = Mock(return_value=response)
+
+        with pytest.raises(requests.HTTPError):
+            resilient_http_request_sync("http://example.test/", session)
+
+    def test_session_none_uses_build_retry_session_with_retry_attempts(self):
+        """If session is None, _build_retry_session is called with retry_attempts."""
+        session_mock = Mock()
+        response = Mock()
+        response.raise_for_status = Mock()
+        response.text = "ok"
+        session_mock.request = Mock(return_value=response)
+        session_mock.headers = {}
+
+        with patch(
+            "src.core.aws.lambdas.shop_registration_handler._build_retry_session",
+            return_value=session_mock,
+        ) as mock_build:
+            result = resilient_http_request_sync(
+                "http://example.test/", None, retry_attempts=5
+            )
+
+            mock_build.assert_called_once_with(5)
+            assert result == "ok"
