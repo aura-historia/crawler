@@ -15,7 +15,7 @@ from src.core.aws.lambdas.shop_registration_handler import (
 def sample_shop_metadata():
     return ShopMetadata(
         domain="shop.com",
-        standards_used=["json-ld", "microdata"],
+        standards_used=True,
         shop_country="DE",
     )
 
@@ -26,7 +26,7 @@ def sample_dynamodb_item():
         "pk": {"S": "SHOP#shop.com"},
         "sk": {"S": METADATA_SK},
         "domain": {"S": "shop.com"},
-        "standards_used": {"L": [{"S": "json-ld"}]},
+        "standards_used": {"BOOL": True},
         "core_domain_name": {"S": "shop"},
     }
 
@@ -177,7 +177,7 @@ class TestRegisterOrUpdateShop:
     ):
         from src.core.aws.database.models import ShopMetadata
 
-        shop = ShopMetadata(domain="", standards_used=[], shop_country="DE")
+        shop = ShopMetadata(domain="", standards_used=False, shop_country="DE")
         session = AsyncMock(spec=ClientSession)
         with pytest.raises(Exception):
             await register_or_update_shop(shop, session)

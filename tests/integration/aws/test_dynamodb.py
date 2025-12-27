@@ -39,7 +39,6 @@ class TestDynamoDBIntegration:
             domain=domain,
             shop_country=country,
             last_crawled_start=crawl_start,
-            standards_used=["microdata", "schema"],
         )
         self.ops.upsert_shop_metadata(shop)
 
@@ -54,7 +53,7 @@ class TestDynamoDBIntegration:
         assert raw_item["gsi2_sk"]["S"] == crawl_start
         assert raw_item["gsi4_pk"]["S"] == "organic-beauty"
         assert raw_item["gsi4_sk"]["S"] == domain
-        assert len(raw_item["standards_used"]["L"]) == 2
+        assert raw_item["standards_used"]["BOOL"] is True
 
     def test_url_entry_raw_state_and_gsi1(self):
         domain = "shop.com"

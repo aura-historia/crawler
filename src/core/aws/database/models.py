@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 import hashlib
 import os
@@ -49,8 +49,9 @@ class ShopMetadata:
     """
 
     domain: str
-    standards_used: List[str] = field(default_factory=list)
+    standards_used: bool = field(default=True)
     shop_country: Optional[str] = field(default=None)
+    shop_name: Optional[str] = field(default=None)
     pk: Optional[str] = field(default=None)
     sk: str = field(default=METADATA_SK)
     last_crawled_start: Optional[str] = field(default=None)
@@ -60,7 +61,7 @@ class ShopMetadata:
     core_domain_name: Optional[str] = field(default=None)
 
     def __post_init__(self):
-        """Set pk to domain if not provided."""
+        """Set pk to domain if not provided and normalize fields."""
         if self.pk is None:
             self.pk = f"SHOP#{self.domain}"
         # Extract and store the core domain name (e.g., 'example' from 'example.com')
@@ -75,9 +76,11 @@ class ShopMetadata:
             "pk": {"S": self.pk},
             "sk": {"S": self.sk},
             "domain": {"S": self.domain},
-            "standards_used": {"L": [{"S": s} for s in self.standards_used]},
+            "standards_used": {"BOOL": self.standards_used},
             "core_domain_name": {"S": self.core_domain_name},
         }
+        if self.shop_name:
+            item["shop_name"] = {"S": self.shop_name}
         if self.shop_country:
             item["shop_country"] = {"S": self.shop_country}
             # GSI2/GSI3: Country-based indexes
@@ -110,10 +113,9 @@ class ShopMetadata:
             pk=item["pk"]["S"],
             sk=item["sk"]["S"],
             domain=item["domain"]["S"],
-            standards_used=[
-                s["S"] for s in item.get("standards_used", {}).get("L", [])
-            ],
+            standards_used=item.get("standards_used", {}).get("BOOL"),
             shop_country=item.get("shop_country", {}).get("S"),
+            shop_name=item.get("shop_name", {}).get("S"),
             last_crawled_start=item.get("last_crawled_start", {}).get("S"),
             last_crawled_end=item.get("last_crawled_end", {}).get("S"),
             last_scraped_start=item.get("last_scraped_start", {}).get("S"),
@@ -127,7 +129,6 @@ class URLEntry:
 
     domain: str
     url: str
-    standards_used: List[str] = field(default_factory=list)
     type: Optional[str] = field(default=None)
     hash: Optional[str] = field(default=None)
     pk: Optional[str] = field(default=None)
@@ -146,7 +147,6 @@ class URLEntry:
             "pk": {"S": self.pk},
             "sk": {"S": self.sk},
             "url": {"S": self.url},
-            "standards_used": {"L": [{"S": s} for s in self.standards_used]},
         }
 
         if self.type is not None:
@@ -171,9 +171,6 @@ class URLEntry:
             sk=item["sk"]["S"],
             domain=domain,
             url=item["url"]["S"],
-            standards_used=[
-                s["S"] for s in item.get("standards_used", {}).get("L", [])
-            ],
             type=item.get("type", {}).get("S"),
             hash=item.get("hash", {}).get("S"),
         )
