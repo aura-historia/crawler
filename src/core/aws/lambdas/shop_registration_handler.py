@@ -5,11 +5,11 @@ import requests
 from requests import Session
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import tldextract
 
 from src.core.aws.database.models import METADATA_SK, ShopMetadata
 from src.core.aws.database.operations import db_operations
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BACKEND_API_URL = os.getenv("BACKEND_API_URL")
@@ -62,7 +62,6 @@ def resilient_http_request_sync(
     url: str,
     session: Session,
     method: str = "GET",
-    retry_attempts: int = 3,
     headers: Optional[dict] = None,
     params: Optional[dict] = None,
     json_data: Optional[dict] = None,
@@ -75,8 +74,6 @@ def resilient_http_request_sync(
 
     Raises on non-2xx responses after retries.
     """
-    if session is None:
-        session = _build_retry_session(retry_attempts)
 
     try:
         # Merge headers with session defaults so callers can override/extend
@@ -105,8 +102,16 @@ def resilient_http_request_sync(
                 raise
         return response.text
 
-    except Exception as e:
-        logger.error(f"HTTP {method} to {url} failed after retries: {e}")
+    except requests.RequestException as exc:
+        status = getattr(exc.response, "status_code", None)
+        body = getattr(exc.response, "text", None)
+        logger.error(
+            "HTTP request failed",
+            extra={"status": status, "body": body},
+        )
+        raise
+    except Exception as exc:
+        logger.error(f"Unexpected error during HTTP request to {url}: {str(exc)}")
         raise
 
 
@@ -126,8 +131,6 @@ def find_existing_shop(
     # If caller didn't provide a core domain name, derive it
     if not core_domain_name:
         # Extract core domain name from new_domain (e.g., 'example' from 'shop.example.co.uk')
-        import tldextract
-
         core_domain_name = tldextract.extract(new_domain).domain
 
     # Get ALL shops with the same core domain name, excluding the new domain
@@ -190,6 +193,8 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
             f"Total domains: {len(all_domains_for_backend)}"
         )
 
+        # Backend PATCH endpoint is idempotent:
+        # sending the full domains list replaces state, so retries are safe.
         resilient_http_request_sync(
             patch_url,
             session,
@@ -197,7 +202,6 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
             json_data=payload,
             headers=headers,
             timeout_seconds=10,
-            retry_attempts=3,
         )
         logger.info(f"Successfully added domain '{shop.domain}'")
     else:
@@ -224,7 +228,6 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
             json_data=payload,
             headers=headers,
             timeout_seconds=10,
-            retry_attempts=3,
         )
         logger.info(f"Successfully created shop for domain '{shop.domain}'")
 
@@ -295,7 +298,10 @@ def _process_record(record: Dict[str, Any], session: Session) -> Optional[str]:
         register_or_update_shop(shop, session)
         return None
     except Exception as exc:
-        logger.error(f"Failed to register/update shop for domain {shop.domain}: {exc}")
+        logger.error(
+            "Failed to register/update shop",
+            extra={"domain": shop.domain, "error": str(exc)},
+        )
         return seq
 
 

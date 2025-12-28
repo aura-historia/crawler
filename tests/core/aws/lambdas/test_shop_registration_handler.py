@@ -330,23 +330,3 @@ class TestResilientHttpRequestSync:
 
         with pytest.raises(requests.HTTPError):
             resilient_http_request_sync("http://example.test/", session)
-
-    def test_session_none_uses_build_retry_session_with_retry_attempts(self):
-        """If session is None, _build_retry_session is called with retry_attempts."""
-        session_mock = Mock()
-        response = Mock()
-        response.raise_for_status = Mock()
-        response.text = "ok"
-        session_mock.request = Mock(return_value=response)
-        session_mock.headers = {}
-
-        with patch(
-            "src.core.aws.lambdas.shop_registration_handler._build_retry_session",
-            return_value=session_mock,
-        ) as mock_build:
-            result = resilient_http_request_sync(
-                "http://example.test/", None, retry_attempts=5
-            )
-
-            mock_build.assert_called_once_with(5)
-            assert result == "ok"
