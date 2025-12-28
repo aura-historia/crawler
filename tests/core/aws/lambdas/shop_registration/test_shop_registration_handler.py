@@ -3,7 +3,7 @@ import pytest
 import requests
 
 from src.core.aws.database.models import ShopMetadata, METADATA_SK
-from src.core.aws.lambdas.shop_registration_handler import (
+from src.core.aws.lambdas.shop_registration.shop_registration_handler import (
     find_existing_shop,
     handler,
     register_or_update_shop,
