@@ -92,7 +92,6 @@ async def crawl_and_classify_urls(
                     domain=domain,
                     url=url,
                     type="product" if is_product_bool else "other",
-                    standards_used=[],
                 )
 
                 url_batch.append(url_entry)

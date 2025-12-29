@@ -17,7 +17,8 @@
 
 ### 1. Shop Metadata (META#)
 
-Stores information about a shop/domain and the standards it uses.
+Stores information about a shop/domain and whether structured-data standards
+were detected during crawls.
 
 **Sort Key:** `META#`
 
@@ -28,7 +29,8 @@ Stores information about a shop/domain and the standards it uses.
   "sk": "META#",
   "domain": "example.com",
   "core_domain_name": "example",
-  "standards_used": ["json-ld", "microdata"],
+  "standards_used": true,
+  "shop_name": "Example Shop",
   "shop_country": "COUNTRY#DE",
   "last_crawled_start": "2023-10-27T00:00:00Z",
   "last_crawled_end": "2023-10-27T23:59:59Z",
@@ -43,7 +45,8 @@ Stores information about a shop/domain and the standards it uses.
 | `sk` | String | Fixed value: "META#" |
 | `domain` | String | Domain name (duplicate for convenience) |
 | `core_domain_name` | String | The core domain name, extracted (e.g., 'example' from 'www.example.co.uk'). Used by a GSI to find related domains. |
-| `standards_used` | List[String] | List of standards used by this shop (e.g., json-ld, microdata, opengraph) |
+| `standards_used` | Boolean (BOOL) | Indicates whether any recognized structured-data standard was detected for this shop (true/false). This is a compact flag for the new schema (not a list). |
+| `shop_name` | String (optional) | Human-readable shop name, if available. This is a convenience field for downstream systems. |
 | `shop_country` | String | Country identifier prefixed with `COUNTRY#` (e.g., `COUNTRY#DE`). |
 | `last_crawled_start` | String | ISO 8601 timestamp marking when the latest crawl began. |
 | `last_crawled_end` | String | ISO 8601 timestamp marking when the latest crawl finished. |
@@ -62,7 +65,6 @@ Stores information about individual URLs from a domain.
   "pk": "SHOP#example.com",
   "sk": "URL#https://example.com/products/item-123",
   "url": "https://example.com/products/item-123",
-  "standards_used": ["json-ld", "microdata"],
   "type": "product",
   "hash": "a1b2c3d4..."
 }
@@ -73,7 +75,6 @@ Stores information about individual URLs from a domain.
 | `pk` | String | "SHOP#" + domain name |
 | `sk` | String | "URL#" + full URL |
 | `url` | String | Full URL |
-| `standards_used` | List[String] | List of standards used for this URL (json-ld, microdata, etc.) |
 | `type` | String | Type of page (category, product, listing, etc.). Used for product discovery queries. |
 | `hash` | String | SHA256 hash of status+price to detect changes |
 
