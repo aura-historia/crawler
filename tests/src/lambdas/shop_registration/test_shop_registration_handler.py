@@ -3,7 +3,7 @@ import pytest
 import requests
 
 from src.core.aws.database.models import ShopMetadata, METADATA_SK
-from src.core.aws.lambdas.shop_registration.shop_registration_handler import (
+from src.lambdas.shop_registration.shop_registration_handler import (
     find_existing_shop,
     handler,
     register_or_update_shop,
@@ -32,9 +32,7 @@ def sample_dynamodb_item():
 
 
 class TestFindExistingShop:
-    @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.db_operations"
-    )
+    @patch("src.lambdas.shop_registration.shop_registration_handler.db_operations")
     def test_returns_none_when_no_existing_shop(self, mock_db_ops):
         mock_db_ops.find_all_domains_by_core_domain_name.return_value = []
 
@@ -45,9 +43,7 @@ class TestFindExistingShop:
             "newshop", domain_to_exclude="newshop.com"
         )
 
-    @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.db_operations"
-    )
+    @patch("src.lambdas.shop_registration.shop_registration_handler.db_operations")
     def test_returns_identifier_and_domains_when_shops_exist(self, mock_db_ops):
         existing_shops = [
             ShopMetadata(domain="shop.com"),
@@ -62,9 +58,7 @@ class TestFindExistingShop:
         assert identifier == "shop.com"
         assert all_domains == ["shop.com", "shop.de"]
 
-    @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.db_operations"
-    )
+    @patch("src.lambdas.shop_registration.shop_registration_handler.db_operations")
     def test_uses_first_domain_as_identifier(self, mock_db_ops):
         existing_shops = [
             ShopMetadata(domain="shop.de"),
@@ -81,14 +75,12 @@ class TestFindExistingShop:
 
 class TestRegisterOrUpdateShop:
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.resilient_http_request_sync",
+        "src.lambdas.shop_registration.shop_registration_handler.resilient_http_request_sync",
         new_callable=Mock,
     )
+    @patch("src.lambdas.shop_registration.shop_registration_handler.find_existing_shop")
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.find_existing_shop"
-    )
-    @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.BACKEND_API_URL",
+        "src.lambdas.shop_registration.shop_registration_handler.BACKEND_API_URL",
         "http://test-backend",
     )
     def test_register_new_shop(
@@ -106,14 +98,12 @@ class TestRegisterOrUpdateShop:
         assert kwargs["json_data"]["domains"] == [sample_shop_metadata.domain]
 
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.resilient_http_request_sync",
+        "src.lambdas.shop_registration.shop_registration_handler.resilient_http_request_sync",
         new_callable=Mock,
     )
+    @patch("src.lambdas.shop_registration.shop_registration_handler.find_existing_shop")
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.find_existing_shop"
-    )
-    @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.BACKEND_API_URL",
+        "src.lambdas.shop_registration.shop_registration_handler.BACKEND_API_URL",
         "http://test-backend",
     )
     def test_update_existing_shop(
@@ -133,7 +123,7 @@ class TestRegisterOrUpdateShop:
     def test_backend_api_url_missing(self, sample_shop_metadata):
         # Temporarily patch BACKEND_API_URL to None
         with patch(
-            "src.core.aws.lambdas.shop_registration.shop_registration_handler.BACKEND_API_URL",
+            "src.lambdas.shop_registration.shop_registration_handler.BACKEND_API_URL",
             None,
         ):
             session = Mock()
@@ -141,12 +131,10 @@ class TestRegisterOrUpdateShop:
                 register_or_update_shop(sample_shop_metadata, session)
 
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.resilient_http_request_sync",
+        "src.lambdas.shop_registration.shop_registration_handler.resilient_http_request_sync",
         new_callable=Mock,
     )
-    @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.find_existing_shop"
-    )
+    @patch("src.lambdas.shop_registration.shop_registration_handler.find_existing_shop")
     def test_handles_invalid_shop_metadata(self, mock_find_existing, mock_resilient):
         shop = ShopMetadata(domain="", standards_used=False, shop_country="DE")
         session = Mock()
@@ -156,7 +144,7 @@ class TestRegisterOrUpdateShop:
 
 class TestHandler:
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
+        "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
     def test_processes_insert_event_successfully(
@@ -184,7 +172,7 @@ class TestHandler:
         assert shop_arg.core_domain_name == "shop"
 
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
+        "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
     def test_partial_batch_failure_mixed_results(
@@ -224,7 +212,7 @@ class TestHandler:
         assert getattr(shop2, "core_domain_name", None) == "success-shop"
 
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
+        "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
     def test_skips_modify_events(self, mock_register, sample_dynamodb_item):
@@ -246,7 +234,7 @@ class TestHandler:
         mock_register.assert_not_called()
 
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
+        "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
     def test_handles_missing_new_image(self, mock_register):
@@ -266,7 +254,7 @@ class TestHandler:
         mock_register.assert_not_called()
 
     @patch(
-        "src.core.aws.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
+        "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
     def test_handles_empty_records(self, mock_register):

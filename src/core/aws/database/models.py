@@ -6,24 +6,19 @@ import os
 import boto3
 import tldextract
 
+extract_with_cache = tldextract.TLDExtract(cache_dir="/tmp/.tld_cache")
+
 
 def _get_dynamodb_config() -> Dict[str, Any]:
     """Build DynamoDB configuration from environment variables."""
     config = {
-        "region_name": os.getenv("AWS_REGION"),
+        "region_name": os.getenv("AWS_REGION", "eu-central-1"),  # Fallback if needed
     }
 
-    # Add endpoint URL if specified (for local DynamoDB)
+    # Add endpoint URL ONLY if specified (usually for local development)
     endpoint_url = os.getenv("DYNAMODB_ENDPOINT_URL")
     if endpoint_url:
         config["endpoint_url"] = endpoint_url
-
-    # Add credentials if specified
-    access_key = os.getenv("AWS_ACCESS_KEY_ID")
-    secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    if access_key and secret_key:
-        config["aws_access_key_id"] = access_key
-        config["aws_secret_access_key"] = secret_key
 
     return config
 
@@ -65,7 +60,7 @@ class ShopMetadata:
         if self.pk is None:
             self.pk = f"SHOP#{self.domain}"
         # Extract and store the core domain name (e.g., 'example' from 'example.com')
-        self.core_domain_name = tldextract.extract(self.domain).domain
+        self.core_domain_name = extract_with_cache(self.domain).domain
         # Format shop_country with COUNTRY# prefix if not already formatted
         if self.shop_country and not self.shop_country.startswith("COUNTRY#"):
             self.shop_country = f"COUNTRY#{self.shop_country}"

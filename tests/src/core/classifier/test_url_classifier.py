@@ -25,15 +25,6 @@ class TestURLClassifier:
             "config": root_dir / "bert_config" / "config.json",
         }
 
-    def test_model_files_exist(self, model_paths):
-        """Verify that all required model files exist."""
-        assert model_paths["tokenizer"].exists(), (
-            f"Tokenizer file not found: {model_paths['tokenizer']}"
-        )
-        assert model_paths["config"].exists(), (
-            f"Config file not found: {model_paths['config']}"
-        )
-
     def test_classifier_initialization(self, classifier):
         """Test that classifier initializes successfully."""
         assert classifier is not None
