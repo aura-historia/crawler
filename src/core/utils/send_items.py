@@ -1,5 +1,7 @@
 import os
 from aiohttp import ClientSession
+
+from src.core.utils.logger import logger
 from src.core.utils.network import resilient_http_request
 from dotenv import load_dotenv
 
@@ -13,7 +15,7 @@ async def send_items(items):
         return
     headers = {"Content-Type": "application/json"}
     async with ClientSession() as session:
-        await resilient_http_request(
+        response = await resilient_http_request(
             api_url,
             session,
             method="PUT",
@@ -22,3 +24,5 @@ async def send_items(items):
             timeout_seconds=10,
             retry_attempts=3,
         )
+
+    logger.info("Response from API:", response)

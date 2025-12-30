@@ -37,3 +37,7 @@ extruct
 google-search-results
 iptocc
 tldextract
+constructs
+aws-cdk-lib==2.14.0
+aws-cdk.aws-appsync-alpha==2.10.0a0
+aws-cdk.aws-lambda-python-alpha

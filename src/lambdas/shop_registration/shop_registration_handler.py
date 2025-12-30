@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 BACKEND_API_URL = os.getenv("BACKEND_API_URL")
 
+extract_with_cache = tldextract.TLDExtract(cache_dir="/tmp/.tld_cache")
+
 RETRY_STATUSES = {429, 500, 502, 503, 504}
 
 # Reusable session to benefit from connection pooling across warm Lambda
@@ -131,7 +133,7 @@ def find_existing_shop(
     # If caller didn't provide a core domain name, derive it
     if not core_domain_name:
         # Extract core domain name from new_domain (e.g., 'example' from 'shop.example.co.uk')
-        core_domain_name = tldextract.extract(new_domain).domain
+        core_domain_name = extract_with_cache(new_domain).domain
 
     # Get ALL shops with the same core domain name, excluding the new domain
     all_shops = db_operations.find_all_domains_by_core_domain_name(
