@@ -5,7 +5,6 @@ import signal
 from datetime import datetime
 from typing import Any, List, Optional
 
-from aiohttp import ClientError
 from dotenv import load_dotenv
 
 from src.core.classifier.url_classifier import URLBertClassifier
@@ -165,147 +164,126 @@ async def handle_shop_message(
     shutdown_event: asyncio.Event,
     batch_size: int = 50,
 ) -> None:
-    """
-    Handle a single shop-crawling message from the queue.
-
-    This function extracts the domain from the message (e.g., {"domain": "example.com"}),
-    constructs the start URL as https://{domain},
-    crawls the website using BFS algorithm, classifies discovered URLs,
-    and saves them to the database.
-
-    If an error occurs, the message is NOT deleted and will automatically
-    reappear in the queue after the visibility timeout expires.
-
-    Args:
-        message: SQS message object containing shop domain (format: {"domain": "example.com"})
-        classifier: URLBertClassifier instance
-        db: DynamoDBOperations instance
-        shutdown_event: Event to signal shutdown
-        batch_size: Batch size for database writes
-    """
     domain, start_url = parse_shop_message(message)
 
     if not domain or not start_url:
         await asyncio.to_thread(delete_message, message)
         return
 
-    logger.info(f"Processing shop: {domain}, starting from: {start_url}")
-
+    logger.info(f"Processing shop: {domain}")
     stop_event = asyncio.Event()
     heartbeat_task = visibility_heartbeat(message, stop_event)
-
     crawl_start_time = datetime.now().isoformat()
 
     try:
-        # Build crawler configuration
-        browser_config = BrowserConfig(headless=True)
-        run_config = crawl_config()
-
-        # Create crawler and run
-        async with AsyncWebCrawler(config=browser_config) as crawler:
-            urls_processed = await crawl_and_classify_urls(
-                crawler=crawler,
-                start_url=start_url,
-                domain=domain,
-                classifier=classifier,
-                db=db,
-                shutdown_event=shutdown_event,
-                run_config=run_config,
-                batch_size=batch_size,
-            )
-
-        logger.info(f"Processed {urls_processed} URLs for domain {domain}")
-
-        # Update shop metadata with crawl timestamps
-        crawl_end_time = datetime.now().isoformat()
         await asyncio.to_thread(
             db.update_shop_metadata,
             domain=domain,
             last_crawled_start=crawl_start_time,
+        )
+
+        browser_config = BrowserConfig(headless=True)
+        run_config = crawl_config()
+
+        # 2. Wrap crawler in an inner try to catch shutdown cleanup noise
+        try:
+            async with AsyncWebCrawler(config=browser_config) as crawler:
+                await crawl_and_classify_urls(
+                    crawler=crawler,
+                    start_url=start_url,
+                    domain=domain,
+                    classifier=classifier,
+                    db=db,
+                    shutdown_event=shutdown_event,
+                    run_config=run_config,
+                    batch_size=batch_size,
+                )
+        except (Exception, asyncio.CancelledError) as e:
+            if shutdown_event.is_set():
+                logger.debug(f"Interrupted crawl cleanup for {domain}: {e}")
+            else:
+                raise e
+
+        if shutdown_event.is_set():
+            logger.warning(
+                f"Crawl for {domain} interrupted by shutdown signal. Skipping deletion."
+            )
+            return
+
+        crawl_end_time = datetime.now().isoformat()
+        await asyncio.to_thread(
+            db.update_shop_metadata,
+            domain=domain,
             last_crawled_end=crawl_end_time,
         )
 
         await asyncio.to_thread(delete_message, message)
+        logger.info(f"Successfully processed and deleted message for {domain}")
 
     except Exception as e:
         logger.exception(f"Error handling shop {domain}: {e}")
-        logger.warning(
-            f"Message not deleted for {domain} - will reappear in queue after visibility timeout"
-        )
     finally:
         if heartbeat_task:
             stop_event.set()
             await heartbeat_task
 
 
-async def process_message_batch(
-    messages: List[Any],
+async def worker(
+    worker_id: int,
+    queue: Any,
     classifier: URLBertClassifier,
     db: DynamoDBOperations,
-    shutdown_event: asyncio.Event,
     batch_size: int,
-) -> None:
+):
     """
-    Process a batch of messages from SQS in parallel.
-
-    Each shop is crawled concurrently, allowing N shops to be processed simultaneously.
-
-    Args:
-        messages: List of SQS messages
-        classifier: URLBertClassifier instance
-        db: DynamoDBOperations instance
-        shutdown_event: Event to signal shutdown
-        batch_size: Batch size for database writes
+    Independent worker loop. Pulls 1 message, processes it fully,
+    and repeats until shutdown.
     """
-    if not messages:
-        return
+    logger.info(f"Worker-{worker_id} started and ready for tasks.")
 
-    logger.info(f"Processing {len(messages)} shops in parallel")
+    while not shutdown_event.is_set():
+        try:
+            if shutdown_event.is_set():
+                break
 
-    # Create tasks for parallel processing
-    tasks = []
-    for message in messages:
-        if shutdown_event.is_set():
-            logger.info("Shutdown event received, stopping message processing")
-            break
+            messages = await asyncio.to_thread(receive_messages, queue, 1, 20)
+            if not messages:
+                continue
 
-        task = asyncio.create_task(
-            handle_shop_message(message, classifier, db, shutdown_event, batch_size)
-        )
-        tasks.append(task)
+            message = messages[0]
+            logger.info(f"Worker-{worker_id} picked up a new domain.")
 
-    # Wait for all tasks to complete
-    if tasks:
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+            if shutdown_event.is_set():
+                logger.info(
+                    f"Worker-{worker_id} discarding fetched message due to shutdown."
+                )
+                break
 
-        # Log any exceptions that occurred
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.exception(f"Error handling message {i}: {result}")
+            # handle_shop_message manages its own heartbeat and crawl
+            await handle_shop_message(
+                message, classifier, db, shutdown_event, batch_size
+            )
+
+        except Exception as e:
+            logger.exception(
+                f"Worker-{worker_id} encountered an error: {e}", exc_info=True
+            )
+
+    logger.info(f"Worker-{worker_id} shutting down.")
 
 
-async def main(n_shops: int = 5, batch_size: int = 50) -> None:
+async def main(n_workers: int = 3, batch_size: int = 50) -> None:
     """
-    Main worker loop to poll SQS and process shop-crawling messages.
-
-    Args:
-        n_shops: Number of messages to receive per poll (max)
-        batch_size: Number of URLs to batch before writing to database
+    Entry point that initializes resources and spawns a worker pool.
     """
     try:
         queue = get_queue(QUEUE_NAME)
-    except ClientError as e:
-        logger.error(f"Failed to get SQS queue '{QUEUE_NAME}': {e}")
-        return
-
-    db = DynamoDBOperations()
-
-    logger.info("Loading URL classifier...")
-    try:
+        db = DynamoDBOperations()
+        logger.info("Loading URL classifier...")
         classifier = URLBertClassifier()
-        logger.info("URL classifier loaded successfully")
+        logger.info("Environment initialized successfully.")
     except Exception as e:
-        logger.error(f"Failed to load URL classifier: {e}")
+        logger.critical(f"Initialization failed: {e}")
         return
 
     loop = asyncio.get_running_loop()
@@ -315,40 +293,28 @@ async def main(n_shops: int = 5, batch_size: int = 50) -> None:
         except NotImplementedError:
             signal.signal(sig, lambda s, f: shutdown_event.set())
 
-    # Start spot termination watcher
     watcher_task = asyncio.create_task(watch_spot_termination(shutdown_event))
 
-    logger.info("Product spider worker started. Listening for shop messages...")
+    # Spawn worker pool
+    logger.info(f"Starting {n_workers} concurrent workers...")
+    workers = [
+        asyncio.create_task(worker(i, queue, classifier, db, batch_size))
+        for i in range(n_workers)
+    ]
 
-    while not shutdown_event.is_set():
-        try:
-            # Receive messages from queue
-            messages = await asyncio.to_thread(receive_messages, queue, n_shops, 1)
+    # Wait for shutdown signal
+    await shutdown_event.wait()
+    logger.info(
+        "Shutdown initiated. Waiting for active workers to finish current task..."
+    )
 
-            if not messages:
-                # No messages, wait a bit
-                try:
-                    await asyncio.wait_for(shutdown_event.wait(), timeout=5.0)
-                except asyncio.TimeoutError:
-                    pass
-                continue
+    # Wait for workers to complete their current job (with a timeout)
+    await asyncio.gather(*workers, return_exceptions=True)
 
-            # Process the messages
-            await process_message_batch(
-                messages, classifier, db, shutdown_event, batch_size
-            )
-
-        except Exception as e:
-            logger.exception(f"Error in main loop: {e}")
-
-    logger.info("Product spider worker shutting down...")
     watcher_task.cancel()
-    try:
-        await watcher_task
-    except asyncio.CancelledError:
-        logger.debug("Watcher task cancelled successfully")
-        raise
+    logger.info("Process finished.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main(n_shops=3, batch_size=50))
+    # In AWS ECS/Fargate, adjust n_workers based on available vCPU/RAM
+    asyncio.run(main(n_workers=3, batch_size=50))
