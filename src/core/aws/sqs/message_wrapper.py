@@ -216,8 +216,8 @@ def parse_message_body(message: Any) -> tuple[Optional[str], Optional[str]]:
 def visibility_heartbeat(
     message: Any,
     stop_event: asyncio.Event,
-    extend_timeout: int = 1800,
-    interval: int = 1200,
+    extend_timeout: int = 600,
+    interval: int = 300,
 ) -> asyncio.Task:
     """
     Periodically extends the visibility timeout of an SQS message until a stop event is set.
@@ -225,8 +225,8 @@ def visibility_heartbeat(
     Parameters:
         message (Any): The SQS message object whose visibility timeout will be extended.
         stop_event (asyncio.Event): Event to signal when to stop extending visibility.
-        extend_timeout (int, optional): Timeout (in seconds) to set on each extension. Default is 1800 (30 min).
-        interval (int, optional): Interval (in seconds) between extensions. Default is 1200 (20 min).
+        extend_timeout (int, optional): Timeout (in seconds) to set on each extension. Default is 600 (10 min).
+        interval (int, optional): Interval (in seconds) between extensions. Default is 300 (5 min).
 
     Returns:
         asyncio.Task: The asyncio task running the heartbeat loop.
@@ -235,20 +235,26 @@ def visibility_heartbeat(
     async def _heartbeat():
         try:
             while not stop_event.is_set():
-                await asyncio.sleep(interval)
                 try:
-                    await asyncio.to_thread(
-                        message.change_visibility,
-                        VisibilityTimeout=extend_timeout,
-                    )
-                except Exception as e:
-                    logger.exception(
-                        "Failed to extend visibility for message %s: %s",
-                        getattr(message, "message_id", None),
-                        e,
-                    )
+                    await asyncio.wait_for(stop_event.wait(), timeout=interval)
+                    break
+                except asyncio.TimeoutError:
+                    try:
+                        await asyncio.to_thread(
+                            message.change_visibility,
+                            VisibilityTimeout=extend_timeout,
+                        )
+                        logger.debug(
+                            "Extended visibility for message %s",
+                            getattr(message, "message_id", None),
+                        )
+                    except Exception as e:
+                        logger.error("Failed to extend visibility: %s", e)
         except asyncio.CancelledError:
-            logger.exception("Cancelled heartbeat")
+            logger.debug(
+                "Heartbeat task for message %s was cancelled.",
+                getattr(message, "message_id", None),
+            )
             raise
 
     task = asyncio.create_task(_heartbeat())

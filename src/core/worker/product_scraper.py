@@ -5,13 +5,11 @@ import signal
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from extruct import extract as extruct_extract
 from w3lib.html import get_base_url
 from src.core.aws.database.operations import DynamoDBOperations, db_operations
 from src.core.aws.sqs.message_wrapper import (
-    receive_messages,
     send_message,
     delete_message,
     parse_message_body,
@@ -26,6 +24,7 @@ from src.core.aws.spot.spot_termination_watcher import (
     signal_handler,
 )
 from src.core.utils.standards_extractor import extract_standard
+from src.core.worker.base_worker import generic_worker
 from crawl4ai import AsyncWebCrawler
 from src.core.aws.database.models import URLEntry
 
@@ -196,29 +195,18 @@ async def handle_domain_message(
     queue: Any,
     batch_size: int = 10,
 ) -> None:
-    """
-    Resolve a domain message, crawl its product URLs, and requeue unfinished work if interrupted.
-
-    Workflow:
-        1. Parse ``domain``/``next`` from the message body.
-        2. Fetch URLs from DynamoDB and resume at ``next`` if present.
-        3. Build crawler components, run `scrape`, and stream items.
-        4. On shutdown or errors, requeue the remaining URLs before deleting the original message.
-    """
-
+    """Handles the full lifecycle of a single domain message."""
     domain, next_url = parse_message_body(message)
     if not domain:
         await asyncio.to_thread(delete_message, message)
         return
 
     logger.info("Processing domain: %s", domain)
-
     stop_event = asyncio.Event()
     heartbeat_task = visibility_heartbeat(message, stop_event)
 
     try:
         scrape_start_time = datetime.now().isoformat()
-
         product_urls = await asyncio.to_thread(db.get_product_urls_by_domain, domain)
 
         start_index = 0
@@ -233,9 +221,6 @@ async def handle_domain_message(
             await asyncio.to_thread(delete_message, message)
             return
 
-        logger.info(urls_to_crawl)
-        logger.info(f"Found {len(urls_to_crawl)} URLs to crawl")
-
         items_processed = 0
 
         async def requeue_remaining(reason: str) -> bool:
@@ -245,12 +230,14 @@ async def handle_domain_message(
 
             next_url_candidate = product_urls[current_absolute_index]
             body = json.dumps({"domain": domain, "next": next_url_candidate})
-
-            logger.info(body)
-
             try:
                 await asyncio.to_thread(send_message, queue, body)
-                logger.info("Requeued domain %s due to %s", domain, reason)
+                logger.info(
+                    "Requeued domain %s at %s due to %s",
+                    domain,
+                    next_url_candidate,
+                    reason,
+                )
                 return True
             except Exception as exc:
                 logger.exception("Failed to requeue: %s", exc)
@@ -258,7 +245,6 @@ async def handle_domain_message(
 
         try:
             browser_config, run_config = build_product_scraper_components()
-
             async with AsyncWebCrawler(config=browser_config) as crawler:
                 items_processed = await scrape(
                     crawler=crawler,
@@ -269,22 +255,17 @@ async def handle_domain_message(
                     batch_size=batch_size,
                 )
 
-            logger.info("Items processed for domain %s: %d", domain, items_processed)
-
             if shutdown_event.is_set():
                 if await requeue_remaining("shutdown signal"):
                     await asyncio.to_thread(delete_message, message)
                 return
 
-            # Update shop metadata with scrape timestamps
-            scrape_end_time = datetime.now().isoformat()
             await asyncio.to_thread(
                 db.update_shop_metadata,
                 domain=domain,
                 last_scraped_start=scrape_start_time,
-                last_scraped_end=scrape_end_time,
+                last_scraped_end=datetime.now().isoformat(),
             )
-
             await asyncio.to_thread(delete_message, message)
         except Exception as e:
             logger.exception("Error handling domain %s: %s", domain, e)
@@ -295,43 +276,39 @@ async def handle_domain_message(
         await heartbeat_task
 
 
-async def process_message_batch(
-    messages: List[Any],
-    db: DynamoDBOperations,
-    shutdown_event: asyncio.Event,
-    queue: Any,
-    batch_size: int,
+async def worker(
+    worker_id: int, queue: Any, db: DynamoDBOperations, batch_size: int
 ) -> None:
-    """Spawn one task per SQS message and wait for all to finish, logging per-task failures."""
+    """Worker function for processing domain messages from SQS queue.
 
-    if not messages:
-        return
-
-    # Process messages concurrently (one task per message)
-    tasks = [
-        asyncio.create_task(
-            handle_domain_message(m, db, shutdown_event, queue, batch_size=batch_size)
-        )
-        for m in messages
-    ]
-
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for r in results:
-        if isinstance(r, Exception):
-            logger.exception("Error while handling message: %s", r)
-
-
-async def main(n_shops: int = 5, batch_size: int = 10) -> None:
+    Args:
+        worker_id (int): Unique identifier for this worker instance.
+        queue (Any): SQS queue object to poll messages from.
+        db (DynamoDBOperations): Database operations instance.
+        batch_size (int): Number of items to batch before sending.
     """
-    Main worker loop to poll SQS and process domain messages.
-    """
+
+    async def handler(message: Any) -> None:
+        await handle_domain_message(message, db, shutdown_event, queue, batch_size)
+
+    await generic_worker(
+        worker_id=worker_id,
+        queue=queue,
+        shutdown_event=shutdown_event,
+        message_handler=handler,
+        max_messages=1,
+        wait_time=20,
+    )
+
+
+async def main(n_workers: int = 2, batch_size: int = 10) -> None:
+    """Main entry point managing the graceful exit of event-driven workers."""
     try:
         queue = get_queue(QUEUE_NAME)
-    except ClientError as e:
-        logger.error(f"Failed to get SQS queue '{QUEUE_NAME}': {e}")
+        db = DynamoDBOperations()
+    except Exception as e:
+        logger.error(f"Initialization failed: {e}")
         return
-
-    db = DynamoDBOperations()
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -342,32 +319,32 @@ async def main(n_shops: int = 5, batch_size: int = 10) -> None:
 
     watcher_task = asyncio.create_task(watch_spot_termination(shutdown_event))
 
-    logger.info("Worker started. Listening for messages...")
+    logger.info(f"Starting {n_workers} workers...")
+    workers = [
+        asyncio.create_task(worker(i, queue, db, batch_size)) for i in range(n_workers)
+    ]
 
-    while not shutdown_event.is_set():
-        try:
-            messages = await asyncio.to_thread(receive_messages, queue, n_shops, 1)
+    await shutdown_event.wait()
+    logger.info("Shutdown signal received. Event-driven workers are wrapping up...")
 
-            if not messages:
-                try:
-                    await asyncio.wait_for(shutdown_event.wait(), timeout=1.0)
-                except asyncio.TimeoutError:
-                    pass
-                continue
+    gather_workers = asyncio.gather(*workers)
 
-            await process_message_batch(messages, db, shutdown_event, queue, batch_size)
-        except Exception as r:
-            logger.exception("Error in main loop: %s", r)
-
-    # Shutdown watcher cleanly
-    if not watcher_task.done():
-        watcher_task.cancel()
-        try:
-            await watcher_task
-        except asyncio.CancelledError:
-            logger.debug("Watcher task cancelled during shutdown; continuing shutdown")
-            raise
+    try:
+        await asyncio.wait_for(gather_workers, timeout=90.0)
+    except asyncio.TimeoutError:
+        logger.warning("Workers did not finish in time! Force cancelling tasks...")
+        for w in workers:
+            if not w.done():
+                w.cancel()
+        # Wait for cancellations to propagate
+        await asyncio.gather(*workers, return_exceptions=True)
+    except Exception as e:
+        logger.error(f"Error during worker drain: {e}")
+    finally:
+        if not watcher_task.done():
+            watcher_task.cancel()
+        logger.info("All workers stopped. Scraper process finished.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main(n_shops=1))
+    asyncio.run(main(n_workers=10, batch_size=10))
