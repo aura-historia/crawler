@@ -482,30 +482,23 @@ class TestMain:
                 "src.core.worker.product_scraper.get_queue", side_effect=queue_error
             ) as mock_get_queue,
             patch("src.core.worker.product_scraper.DynamoDBOperations") as mock_db,
-            patch(
-                "src.core.worker.product_scraper.watch_spot_termination"
-            ) as mock_watch,
+            patch("src.core.worker.product_scraper.run_worker_pool") as mock_run_pool,
         ):
             await main(n_workers=1, batch_size=5)
 
             mock_get_queue.assert_called_once()
             mock_db.assert_not_called()
-            mock_watch.assert_not_called()
+            mock_run_pool.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_main_shutdown_flow(self):
-        """`main` starts workers and shuts down gracefully."""
+        """`main` starts workers using run_worker_pool and shuts down gracefully."""
         queue = Mock()
         db = Mock()
 
-        async def fake_watch(event):
-            # Trigger shutdown after a short delay
+        async def fake_run_worker_pool(*args, **kwargs):
+            # Simulate worker pool running briefly then shutting down
             await asyncio.sleep(0.1)
-            event.set()
-
-        async def fake_worker(*args, **kwargs):
-            # Simulate worker running briefly then responding to shutdown
-            await asyncio.sleep(0.2)
 
         with (
             patch(
@@ -515,15 +508,10 @@ class TestMain:
                 "src.core.worker.product_scraper.DynamoDBOperations", return_value=db
             ) as mock_db_cls,
             patch(
-                "src.core.worker.product_scraper.worker",
+                "src.core.worker.product_scraper.run_worker_pool",
                 new_callable=AsyncMock,
-                side_effect=fake_worker,
-            ) as mock_worker,
-            patch(
-                "src.core.worker.product_scraper.watch_spot_termination",
-                new_callable=AsyncMock,
-                side_effect=fake_watch,
-            ) as mock_watch,
+                side_effect=fake_run_worker_pool,
+            ) as mock_run_pool,
         ):
             import src.core.worker.product_scraper as ps
 
@@ -534,10 +522,12 @@ class TestMain:
 
             assert mock_get_queue.call_count == 1
             mock_db_cls.assert_called_once()
-            # Should spawn 2 workers
-            assert mock_worker.call_count == 2
-            assert mock_watch.call_count == 1
-            assert ps.shutdown_event.is_set()
+            # Should call run_worker_pool once with correct parameters
+            mock_run_pool.assert_called_once()
+            call_kwargs = mock_run_pool.call_args[1]
+            assert call_kwargs["n_workers"] == 2
+            assert call_kwargs["shutdown_event"] == ps.shutdown_event
+            assert call_kwargs["shutdown_timeout"] == 90
 
 
 class TestUpdateHash:

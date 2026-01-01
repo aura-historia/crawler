@@ -5,7 +5,11 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.core.worker.base_worker import handle_stolen_message, generic_worker
+from src.core.worker.base_worker import (
+    handle_stolen_message,
+    generic_worker,
+    run_worker_pool,
+)
 
 
 class TestHandleStolenMessage:
@@ -298,3 +302,249 @@ class TestGenericWorker:
 
             handler.assert_called_once_with(message)
             mock_receive.assert_called_once_with(queue, 5, 10)
+
+
+class TestRunWorkerPool:
+    """Tests for run_worker_pool function."""
+
+    @pytest.mark.asyncio
+    async def test_run_worker_pool_basic_execution(self):
+        """Test worker pool starts and stops workers correctly."""
+        shutdown_event = asyncio.Event()
+        worker_calls = []
+
+        async def mock_worker_factory(worker_id: int):
+            worker_calls.append(worker_id)
+            await asyncio.sleep(0.1)
+
+        async def trigger_shutdown():
+            await asyncio.sleep(0.05)
+            shutdown_event.set()
+
+        with patch(
+            "src.core.worker.base_worker.watch_spot_termination"
+        ) as mock_watcher:
+            mock_watcher.return_value = None
+
+            shutdown_task = asyncio.create_task(trigger_shutdown())
+
+            await run_worker_pool(
+                n_workers=3,
+                shutdown_event=shutdown_event,
+                worker_factory=mock_worker_factory,
+                shutdown_timeout=5.0,
+            )
+
+            await shutdown_task
+
+            assert len(worker_calls) == 3
+            assert worker_calls == [0, 1, 2]
+
+    @pytest.mark.asyncio
+    async def test_run_worker_pool_graceful_shutdown(self):
+        """Test worker pool waits for workers to finish gracefully."""
+        shutdown_event = asyncio.Event()
+        worker_finished = []
+
+        async def mock_worker_factory(worker_id: int):
+            await shutdown_event.wait()
+            await asyncio.sleep(0.1)
+            worker_finished.append(worker_id)
+
+        async def trigger_shutdown():
+            await asyncio.sleep(0.05)
+            shutdown_event.set()
+
+        with patch(
+            "src.core.worker.base_worker.watch_spot_termination"
+        ) as mock_watcher:
+            mock_watcher.return_value = None
+
+            shutdown_task = asyncio.create_task(trigger_shutdown())
+
+            await run_worker_pool(
+                n_workers=2,
+                shutdown_event=shutdown_event,
+                worker_factory=mock_worker_factory,
+                shutdown_timeout=5.0,
+            )
+
+            await shutdown_task
+
+            assert len(worker_finished) == 2
+            assert set(worker_finished) == {0, 1}
+
+    @pytest.mark.asyncio
+    async def test_run_worker_pool_timeout_cancellation(self):
+        """Test worker pool cancels workers on timeout."""
+        shutdown_event = asyncio.Event()
+        worker_cancelled = []
+
+        async def slow_worker_factory(worker_id: int):
+            try:
+                await shutdown_event.wait()
+                await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                worker_cancelled.append(worker_id)
+                raise
+
+        async def trigger_shutdown():
+            await asyncio.sleep(0.05)
+            shutdown_event.set()
+
+        with patch(
+            "src.core.worker.base_worker.watch_spot_termination"
+        ) as mock_watcher:
+            mock_watcher.return_value = None
+
+            shutdown_task = asyncio.create_task(trigger_shutdown())
+
+            await run_worker_pool(
+                n_workers=2,
+                shutdown_event=shutdown_event,
+                worker_factory=slow_worker_factory,
+                shutdown_timeout=0.2,
+            )
+
+            await shutdown_task
+
+            assert len(worker_cancelled) == 2
+            assert set(worker_cancelled) == {0, 1}
+
+    @pytest.mark.asyncio
+    async def test_run_worker_pool_worker_exception(self):
+        """Test worker pool handles worker exceptions gracefully."""
+        shutdown_event = asyncio.Event()
+        worker_calls = []
+
+        async def failing_worker_factory(worker_id: int):
+            worker_calls.append(worker_id)
+            if worker_id == 1:
+                raise RuntimeError(f"Worker {worker_id} failed")
+            await shutdown_event.wait()
+
+        async def trigger_shutdown():
+            await asyncio.sleep(0.1)
+            shutdown_event.set()
+
+        with patch(
+            "src.core.worker.base_worker.watch_spot_termination"
+        ) as mock_watcher:
+            mock_watcher.return_value = None
+
+            shutdown_task = asyncio.create_task(trigger_shutdown())
+
+            await run_worker_pool(
+                n_workers=3,
+                shutdown_event=shutdown_event,
+                worker_factory=failing_worker_factory,
+                shutdown_timeout=5.0,
+            )
+
+            await shutdown_task
+
+            assert len(worker_calls) == 3
+
+    @pytest.mark.asyncio
+    async def test_run_worker_pool_signal_handler_setup(self):
+        """Test worker pool sets up signal handlers correctly."""
+        shutdown_event = asyncio.Event()
+
+        async def mock_worker_factory(worker_id: int):
+            await asyncio.sleep(0.05)
+
+        async def trigger_shutdown():
+            await asyncio.sleep(0.02)
+            shutdown_event.set()
+
+        with patch(
+            "src.core.worker.base_worker.watch_spot_termination"
+        ) as mock_watcher:
+            mock_watcher.return_value = None
+            with patch("asyncio.get_running_loop") as mock_loop:
+                mock_loop_instance = Mock()
+                mock_loop.return_value = mock_loop_instance
+                mock_loop_instance.add_signal_handler = Mock()
+
+                shutdown_task = asyncio.create_task(trigger_shutdown())
+
+                await run_worker_pool(
+                    n_workers=1,
+                    shutdown_event=shutdown_event,
+                    worker_factory=mock_worker_factory,
+                    shutdown_timeout=5.0,
+                )
+
+                await shutdown_task
+
+                # Verify signal handlers were added
+                assert mock_loop_instance.add_signal_handler.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_worker_pool_windows_signal_fallback(self):
+        """Test worker pool handles Windows signal setup fallback."""
+        shutdown_event = asyncio.Event()
+
+        async def mock_worker_factory(worker_id: int):
+            await asyncio.sleep(0.05)
+
+        async def trigger_shutdown():
+            await asyncio.sleep(0.02)
+            shutdown_event.set()
+
+        with patch(
+            "src.core.worker.base_worker.watch_spot_termination"
+        ) as mock_watcher:
+            mock_watcher.return_value = None
+            with patch("asyncio.get_running_loop") as mock_loop:
+                mock_loop_instance = Mock()
+                mock_loop.return_value = mock_loop_instance
+                mock_loop_instance.add_signal_handler = Mock(
+                    side_effect=NotImplementedError("Windows")
+                )
+
+                with patch("signal.signal") as mock_signal:
+                    shutdown_task = asyncio.create_task(trigger_shutdown())
+
+                    await run_worker_pool(
+                        n_workers=1,
+                        shutdown_event=shutdown_event,
+                        worker_factory=mock_worker_factory,
+                        shutdown_timeout=5.0,
+                    )
+
+                    await shutdown_task
+
+                    # Verify fallback to signal.signal was used
+                    assert mock_signal.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_worker_pool_gather_exception_during_drain(self):
+        """Test worker pool handles exceptions during worker drain."""
+        shutdown_event = asyncio.Event()
+
+        async def mock_worker_factory(worker_id: int):
+            await shutdown_event.wait()
+            if worker_id == 0:
+                raise ValueError("Unexpected error during drain")
+
+        async def trigger_shutdown():
+            await asyncio.sleep(0.05)
+            shutdown_event.set()
+
+        with patch(
+            "src.core.worker.base_worker.watch_spot_termination"
+        ) as mock_watcher:
+            mock_watcher.return_value = None
+
+            shutdown_task = asyncio.create_task(trigger_shutdown())
+
+            # Should not raise, just log error
+            await run_worker_pool(
+                n_workers=2,
+                shutdown_event=shutdown_event,
+                worker_factory=mock_worker_factory,
+                shutdown_timeout=5.0,
+            )
+
+            await shutdown_task

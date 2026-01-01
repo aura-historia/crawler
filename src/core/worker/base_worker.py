@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import signal
 from typing import Any, Callable, Awaitable
 
 from src.core.utils.logger import logger
 from src.core.aws.sqs.message_wrapper import receive_messages
+from src.core.aws.spot.spot_termination_watcher import (
+    watch_spot_termination,
+    signal_handler,
+)
 
 
 async def handle_stolen_message(worker_id: int, fetch_task: asyncio.Task) -> None:
@@ -89,3 +94,66 @@ async def generic_worker(
             logger.exception(f"Worker-{worker_id} error: {e}")
 
     logger.info(f"Worker-{worker_id} shut down.")
+
+
+async def run_worker_pool(
+    n_workers: int,
+    shutdown_event: asyncio.Event,
+    worker_factory: Callable[[int], Awaitable[None]],
+    shutdown_timeout: float = 90.0,
+) -> None:
+    """Run a pool of workers with graceful shutdown handling.
+
+    This function manages the lifecycle of multiple worker tasks, including:
+    - Signal handling for SIGINT/SIGTERM
+    - Spot instance termination watching
+    - Graceful shutdown with timeout
+    - Force cancellation if workers don't finish in time
+
+    Args:
+        n_workers (int): Number of worker tasks to spawn.
+        shutdown_event (asyncio.Event): Event to signal shutdown.
+        worker_factory (Callable): Function that creates a worker task.
+            Should accept worker_id as parameter and return an awaitable.
+        shutdown_timeout (float): Max seconds to wait for workers to finish.
+            Defaults to 90.0 seconds.
+    """
+    # Setup signal handlers
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, signal_handler, sig, shutdown_event)
+        except NotImplementedError:
+            # Windows doesn't support add_signal_handler
+            signal.signal(sig, lambda s, f: shutdown_event.set())
+
+    # Start spot termination watcher
+    watcher_task = asyncio.create_task(watch_spot_termination(shutdown_event))
+
+    # Spawn worker pool
+    logger.info(f"Starting {n_workers} concurrent workers...")
+    workers = [asyncio.create_task(worker_factory(i)) for i in range(n_workers)]
+
+    # Wait for shutdown signal
+    await shutdown_event.wait()
+    logger.info(f"Shutdown initiated. Draining workers (max {shutdown_timeout}s)...")
+
+    # Wait for workers to finish gracefully
+    gather_workers = asyncio.gather(*workers)
+
+    try:
+        await asyncio.wait_for(gather_workers, timeout=shutdown_timeout)
+    except asyncio.TimeoutError:
+        logger.warning("Workers did not finish in time! Force cancelling tasks...")
+        for w in workers:
+            if not w.done():
+                w.cancel()
+        # Wait for cancellations to propagate
+        await asyncio.gather(*workers, return_exceptions=True)
+    except Exception as e:
+        logger.error(f"Error during worker drain: {e}")
+    finally:
+        # Cancel watcher if still running
+        if not watcher_task.done():
+            watcher_task.cancel()
+        logger.info("All workers stopped. Process finished.")

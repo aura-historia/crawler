@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import signal
 from datetime import datetime
 from typing import Any, List, Optional
 
@@ -17,13 +16,9 @@ from src.core.aws.sqs.message_wrapper import (
 from src.core.aws.sqs.queue_wrapper import get_queue
 from src.core.utils.logger import logger
 from src.core.utils.spider_config import crawl_config, crawl_dispatcher
-from src.core.aws.spot.spot_termination_watcher import (
-    watch_spot_termination,
-    signal_handler,
-)
 from crawl4ai import AsyncWebCrawler, BrowserConfig
 
-from src.core.worker.base_worker import generic_worker
+from src.core.worker.base_worker import generic_worker, run_worker_pool
 
 load_dotenv()
 
@@ -282,8 +277,11 @@ async def worker(
 
 
 async def main(n_workers: int = 3, batch_size: int = 50) -> None:
-    """
-    Entry point that initializes resources and spawns a worker pool.
+    """Entry point that initializes resources and spawns a worker pool.
+
+    Args:
+        n_workers (int): Number of concurrent workers. Defaults to 3.
+        batch_size (int): Number of URLs to batch before writing to DB. Defaults to 50.
     """
     try:
         queue = get_queue(QUEUE_NAME)
@@ -295,41 +293,16 @@ async def main(n_workers: int = 3, batch_size: int = 50) -> None:
         logger.critical(f"Initialization failed: {e}")
         return
 
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, signal_handler, sig, shutdown_event)
-        except NotImplementedError:
-            signal.signal(sig, lambda s, f: shutdown_event.set())
+    # Worker factory function
+    async def create_worker(worker_id: int) -> None:
+        await worker(worker_id, queue, classifier, db, batch_size)
 
-    watcher_task = asyncio.create_task(watch_spot_termination(shutdown_event))
-
-    # Spawn worker pool
-    logger.info(f"Starting {n_workers} concurrent workers...")
-    workers = [
-        asyncio.create_task(worker(i, queue, classifier, db, batch_size))
-        for i in range(n_workers)
-    ]
-
-    await shutdown_event.wait()
-    logger.info("Shutdown initiated. Draining workers (max 90s)...")
-
-    gather_workers = asyncio.gather(*workers)
-
-    try:
-        await asyncio.wait_for(gather_workers, timeout=90.0)
-    except asyncio.TimeoutError:
-        logger.warning("Workers did not finish in time! Force cancelling tasks...")
-        for w in workers:
-            if not w.done():
-                w.cancel()
-        await asyncio.gather(*workers, return_exceptions=True)
-    except Exception as e:
-        logger.error(f"Error during worker drain: {e}")
-    finally:
-        if not watcher_task.done():
-            watcher_task.cancel()
-        logger.info("All workers stopped. Scraper process finished.")
+    await run_worker_pool(
+        n_workers=n_workers,
+        shutdown_event=shutdown_event,
+        worker_factory=create_worker,
+        shutdown_timeout=90.0,
+    )
 
 
 if __name__ == "__main__":
