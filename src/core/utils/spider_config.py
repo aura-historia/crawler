@@ -17,7 +17,8 @@ from src.core.algorithms.bfs_no_cycle_deep_crawl_strategy import (
 def crawl_config() -> CrawlerRunConfig:
     """Crawl URLs starting from the given URL using BFSNoCycleDeepCrawlStrategy."""
     strategy = BFSNoCycleDeepCrawlStrategy(
-        max_depth=1000,
+        max_depth=100,  # Deep enough to reach all pages on most websites
+        max_pages=999999,  # Effectively unlimited - crawl entire website
         include_external=False,
         exclude_extensions=[
             "jpg",

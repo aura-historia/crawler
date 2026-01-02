@@ -360,7 +360,7 @@ class TestHandleDomainMessage:
         message.body = json.dumps({"domain": "example.com"})
 
         db = Mock()
-        db.get_product_urls_by_domain = Mock(
+        db.get_all_product_urls_by_domain = Mock(
             return_value=[
                 "https://example.com/product1",
                 "https://example.com/product2",
@@ -407,7 +407,7 @@ class TestHandleDomainMessage:
                 message, db, shutdown_event, queue, batch_size=10
             )
 
-            db.get_product_urls_by_domain.assert_called_once_with("example.com")
+            db.get_all_product_urls_by_domain.assert_called_once_with("example.com")
             db.update_shop_metadata.assert_called_once()
             mock_delete.assert_called_once_with(message)
 
@@ -443,7 +443,7 @@ class TestHandleDomainMessage:
         """Test handling message when no product URLs exist."""
         message = Mock()
         db = Mock()
-        db.get_product_urls_by_domain = Mock(return_value=[])
+        db.get_all_product_urls_by_domain = Mock(return_value=[])
         queue = Mock()
         shutdown_event = asyncio.Event()
 

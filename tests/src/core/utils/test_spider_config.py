@@ -22,7 +22,11 @@ def test_deep_crawl_strategy_settings():
 
     assert strat is not None
     assert hasattr(strat, "max_depth")
-    assert getattr(strat, "max_depth") == 1000
+    assert getattr(strat, "max_depth") == 100  # Updated for full website crawling
+    assert hasattr(strat, "max_pages")
+    assert (
+        getattr(strat, "max_pages") == 999999
+    )  # Effectively unlimited for full crawling
     assert hasattr(strat, "include_external")
     assert getattr(strat, "include_external") is False
 

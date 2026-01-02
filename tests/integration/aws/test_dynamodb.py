@@ -174,7 +174,7 @@ class TestDynamoDBIntegration:
         result = self.ops.batch_write_url_entries(urls)
         assert result["UnprocessedItems"] == {}
 
-        retrieved = self.ops.get_product_urls_by_domain(domain)
+        retrieved = self.ops.get_all_product_urls_by_domain(domain)
         assert len(retrieved) == count
 
     def test_scenario_core_domain_search_with_exclusions(self):
@@ -217,7 +217,7 @@ class TestDynamoDBIntegration:
         ]
         self.ops.batch_write_url_entries(entries)
 
-        products = self.ops.get_product_urls_by_domain(domain)
+        products = self.ops.get_all_product_urls_by_domain(domain)
 
         assert len(products) == 4
         assert f"https://{domain}/p1" in products
@@ -346,9 +346,77 @@ class TestDynamoDBIntegration:
         ]
 
         self.ops.batch_write_url_entries(urls)
-        retrieved = self.ops.get_product_urls_by_domain(domain)
+        retrieved = self.ops.get_all_product_urls_by_domain(domain)
 
         assert len(retrieved) == total_items
+
+    def test_write_and_read_2500_urls(self):
+        """
+        Test writing 2500 URLs and reading all of them back.
+
+        This test verifies:
+        - Batch writing large volumes (2500 URLs)
+        - Automatic pagination through multiple DynamoDB pages
+        - Data integrity (all URLs retrieved correctly)
+        - No duplicates in results
+        - Performance with large datasets
+        """
+        domain = "mega-catalog.com"
+        total_items = 2500
+
+        # Create 2500 URL entries with zero-padded numbers for easy verification
+        urls = [
+            URLEntry(
+                domain=domain,
+                url=f"https://{domain}/product-{i:05d}",
+                type="product",
+            )
+            for i in range(total_items)
+        ]
+
+        # Write in batches (DynamoDB batch_write_item has a 25-item limit internally)
+        batch_size = 100
+        for i in range(0, len(urls), batch_size):
+            batch = urls[i : i + batch_size]
+            result = self.ops.batch_write_url_entries(batch)
+            assert result["UnprocessedItems"] == {}, (
+                f"Batch {i // batch_size} had unprocessed items"
+            )
+
+        # Retrieve ALL 2500 URLs using automatic pagination
+        retrieved = self.ops.get_all_product_urls_by_domain(domain)
+
+        # Verify exact count
+        assert len(retrieved) == total_items, (
+            f"Expected {total_items} URLs, got {len(retrieved)}"
+        )
+
+        # Verify first and last URLs are present
+        assert any("product-00000" in url for url in retrieved), (
+            "First URL (product-00000) not found"
+        )
+        assert any("product-02499" in url for url in retrieved), (
+            "Last URL (product-02499) not found"
+        )
+
+        # Verify all URLs are unique (no duplicates from pagination)
+        unique_urls = set(retrieved)
+        assert len(unique_urls) == total_items, (
+            f"Found duplicates: {len(retrieved)} total vs {len(unique_urls)} unique"
+        )
+
+        # Verify URL format and domain consistency
+        for url in retrieved:
+            assert domain in url, f"URL {url} doesn't contain domain {domain}"
+            assert url.startswith("https://"), f"URL {url} doesn't start with https://"
+
+        # Verify we can find specific URLs by index
+        sample_indices = [0, 500, 1000, 1500, 2000, 2499]
+        for idx in sample_indices:
+            expected_url = f"https://{domain}/product-{idx:05d}"
+            assert expected_url in retrieved, (
+                f"Expected URL at index {idx} not found: {expected_url}"
+            )
 
     def test_item_isolation_same_partition(self):
         domain = "isolation.com"
@@ -416,3 +484,93 @@ class TestDynamoDBIntegration:
             assert item["pk"]["S"] == f"SHOP#{domain}"
             assert item["domain"]["S"] == f"{domain}"
             assert not item["sk"]["S"].startswith("URL#")
+
+    def test_get_url_entry_existing(self):
+        """Retrieve an existing URL entry."""
+        domain = "url-retrieval.com"
+        url = f"https://{domain}/product-123"
+        original_hash = "abc123"
+
+        entry = URLEntry(domain=domain, url=url, type="product", hash=original_hash)
+        self.ops.upsert_url_entry(entry)
+
+        retrieved = self.ops.get_url_entry(domain, url)
+
+        assert retrieved is not None
+        assert retrieved.domain == domain
+        assert retrieved.url == url
+        assert retrieved.type == "product"
+        assert retrieved.hash == original_hash
+
+    def test_get_url_entry_not_found(self):
+        """Return None for non-existent URL entry."""
+        domain = "non-existent.com"
+        url = "https://non-existent.com/missing"
+
+        retrieved = self.ops.get_url_entry(domain, url)
+
+        assert retrieved is None
+
+    def test_update_url_hash_success(self):
+        """Update hash for an existing URL entry."""
+        domain = "hash-update.com"
+        url = f"https://{domain}/product-456"
+        original_hash = "hash_v1"
+        new_hash = "hash_v2"
+
+        entry = URLEntry(domain=domain, url=url, type="product", hash=original_hash)
+        self.ops.upsert_url_entry(entry)
+
+        self.ops.update_url_hash(domain, url, new_hash)
+
+        retrieved = self.ops.get_url_entry(domain, url)
+        assert retrieved is not None
+        assert retrieved.hash == new_hash
+
+    def test_update_url_hash_preserves_other_fields(self):
+        """Ensure update_url_hash only changes hash, not other attributes."""
+        domain = "hash-preserve.com"
+        url = f"https://{domain}/product-789"
+        original_hash = "original"
+        new_hash = "updated"
+
+        entry = URLEntry(domain=domain, url=url, type="product", hash=original_hash)
+        self.ops.upsert_url_entry(entry)
+
+        self.ops.update_url_hash(domain, url, new_hash)
+
+        retrieved = self.ops.get_url_entry(domain, url)
+        assert retrieved is not None
+        assert retrieved.hash == new_hash
+        assert retrieved.type == "product"
+        assert retrieved.url == url
+
+    def test_pagination_with_explicit_token(self):
+        """Test explicit pagination with LastEvaluatedKey."""
+        domain = "pagination-explicit.io"
+        total_items = 15
+        page_size = 5
+
+        urls = [
+            URLEntry(domain=domain, url=f"https://{domain}/item-{i}", type="product")
+            for i in range(total_items)
+        ]
+        self.ops.batch_write_url_entries(urls)
+
+        # Collect all pages
+        all_pages = []
+        last_key = None
+
+        while True:
+            page_urls, next_key = self.ops.get_product_urls_by_domain(
+                domain, max_urls=page_size, last_evaluated_key=last_key
+            )
+            all_pages.extend(page_urls)
+
+            if next_key is None:
+                break
+            last_key = next_key
+
+        # Verify total count and no duplicates
+        assert len(all_pages) == total_items
+        assert len(set(all_pages)) == total_items

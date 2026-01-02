@@ -164,9 +164,14 @@ async def update_hash(extracted, domain, url) -> bool:
     """
 
     status = extracted.get("state")
-    price = extracted.get("price").get("amount")
+    price_obj = extracted.get("price") or {}
+    price = price_obj.get("amount")
 
-    print(status, price)
+    if not status or not price:
+        logger.warning(f"Missing status or price for {url}")
+        return False
+
+    logger.debug(f"Status: {status}, Price: {price} for {url}")
 
     new_hash = URLEntry.calculate_hash(status, price)
     old_entry = await asyncio.to_thread(db_operations.get_url_entry, domain, url)
@@ -202,7 +207,9 @@ async def handle_domain_message(
 
     try:
         scrape_start_time = datetime.now().isoformat()
-        product_urls = await asyncio.to_thread(db.get_product_urls_by_domain, domain)
+        product_urls = await asyncio.to_thread(
+            db.get_all_product_urls_by_domain, domain
+        )
 
         start_index = 0
         if next_url:
