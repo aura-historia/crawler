@@ -86,19 +86,19 @@ async def testcheck_spot_termination_notice_found(mock_aiohttp_session, shutdown
     """
     Tests that the shutdown event is set when a termination notice is found.
     """
-    token_url = "http://token-url"
-    metadata_url = "http://metadata-url"
-    with patch("os.getenv", side_effect=[metadata_url, token_url]):
-        mock_aiohttp_session.put(token_url, status=200, body="test-token")
-        mock_aiohttp_session.get(
-            metadata_url,
-            status=200,
-            payload={"action": "terminate", "time": "2023-12-15T10:45:00Z"},
-        )
+    token_url = "http://169.254.169.254/latest/api/token"
+    metadata_url = "http://169.254.169.254/latest/meta-data/spot/instance-action"
 
-        async with aiohttp.ClientSession() as session:
-            await check_spot_termination_notice(session, shutdown_event)
-            assert shutdown_event.is_set()
+    mock_aiohttp_session.put(token_url, status=200, body="test-token")
+    mock_aiohttp_session.get(
+        metadata_url,
+        status=200,
+        payload={"action": "terminate", "time": "2023-12-15T10:45:00Z"},
+    )
+
+    async with aiohttp.ClientSession() as session:
+        await check_spot_termination_notice(session, shutdown_event)
+        assert shutdown_event.is_set()
 
 
 @pytest.mark.asyncio
@@ -108,15 +108,15 @@ async def testcheck_spot_termination_notice_not_found(
     """
     Tests that the shutdown event is not set when no termination notice is found.
     """
-    token_url = "http://token-url"
-    metadata_url = "http://metadata-url"
-    with patch("os.getenv", side_effect=[token_url, metadata_url]):
-        mock_aiohttp_session.put(token_url, status=200, body="test-token")
-        mock_aiohttp_session.get(metadata_url, status=404)
+    token_url = "http://169.254.169.254/latest/api/token"
+    metadata_url = "http://169.254.169.254/latest/meta-data/spot/instance-action"
 
-        async with aiohttp.ClientSession() as session:
-            await check_spot_termination_notice(session, shutdown_event)
-            assert not shutdown_event.is_set()
+    mock_aiohttp_session.put(token_url, status=200, body="test-token")
+    mock_aiohttp_session.get(metadata_url, status=404)
+
+    async with aiohttp.ClientSession() as session:
+        await check_spot_termination_notice(session, shutdown_event)
+        assert not shutdown_event.is_set()
 
 
 @pytest.mark.asyncio
@@ -124,15 +124,14 @@ async def test_check_spot_termination_no_token(mock_aiohttp_session, shutdown_ev
     """
     Tests that the check is aborted if no metadata token is retrieved.
     """
-    token_url = "http://token-url"
-    metadata_url = "http://metadata-url"
-    with patch("os.getenv", side_effect=[token_url, metadata_url]):
-        mock_aiohttp_session.put(token_url, status=400)
+    token_url = "http://169.254.169.254/latest/api/token"
 
-        async with aiohttp.ClientSession() as session:
-            await check_spot_termination_notice(session, shutdown_event)
-            assert not shutdown_event.is_set()
-            assert len(mock_aiohttp_session.requests) == 1  # Only token request
+    mock_aiohttp_session.put(token_url, status=400)
+
+    async with aiohttp.ClientSession() as session:
+        await check_spot_termination_notice(session, shutdown_event)
+        assert not shutdown_event.is_set()
+        assert len(mock_aiohttp_session.requests) == 1  # Only token request
 
 
 @pytest.mark.asyncio
@@ -142,15 +141,15 @@ async def test_check_spot_termination_invalid_json(
     """
     Tests handling of invalid JSON in the metadata response.
     """
-    token_url = "http://token-url"
-    metadata_url = "http://metadata-url"
-    with patch("os.getenv", side_effect=[token_url, metadata_url]):
-        mock_aiohttp_session.put(token_url, status=200, body="test-token")
-        mock_aiohttp_session.get(metadata_url, status=200, body="not-json")
+    token_url = "http://169.254.169.254/latest/api/token"
+    metadata_url = "http://169.254.169.254/latest/meta-data/spot/instance-action"
 
-        async with aiohttp.ClientSession() as session:
-            await check_spot_termination_notice(session, shutdown_event)
-            assert not shutdown_event.is_set()
+    mock_aiohttp_session.put(token_url, status=200, body="test-token")
+    mock_aiohttp_session.get(metadata_url, status=200, body="not-json")
+
+    async with aiohttp.ClientSession() as session:
+        await check_spot_termination_notice(session, shutdown_event)
+        assert not shutdown_event.is_set()
 
 
 @pytest.mark.asyncio

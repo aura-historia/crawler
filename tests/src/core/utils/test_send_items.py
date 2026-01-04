@@ -6,12 +6,11 @@ from src.core.utils import send_items
 
 class TestSendItems:
     @pytest.mark.asyncio
-    async def test_send_items_no_api_url(self, capsys):
-        """Should print error and return if AWS_API_URL is not set."""
+    async def test_send_items_no_api_url(self, caplog):
+        """Should log error and return if AWS_API_URL is not set."""
         with patch.dict(os.environ, {}, clear=True):
             await send_items.send_items([{"foo": "bar"}])
-            captured = capsys.readouterr()
-            assert "ERROR: AWS_API_URL environment variable is not set." in captured.out
+            assert "AWS_API_URL environment variable is not set." in caplog.text
 
     @pytest.mark.asyncio
     async def test_send_items_success(self):

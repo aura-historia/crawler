@@ -8,8 +8,8 @@ from src.core.worker.product_scraper import (
     batch_sender,
     scrape,
     handle_domain_message,
-    process_message_batch,
     main,
+    worker,
 )
 
 
@@ -174,13 +174,21 @@ class TestBatchSender:
         """Test batch sender with items requiring multiple batches."""
         q = asyncio.Queue()
 
+        sent_batches = []
+        mock_send_items.side_effect = lambda batch: sent_batches.append(list(batch))
+
         for i in range(5):
             await q.put({"url": f"https://example.com/{i}"})
         await q.put(None)
 
         await batch_sender(q, batch_size=2)
 
+        # With 5 items and batch_size=2, we expect 3 sends: [2, 2, 1]
         assert mock_send_items.call_count == 3
+        assert len(sent_batches) == 3
+        assert len(sent_batches[0]) == 2
+        assert len(sent_batches[1]) == 2
+        assert len(sent_batches[2]) == 1
 
     @pytest.mark.asyncio
     async def test_batch_sender_empty_queue(self, mock_send_items):
@@ -352,7 +360,7 @@ class TestHandleDomainMessage:
         message.body = json.dumps({"domain": "example.com"})
 
         db = Mock()
-        db.get_product_urls_by_domain = Mock(
+        db.get_all_product_urls_by_domain = Mock(
             return_value=[
                 "https://example.com/product1",
                 "https://example.com/product2",
@@ -399,8 +407,9 @@ class TestHandleDomainMessage:
                 message, db, shutdown_event, queue, batch_size=10
             )
 
-            db.get_product_urls_by_domain.assert_called_once_with("example.com")
-            db.update_shop_metadata.assert_called_once()
+            db.get_all_product_urls_by_domain.assert_called_once_with("example.com")
+            # Should be called twice: once at start, once at end
+            assert db.update_shop_metadata.call_count == 2
             mock_delete.assert_called_once_with(message)
 
     @pytest.mark.asyncio
@@ -408,6 +417,7 @@ class TestHandleDomainMessage:
         """Test handling message without domain."""
         message = Mock()
         db = Mock()
+        db.get_all_product_urls_by_domain = Mock(return_value=[])
         queue = Mock()
         shutdown_event = asyncio.Event()
 
@@ -422,7 +432,9 @@ class TestHandleDomainMessage:
                 new_callable=AsyncMock,
             ) as mock_thread,
         ):
-            mock_thread.side_effect = lambda func, *args: func(*args)
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
+            )
 
             await handle_domain_message(
                 message, db, shutdown_event, queue, batch_size=10
@@ -435,7 +447,7 @@ class TestHandleDomainMessage:
         """Test handling message when no product URLs exist."""
         message = Mock()
         db = Mock()
-        db.get_product_urls_by_domain = Mock(return_value=[])
+        db.get_all_product_urls_by_domain = Mock(return_value=[])
         queue = Mock()
         shutdown_event = asyncio.Event()
 
@@ -450,59 +462,15 @@ class TestHandleDomainMessage:
                 new_callable=AsyncMock,
             ) as mock_thread,
         ):
-            mock_thread.side_effect = lambda func, *args: func(*args)
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
+            )
 
             await handle_domain_message(
                 message, db, shutdown_event, queue, batch_size=10
             )
 
             mock_delete.assert_called_once_with(message)
-
-
-class TestProcessMessageBatch:
-    """Tests for process_message_batch function."""
-
-    @pytest.mark.asyncio
-    async def test_process_multiple_messages(self):
-        """Test processing multiple messages concurrently."""
-        messages = [Mock(), Mock(), Mock()]
-        db = Mock()
-        shutdown_event = asyncio.Event()
-        queue = Mock()
-
-        with patch(
-            "src.core.worker.product_scraper.handle_domain_message",
-            new_callable=AsyncMock,
-        ) as mock_handle:
-            await process_message_batch(
-                messages, db, shutdown_event, queue, batch_size=10
-            )
-
-            assert mock_handle.call_count == 3
-
-    @pytest.mark.asyncio
-    async def test_process_batch_with_errors(self):
-        """Test that errors in one message don't prevent others from processing."""
-        messages = [Mock(), Mock(), Mock()]
-        db = Mock()
-        shutdown_event = asyncio.Event()
-        queue = Mock()
-
-        async def mock_handle_side_effect(msg):
-            await asyncio.sleep(0)
-            if msg == messages[1]:
-                raise RuntimeError("Processing error")
-
-        with patch(
-            "src.core.worker.product_scraper.handle_domain_message",
-            new_callable=AsyncMock,
-            side_effect=mock_handle_side_effect,
-        ) as mock_handle:
-            await process_message_batch(
-                messages, db, shutdown_event, queue, batch_size=10
-            )
-
-            assert mock_handle.call_count == 3
 
 
 class TestMain:
@@ -520,34 +488,23 @@ class TestMain:
                 "src.core.worker.product_scraper.get_queue", side_effect=queue_error
             ) as mock_get_queue,
             patch("src.core.worker.product_scraper.DynamoDBOperations") as mock_db,
-            patch(
-                "src.core.worker.product_scraper.watch_spot_termination"
-            ) as mock_watch,
+            patch("src.core.worker.product_scraper.run_worker_pool") as mock_run_pool,
         ):
-            await main(n_shops=1, batch_size=5)
+            await main(n_workers=1, batch_size=5)
 
             mock_get_queue.assert_called_once()
             mock_db.assert_not_called()
-            mock_watch.assert_not_called()
+            mock_run_pool.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_main_shutdown_flow(self):
-        """`main` polls once, observes shutdown, and cancels watcher."""
+        """`main` starts workers using run_worker_pool and shuts down gracefully."""
         queue = Mock()
         db = Mock()
 
-        receive_call_counter = {"count": 0}
-
-        def fake_receive(_queue, _max_messages, _wait_time):
-            receive_call_counter["count"] += 1
-            if receive_call_counter["count"] > 1:
-                import src.core.worker.product_scraper as ps
-
-                ps.shutdown_event.set()
-            return []
-
-        async def fake_watch(event):
-            await event.wait()
+        async def fake_run_worker_pool(*args, **kwargs):
+            # Simulate worker pool running briefly then shutting down
+            await asyncio.sleep(0.1)
 
         with (
             patch(
@@ -557,31 +514,26 @@ class TestMain:
                 "src.core.worker.product_scraper.DynamoDBOperations", return_value=db
             ) as mock_db_cls,
             patch(
-                "src.core.worker.product_scraper.receive_messages",
-                side_effect=fake_receive,
-            ) as mock_receive,
-            patch(
-                "src.core.worker.product_scraper.process_message_batch",
+                "src.core.worker.product_scraper.run_worker_pool",
                 new_callable=AsyncMock,
-            ) as mock_batch,
-            patch(
-                "src.core.worker.product_scraper.watch_spot_termination",
-                new_callable=AsyncMock,
-                side_effect=fake_watch,
-            ) as mock_watch,
+                side_effect=fake_run_worker_pool,
+            ) as mock_run_pool,
         ):
             import src.core.worker.product_scraper as ps
 
+            # Reset shutdown event for this test
             ps.shutdown_event = asyncio.Event()
 
-            await main(n_shops=1, batch_size=5)
+            await main(n_workers=2, batch_size=5)
 
             assert mock_get_queue.call_count == 1
             mock_db_cls.assert_called_once()
-            assert mock_receive.call_count >= 1
-            mock_batch.assert_not_called()
-            assert mock_watch.call_count == 1
-            assert ps.shutdown_event.is_set()
+            # Should call run_worker_pool once with correct parameters
+            mock_run_pool.assert_called_once()
+            call_kwargs = mock_run_pool.call_args[1]
+            assert call_kwargs["n_workers"] == 2
+            assert call_kwargs["shutdown_event"] == ps.shutdown_event
+            assert call_kwargs["shutdown_timeout"] == 90
 
 
 class TestUpdateHash:
@@ -683,3 +635,77 @@ class TestUpdateHash:
             extracted, "example.com", "https://example.com/1"
         )
         assert result is False
+
+
+class TestWorker:
+    """Tests for worker function using generic_worker."""
+
+    @pytest.mark.asyncio
+    async def test_worker_processes_messages(self):
+        """Test that worker processes domain messages correctly."""
+        worker_id = 1
+        queue = Mock()
+        db = Mock()
+        batch_size = 10
+        message = Mock()
+        message.body = json.dumps({"domain": "example.com"})
+
+        with (
+            patch(
+                "src.core.worker.product_scraper.generic_worker",
+                new_callable=AsyncMock,
+            ) as mock_generic_worker,
+            patch(
+                "src.core.worker.product_scraper.shutdown_event"
+            ) as mock_shutdown_event,
+        ):
+            mock_shutdown_event.is_set.return_value = False
+
+            await worker(worker_id, queue, db, batch_size)
+
+            mock_generic_worker.assert_called_once()
+            call_kwargs = mock_generic_worker.call_args[1]
+            assert call_kwargs["worker_id"] == worker_id
+            assert call_kwargs["queue"] == queue
+            assert call_kwargs["max_messages"] == 1
+            assert call_kwargs["wait_time"] == 20
+
+    @pytest.mark.asyncio
+    async def test_worker_handler_calls_handle_domain_message(self):
+        """Test that worker's message handler delegates to handle_domain_message."""
+        worker_id = 1
+        queue = Mock()
+        db = Mock()
+        batch_size = 10
+        message = Mock()
+        message.body = json.dumps({"domain": "example.com"})
+
+        handler_captured = None
+
+        async def capture_handler(*args, **kwargs):  # NOSONAR
+            nonlocal handler_captured
+            handler_captured = kwargs.get("message_handler")
+
+        with (
+            patch(
+                "src.core.worker.product_scraper.generic_worker",
+                side_effect=capture_handler,
+            ),
+            patch(
+                "src.core.worker.product_scraper.handle_domain_message",
+                new_callable=AsyncMock,
+            ) as mock_handle,
+            patch(
+                "src.core.worker.product_scraper.shutdown_event"
+            ) as mock_shutdown_event,
+        ):
+            mock_shutdown_event.is_set.return_value = False
+
+            await worker(worker_id, queue, db, batch_size)
+
+            # Test the handler
+            await handler_captured(message)
+
+            mock_handle.assert_called_once_with(
+                message, db, mock_shutdown_event, queue, batch_size
+            )

@@ -8,7 +8,7 @@ from src.core.worker.product_spider import (
     parse_shop_message,
     crawl_and_classify_urls,
     handle_shop_message,
-    process_message_batch,
+    worker,
 )
 
 
@@ -269,7 +269,7 @@ class TestHandleShopMessage:
 
     @pytest.mark.asyncio
     async def test_handle_valid_message(self):
-        """Test handling a valid shop message."""
+        """Test handling a valid shop message with successful crawl."""
         message = Mock()
         message.body = json.dumps({"domain": "example.com"})
 
@@ -284,7 +284,7 @@ class TestHandleShopMessage:
             patch(
                 "src.core.worker.product_spider.crawl_and_classify_urls",
                 new_callable=AsyncMock,
-                return_value=10,
+                return_value=10,  # Successfully processed 10 URLs
             ) as mock_crawl,
             patch(
                 "src.core.worker.product_spider.asyncio.to_thread",
@@ -292,6 +292,7 @@ class TestHandleShopMessage:
             ) as mock_thread,
             patch("src.core.worker.product_spider.crawl_config"),
             patch("src.core.worker.product_spider.BrowserConfig"),
+            patch("src.core.worker.product_spider.delete_message") as mock_delete,
         ):
             mock_thread.side_effect = lambda func, *args, **kwargs: func(
                 *args, **kwargs
@@ -310,7 +311,10 @@ class TestHandleShopMessage:
             )
 
             mock_crawl.assert_called_once()
-            db.update_shop_metadata.assert_called_once()
+            # Should be called twice: once at start, once at end (when processed_count > 1)
+            assert db.update_shop_metadata.call_count == 2
+            # Message should be deleted because processed_count > 1
+            mock_delete.assert_called_once_with(message)
 
     @pytest.mark.asyncio
     async def test_handle_invalid_message(self):
@@ -360,7 +364,11 @@ class TestHandleShopMessage:
             ) as mock_thread,
             patch("src.core.worker.product_spider.crawl_config"),
             patch("src.core.worker.product_spider.BrowserConfig"),
+            patch("src.core.worker.product_spider.delete_message") as mock_delete,
         ):
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
+            )
             mock_crawler_instance = AsyncMock()
             mock_crawler_class.return_value.__aenter__.return_value = (
                 mock_crawler_instance
@@ -375,98 +383,180 @@ class TestHandleShopMessage:
             )
 
             mock_crawl.assert_called_once()
-            mock_thread.assert_not_called()
-            db.update_shop_metadata.assert_not_called()
-
-
-class TestProcessMessageBatch:
-    """Tests for process_message_batch function."""
+            # Should be called once at start before error occurs
+            db.update_shop_metadata.assert_called_once()
+            # Message should NOT be deleted on error
+            mock_delete.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_process_empty_batch(self):
-        """Test processing an empty message batch."""
-        classifier = Mock()
-        db = Mock()
-        shutdown_event = asyncio.Event()
-
-        await process_message_batch(
-            messages=[],
-            classifier=classifier,
-            db=db,
-            shutdown_event=shutdown_event,
-            batch_size=50,
-        )
-
-    @pytest.mark.asyncio
-    async def test_process_multiple_messages(self):
-        """Test processing multiple messages in parallel."""
-        messages = create_mock_messages(3)
+    async def test_handle_message_no_urls_found(self):
+        """Test handling a message when no URLs are found during crawl."""
+        message = Mock()
+        message.body = json.dumps({"domain": "example.com"})
 
         classifier = Mock()
         db = Mock()
         shutdown_event = asyncio.Event()
 
-        with patch(
-            "src.core.worker.product_spider.handle_shop_message", new_callable=AsyncMock
-        ) as mock_handle:
-            await process_message_batch(
-                messages=messages,
+        with (
+            patch(
+                "src.core.worker.product_spider.AsyncWebCrawler"
+            ) as mock_crawler_class,
+            patch(
+                "src.core.worker.product_spider.crawl_and_classify_urls",
+                new_callable=AsyncMock,
+                return_value=0,  # No URLs found
+            ) as mock_crawl,
+            patch(
+                "src.core.worker.product_spider.asyncio.to_thread",
+                new_callable=AsyncMock,
+            ) as mock_thread,
+            patch("src.core.worker.product_spider.crawl_config"),
+            patch("src.core.worker.product_spider.BrowserConfig"),
+            patch("src.core.worker.product_spider.delete_message") as mock_delete,
+        ):
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
+            )
+            mock_crawler_instance = AsyncMock()
+            mock_crawler_class.return_value.__aenter__.return_value = (
+                mock_crawler_instance
+            )
+
+            await handle_shop_message(
+                message=message,
                 classifier=classifier,
                 db=db,
                 shutdown_event=shutdown_event,
                 batch_size=50,
             )
 
-            assert mock_handle.call_count == 3
+            mock_crawl.assert_called_once()
+            # Should be called once at start (but not at end since processed_count <= 1)
+            db.update_shop_metadata.assert_called_once()
+            # Message should NOT be deleted when no URLs found (processed_count = 0)
+            mock_delete.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_process_batch_with_shutdown(self):
-        """Test processing messages when shutdown is triggered."""
-        messages = create_mock_messages(3)
+    async def test_handle_message_single_url_found(self):
+        """Test handling a message when only 1 URL is found (boundary case)."""
+        message = Mock()
+        message.body = json.dumps({"domain": "example.com"})
 
         classifier = Mock()
         db = Mock()
         shutdown_event = asyncio.Event()
-        shutdown_event.set()
 
-        with patch(
-            "src.core.worker.product_spider.handle_shop_message", new_callable=AsyncMock
-        ) as mock_handle:
-            await process_message_batch(
-                messages=messages,
+        with (
+            patch(
+                "src.core.worker.product_spider.AsyncWebCrawler"
+            ) as mock_crawler_class,
+            patch(
+                "src.core.worker.product_spider.crawl_and_classify_urls",
+                new_callable=AsyncMock,
+                return_value=1,  # Only 1 URL found (boundary case)
+            ) as mock_crawl,
+            patch(
+                "src.core.worker.product_spider.asyncio.to_thread",
+                new_callable=AsyncMock,
+            ) as mock_thread,
+            patch("src.core.worker.product_spider.crawl_config"),
+            patch("src.core.worker.product_spider.BrowserConfig"),
+            patch("src.core.worker.product_spider.delete_message") as mock_delete,
+        ):
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
+            )
+            mock_crawler_instance = AsyncMock()
+            mock_crawler_class.return_value.__aenter__.return_value = (
+                mock_crawler_instance
+            )
+
+            await handle_shop_message(
+                message=message,
                 classifier=classifier,
                 db=db,
                 shutdown_event=shutdown_event,
                 batch_size=50,
             )
 
-            assert mock_handle.call_count == 0
+            mock_crawl.assert_called_once()
+            # Should be called once at start (but not at end since processed_count <= 1)
+            db.update_shop_metadata.assert_called_once()
+            # Message should NOT be deleted when processed_count <= 1
+            mock_delete.assert_not_called()
+
+
+class TestWorker:
+    """Tests for worker function using generic_worker."""
 
     @pytest.mark.asyncio
-    async def test_process_batch_handles_exceptions(self):
-        """Test that exceptions in one message don't affect others."""
-        messages = create_mock_messages(3)
-
+    async def test_worker_processes_messages(self):
+        """Test that worker processes shop messages correctly."""
+        worker_id = 1
+        queue = Mock()
         classifier = Mock()
         db = Mock()
-        shutdown_event = asyncio.Event()
+        batch_size = 50
+        message = Mock()
+        message.body = json.dumps({"domain": "example.com"})
 
-        async def mock_handle_side_effect(message, *_args, **_kwargs):
-            await asyncio.sleep(0)
-            if message == messages[1]:
-                raise RuntimeError("Processing error")
+        with (
+            patch(
+                "src.core.worker.product_spider.generic_worker", new_callable=AsyncMock
+            ) as mock_generic_worker,
+            patch(
+                "src.core.worker.product_spider.shutdown_event"
+            ) as mock_shutdown_event,
+        ):
+            mock_shutdown_event.is_set.return_value = False
 
-        with patch(
-            "src.core.worker.product_spider.handle_shop_message",
-            new_callable=AsyncMock,
-            side_effect=mock_handle_side_effect,
-        ) as mock_handle:
-            await process_message_batch(
-                messages=messages,
-                classifier=classifier,
-                db=db,
-                shutdown_event=shutdown_event,
-                batch_size=50,
+            await worker(worker_id, queue, classifier, db, batch_size)
+
+            mock_generic_worker.assert_called_once()
+            call_kwargs = mock_generic_worker.call_args[1]
+            assert call_kwargs["worker_id"] == worker_id
+            assert call_kwargs["queue"] == queue
+            assert call_kwargs["max_messages"] == 1
+            assert call_kwargs["wait_time"] == 20
+
+    @pytest.mark.asyncio
+    async def test_worker_handler_calls_handle_shop_message(self):
+        """Test that worker's message handler delegates to handle_shop_message."""
+        worker_id = 1
+        queue = Mock()
+        classifier = Mock()
+        db = Mock()
+        batch_size = 50
+        message = Mock()
+        message.body = json.dumps({"domain": "example.com"})
+
+        handler_captured = None
+
+        async def capture_handler(*args, **kwargs):  # NOSONAR
+            nonlocal handler_captured
+            handler_captured = kwargs.get("message_handler")
+
+        with (
+            patch(
+                "src.core.worker.product_spider.generic_worker",
+                side_effect=capture_handler,
+            ),
+            patch(
+                "src.core.worker.product_spider.handle_shop_message",
+                new_callable=AsyncMock,
+            ) as mock_handle,
+            patch(
+                "src.core.worker.product_spider.shutdown_event"
+            ) as mock_shutdown_event,
+        ):
+            mock_shutdown_event.is_set.return_value = False
+
+            await worker(worker_id, queue, classifier, db, batch_size)
+
+            # Test the handler
+            await handler_captured(message)
+
+            mock_handle.assert_called_once_with(
+                message, classifier, db, mock_shutdown_event, batch_size
             )
-
-            assert mock_handle.call_count == 3

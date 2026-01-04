@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import socket
 from iptocc import get_country_code
 
@@ -24,42 +24,49 @@ class DynamoDBOperations:
         self.client = get_dynamodb_client()
         self.table_name = os.getenv("DYNAMODB_TABLE_NAME")
 
-    def get_product_urls_by_domain(self, domain: str) -> List[str]:
+    def get_product_urls_by_domain(
+        self,
+        domain: str,
+        max_urls: int = 1000,
+        last_evaluated_key: Optional[dict] = None,
+    ) -> Tuple[List[str], Optional[dict]]:
         """
-        Get all product URLs for a given domain using GSI1.
+        Get product URLs for a domain with pagination support.
+
+        This method limits the number of URLs fetched to prevent excessive RRU consumption
+        and memory issues when dealing with domains that have tens of thousands of products.
 
         Args:
             domain: Shop domain
+            max_urls: Maximum URLs to return in single call (default: 1000)
+            last_evaluated_key: Pagination token from previous call
 
         Returns:
-            List of product URLs
+            Tuple of (urls, next_pagination_token). Token is None if no more results.
         """
         urls = []
-        last_evaluated_key = None
 
         try:
-            while True:
-                query_args = {
-                    "TableName": self.table_name,
-                    "IndexName": "GSI1",
-                    "KeyConditionExpression": "gsi1_pk = :pk AND gsi1_sk = :type",
-                    "ExpressionAttributeValues": {
-                        ":pk": {"S": f"SHOP#{domain}"},
-                        ":type": {"S": "product"},
-                    },
-                    "ProjectionExpression": self.URL_ATTR,
-                    "ExpressionAttributeNames": {self.URL_ATTR: "url"},
-                }
-                if last_evaluated_key:
-                    query_args["ExclusiveStartKey"] = last_evaluated_key
+            query_args = {
+                "TableName": self.table_name,
+                "IndexName": "GSI1",
+                "KeyConditionExpression": "gsi1_pk = :pk AND gsi1_sk = :type",
+                "ExpressionAttributeValues": {
+                    ":pk": {"S": f"SHOP#{domain}"},
+                    ":type": {"S": "product"},
+                },
+                "Limit": max_urls,
+                "ProjectionExpression": self.URL_ATTR,
+                "ExpressionAttributeNames": {self.URL_ATTR: "url"},
+            }
 
-                response = self.client.query(**query_args)
-                urls.extend([item["url"]["S"] for item in response.get("Items", [])])
+            if last_evaluated_key:
+                query_args["ExclusiveStartKey"] = last_evaluated_key
 
-                last_evaluated_key = response.get("LastEvaluatedKey")
-                if not last_evaluated_key:
-                    break
-            return urls
+            response = self.client.query(**query_args)
+            urls = [item["url"]["S"] for item in response.get("Items", [])]
+
+            return urls, response.get("LastEvaluatedKey")
         except ClientError as e:
             logger.error(f"Error querying product URLs for {domain}: {e}")
             raise
@@ -68,6 +75,114 @@ class DynamoDBOperations:
                 f"An unexpected error occurred while querying product URLs for {domain}: {e}"
             )
             raise
+
+    def get_all_product_urls_by_domain(self, domain: str) -> List[str]:
+        """
+        Get ALL product URLs for a domain by automatically paginating through all results.
+
+        Warning: This method will fetch ALL URLs regardless of count, which can:
+        - Consume significant DynamoDB RCUs for domains with many products
+        - Use substantial memory for large result sets (10k+ URLs)
+        - Take considerable time to complete
+
+        For large domains, consider using get_product_urls_by_domain() with manual
+        pagination for better control and cost management.
+
+        Args:
+            domain: Shop domain
+
+        Returns:
+            List of all product URLs for the domain
+        """
+        all_urls = []
+        last_evaluated_key = None
+        page_count = 0
+
+        try:
+            while True:
+                page_count += 1
+                urls, last_evaluated_key = self.get_product_urls_by_domain(
+                    domain=domain, max_urls=1000, last_evaluated_key=last_evaluated_key
+                )
+
+                all_urls.extend(urls)
+
+                logger.debug(
+                    f"Fetched page {page_count} for {domain}: {len(urls)} URLs "
+                    f"(total: {len(all_urls)})"
+                )
+
+                if not last_evaluated_key:
+                    break
+
+            logger.info(
+                f"Retrieved ALL {len(all_urls)} product URLs for {domain} "
+                f"in {page_count} page(s)"
+            )
+            return all_urls
+
+        except Exception as e:
+            logger.error(
+                f"Error fetching all product URLs for {domain} "
+                f"(retrieved {len(all_urls)} before error): {e}"
+            )
+            raise
+
+    def _build_core_domain_query_args(
+        self,
+        core_domain_name: str,
+        domain_to_exclude: Optional[str],
+        last_evaluated_key: Optional[dict],
+    ) -> dict:
+        """
+        Build query arguments for core domain search.
+
+        Args:
+            core_domain_name: Core domain name to search for
+            domain_to_exclude: Optional domain to exclude
+            last_evaluated_key: Pagination token
+
+        Returns:
+            Query arguments dict for DynamoDB
+        """
+        query_args = {
+            "TableName": self.table_name,
+            "IndexName": "GSI4",
+            "KeyConditionExpression": "gsi4_pk = :cdn",
+            "ExpressionAttributeValues": {
+                ":cdn": {"S": core_domain_name},
+            },
+        }
+
+        if domain_to_exclude:
+            query_args["FilterExpression"] = "#d <> :domain_to_exclude"
+            query_args["ExpressionAttributeNames"] = {"#d": "domain"}
+            query_args["ExpressionAttributeValues"][":domain_to_exclude"] = {
+                "S": domain_to_exclude
+            }
+
+        if last_evaluated_key:
+            query_args["ExclusiveStartKey"] = last_evaluated_key
+
+        return query_args
+
+    def _handle_core_domain_error(
+        self, error: ClientError, core_domain_name: str
+    ) -> None:
+        """
+        Handle ClientError from core domain search.
+
+        Args:
+            error: ClientError exception
+            core_domain_name: Core domain being searched
+        """
+        error_message = error.response.get("Error", {}).get("Message", "")
+        if "does not have the specified index" in error_message:
+            logger.warning("GSI 'GSI4' not found. Cannot search by core domain name.")
+        else:
+            logger.error(
+                f"Error finding shops by core domain name '{core_domain_name}': {error}"
+            )
 
     def find_all_domains_by_core_domain_name(
         self, core_domain_name: str, domain_to_exclude: Optional[str] = None
@@ -87,26 +202,9 @@ class DynamoDBOperations:
 
         try:
             while True:
-                query_args = {
-                    "TableName": self.table_name,
-                    "IndexName": "GSI4",
-                    "KeyConditionExpression": "gsi4_pk = :cdn",
-                    "ExpressionAttributeValues": {
-                        ":cdn": {"S": core_domain_name},
-                    },
-                }
-
-                # Add filter if domain_to_exclude is specified
-                if domain_to_exclude:
-                    query_args["FilterExpression"] = "#d <> :domain_to_exclude"
-                    query_args["ExpressionAttributeNames"] = {"#d": "domain"}
-                    query_args["ExpressionAttributeValues"][":domain_to_exclude"] = {
-                        "S": domain_to_exclude
-                    }
-
-                if last_evaluated_key:
-                    query_args["ExclusiveStartKey"] = last_evaluated_key
-
+                query_args = self._build_core_domain_query_args(
+                    core_domain_name, domain_to_exclude, last_evaluated_key
+                )
                 response = self.client.query(**query_args)
 
                 for item in response.get("Items", []):
@@ -121,16 +219,7 @@ class DynamoDBOperations:
             )
             return shops
         except ClientError as e:
-            if "does not have the specified index" in e.response.get("Error", {}).get(
-                "Message", ""
-            ):
-                logger.warning(
-                    "GSI 'GSI4' not found. Cannot search by core domain name."
-                )
-            else:
-                logger.error(
-                    f"Error finding shops by core domain name '{core_domain_name}': {e}"
-                )
+            self._handle_core_domain_error(e, core_domain_name)
             return []
         except Exception as e:
             logger.error(
@@ -248,19 +337,30 @@ class DynamoDBOperations:
             )
             raise
 
-    def _batch_write_items(self, items: list, item_type: str) -> dict:
+    def _batch_write_items(
+        self, items: list, item_type: str, max_items: int = 1000
+    ) -> dict:
         """
         Generic batch write operation for DynamoDB items.
 
         Args:
             items: List of item dicts (already in DynamoDB format)
             item_type: Description of item type for logging
+            max_items: Maximum items to write in one call (default: 1000, prevents memory spikes)
 
         Returns:
             Response dict with UnprocessedItems
         """
         if not items:
             return {"UnprocessedItems": {}}
+
+        # Enforce maximum items limit to prevent memory issues and excessive WCU costs
+        if len(items) > max_items:
+            logger.warning(
+                f"Batch write requested {len(items)} {item_type}, limiting to {max_items}. "
+                f"Consider pagination or multiple batch calls."
+            )
+            items = items[:max_items]
 
         unique_items = list(
             {
@@ -278,8 +378,8 @@ class DynamoDBOperations:
             # DynamoDB batch_write_item supports max 25 items per request
             unprocessed_items = []
 
-            for i in range(0, len(items), 25):
-                batch = items[i : i + 25]
+            for i in range(0, len(unique_items), 25):
+                batch = unique_items[i : i + 25]
                 request_items = {
                     self.table_name: [{"PutRequest": {"Item": item}} for item in batch]
                 }
@@ -333,13 +433,44 @@ class DynamoDBOperations:
         items = [entry.to_dynamodb_item() for entry in url_entries]
         return self._batch_write_items(items, "URL entries")
 
+    def _add_timestamp_update(
+        self,
+        update_parts: list,
+        attr_values: dict,
+        field_name: str,
+        value: Optional[str],
+        placeholder: str,
+        gsi_key: Optional[str] = None,
+    ) -> None:
+        """
+        Add timestamp field update to expression parts.
+
+        Args:
+            update_parts: List to append update expressions to
+            attr_values: Dict to add attribute values to
+            field_name: Name of the field to update
+            value: Timestamp value (None for NULL, ... skipped in caller)
+            placeholder: Placeholder name for expression attribute value
+            gsi_key: Optional GSI key to also update
+        """
+        if value is not None:
+            update_parts.append(f"{field_name} = :{placeholder}")
+            attr_values[f":{placeholder}"] = {"S": value}
+            if gsi_key:
+                update_parts.append(f"{gsi_key} = :{placeholder}")
+        else:
+            update_parts.append(f"{field_name} = :{placeholder}_null")
+            attr_values[f":{placeholder}_null"] = {"NULL": True}
+            if gsi_key:
+                update_parts.append(f"{gsi_key} = :{placeholder}_null")
+
     def update_shop_metadata(
         self,
         domain: str,
-        last_crawled_start: Optional[str] = None,
-        last_crawled_end: Optional[str] = None,
-        last_scraped_start: Optional[str] = None,
-        last_scraped_end: Optional[str] = None,
+        last_crawled_start: Optional[str] = ...,
+        last_crawled_end: Optional[str] = ...,
+        last_scraped_start: Optional[str] = ...,
+        last_scraped_end: Optional[str] = ...,
     ) -> dict:
         """
         Update shop metadata with new timestamp values.
@@ -349,10 +480,10 @@ class DynamoDBOperations:
 
         Args:
             domain: Shop domain
-            last_crawled_start: ISO 8601 timestamp for crawl start
-            last_crawled_end: ISO 8601 timestamp for crawl end
-            last_scraped_start: ISO 8601 timestamp for scrape start
-            last_scraped_end: ISO 8601 timestamp for scrape end
+            last_crawled_start: ISO 8601 timestamp, None to set NULL, or ... to skip update
+            last_crawled_end: ISO 8601 timestamp, None to set NULL, or ... to skip update
+            last_scraped_start: ISO 8601 timestamp, None to set NULL, or ... to skip update
+            last_scraped_end: ISO 8601 timestamp, None to set NULL, or ... to skip update
 
         Returns:
             UpdateItem response
@@ -360,23 +491,43 @@ class DynamoDBOperations:
         update_expression_parts = []
         expression_attribute_values = {}
 
-        if last_crawled_start:
-            update_expression_parts.append("last_crawled_start = :crawled_start")
-            update_expression_parts.append("gsi2_sk = :crawled_start")
-            expression_attribute_values[":crawled_start"] = {"S": last_crawled_start}
+        if last_crawled_start is not ...:
+            self._add_timestamp_update(
+                update_expression_parts,
+                expression_attribute_values,
+                "last_crawled_start",
+                last_crawled_start,
+                "crawled_start",
+                "gsi2_sk",
+            )
 
-        if last_crawled_end:
-            update_expression_parts.append("last_crawled_end = :crawled_end")
-            expression_attribute_values[":crawled_end"] = {"S": last_crawled_end}
+        if last_crawled_end is not ...:
+            self._add_timestamp_update(
+                update_expression_parts,
+                expression_attribute_values,
+                "last_crawled_end",
+                last_crawled_end,
+                "crawled_end",
+            )
 
-        if last_scraped_start:
-            update_expression_parts.append("last_scraped_start = :scraped_start")
-            update_expression_parts.append("gsi3_sk = :scraped_start")
-            expression_attribute_values[":scraped_start"] = {"S": last_scraped_start}
+        if last_scraped_start is not ...:
+            self._add_timestamp_update(
+                update_expression_parts,
+                expression_attribute_values,
+                "last_scraped_start",
+                last_scraped_start,
+                "scraped_start",
+                "gsi3_sk",
+            )
 
-        if last_scraped_end:
-            update_expression_parts.append("last_scraped_end = :scraped_end")
-            expression_attribute_values[":scraped_end"] = {"S": last_scraped_end}
+        if last_scraped_end is not ...:
+            self._add_timestamp_update(
+                update_expression_parts,
+                expression_attribute_values,
+                "last_scraped_end",
+                last_scraped_end,
+                "scraped_end",
+            )
 
         if not update_expression_parts:
             logger.warning("No fields to update for shop metadata.")
@@ -427,7 +578,6 @@ class DynamoDBOperations:
                 ExpressionAttributeValues={":new_hash": {"S": new_hash}},
                 ReturnValues="UPDATED_NEW",
             )
-            logger.info(f"Updated hash for {url} in {domain}")
             return response["Attributes"]
         except ClientError as e:
             logger.error(
@@ -492,6 +642,32 @@ class DynamoDBOperations:
             entry: URLEntry object
         """
         self._upsert_item(entry.to_dynamodb_item(), f"URL entry for {entry.url}")
+
+    def get_shop_metadata(self, domain: str) -> Optional[ShopMetadata]:
+        """
+        Retrieve shop metadata for a domain.
+
+        Args:
+            domain: Shop domain
+
+        Returns:
+            ShopMetadata object if found, else None
+        """
+        try:
+            response = self.client.get_item(
+                TableName=self.table_name,
+                Key={
+                    "pk": {"S": f"SHOP#{domain}"},
+                    "sk": {"S": self.METADATA_SK},
+                },
+            )
+            item = response.get("Item")
+            if item:
+                return ShopMetadata.from_dynamodb_item(item)
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching shop metadata for {domain}: {e}")
+            return None
 
     def get_url_entry(self, domain: str, url: str) -> Optional[URLEntry]:
         """

@@ -38,9 +38,10 @@ class TestGetProductUrls:
             ]
         }
 
-        urls = db_ops.get_product_urls_by_domain("a.com")
+        urls, next_token = db_ops.get_product_urls_by_domain("a.com")
 
         assert urls == ["https://a.com/p1", "https://a.com/p2"]
+        assert next_token is None
         mock_boto_client.query.assert_called_once()
         called_kwargs = mock_boto_client.query.call_args.kwargs
         assert called_kwargs["TableName"] == db_ops.table_name
@@ -57,27 +58,26 @@ class TestGetProductUrls:
         assert called_kwargs["ExpressionAttributeNames"] == {"#url_attr": "url"}
 
     def test_handles_pagination(self, db_ops, mock_boto_client):
-        """Test retrieving product URLs with pagination across multiple pages."""
-        mock_boto_client.query.side_effect = [
-            {
-                "Items": [{"url": {"S": "https://b.com/p1"}}],
-                "LastEvaluatedKey": {"PK": {"S": "x"}},
-            },
-            {"Items": [{"url": {"S": "https://b.com/p2"}}]},
-        ]
+        """Test retrieving product URLs with pagination token returned."""
+        mock_boto_client.query.return_value = {
+            "Items": [{"url": {"S": "https://b.com/p1"}}],
+            "LastEvaluatedKey": {"pk": {"S": "SHOP#b.com"}, "sk": {"S": "URL#p1"}},
+        }
 
-        urls = db_ops.get_product_urls_by_domain("b.com")
+        urls, next_token = db_ops.get_product_urls_by_domain("b.com")
 
-        assert urls == ["https://b.com/p1", "https://b.com/p2"]
-        assert mock_boto_client.query.call_count == 2
+        assert urls == ["https://b.com/p1"]
+        assert next_token == {"pk": {"S": "SHOP#b.com"}, "sk": {"S": "URL#p1"}}
+        assert mock_boto_client.query.call_count == 1
 
     def test_handles_empty_results(self, db_ops, mock_boto_client):
         """Test handling when no product URLs are found for a domain."""
         mock_boto_client.query.return_value = {"Items": []}
 
-        urls = db_ops.get_product_urls_by_domain("d.com")
+        urls, next_token = db_ops.get_product_urls_by_domain("d.com")
 
         assert urls == []
+        assert next_token is None
         mock_boto_client.query.assert_called_once()
 
     def test_propagates_client_error(self, db_ops, mock_boto_client):
@@ -88,6 +88,71 @@ class TestGetProductUrls:
 
         with pytest.raises(ClientError):
             db_ops.get_product_urls_by_domain("e.com")
+
+
+class TestGetAllProductUrls:
+    """Tests for get_all_product_urls_by_domain method."""
+
+    def test_returns_all_urls_from_single_page(self, db_ops, mock_boto_client):
+        """Test retrieving all URLs when results fit in a single page."""
+        mock_boto_client.query.return_value = {
+            "Items": [
+                {"url": {"S": "https://test.com/p1"}},
+                {"url": {"S": "https://test.com/p2"}},
+            ]
+        }
+
+        urls = db_ops.get_all_product_urls_by_domain("test.com")
+
+        assert urls == ["https://test.com/p1", "https://test.com/p2"]
+        mock_boto_client.query.assert_called_once()
+
+    def test_returns_all_urls_from_multiple_pages(self, db_ops, mock_boto_client):
+        """Test automatic pagination through multiple pages."""
+        mock_boto_client.query.side_effect = [
+            {
+                "Items": [{"url": {"S": "https://multi.com/p1"}}],
+                "LastEvaluatedKey": {"pk": {"S": "key1"}},
+            },
+            {
+                "Items": [{"url": {"S": "https://multi.com/p2"}}],
+                "LastEvaluatedKey": {"pk": {"S": "key2"}},
+            },
+            {
+                "Items": [{"url": {"S": "https://multi.com/p3"}}],
+            },
+        ]
+
+        urls = db_ops.get_all_product_urls_by_domain("multi.com")
+
+        assert urls == [
+            "https://multi.com/p1",
+            "https://multi.com/p2",
+            "https://multi.com/p3",
+        ]
+        assert mock_boto_client.query.call_count == 3
+
+    def test_handles_empty_results(self, db_ops, mock_boto_client):
+        """Test handling when no URLs are found."""
+        mock_boto_client.query.return_value = {"Items": []}
+
+        urls = db_ops.get_all_product_urls_by_domain("empty.com")
+
+        assert urls == []
+        mock_boto_client.query.assert_called_once()
+
+    def test_propagates_errors(self, db_ops, mock_boto_client):
+        """Test that errors during pagination are propagated."""
+        mock_boto_client.query.side_effect = [
+            {
+                "Items": [{"url": {"S": "https://error.com/p1"}}],
+                "LastEvaluatedKey": {"pk": {"S": "key1"}},
+            },
+            ClientError({"Error": {"Message": "Query failed"}}, "Query"),
+        ]
+
+        with pytest.raises(ClientError):
+            db_ops.get_all_product_urls_by_domain("error.com")
 
 
 class TestBatchWriteOperations:

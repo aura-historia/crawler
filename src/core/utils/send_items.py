@@ -9,13 +9,14 @@ load_dotenv()
 
 
 async def send_items(items):
+    """Sends a list of items to the configured AWS API endpoint."""
     api_url = os.getenv("AWS_API_URL")
     if not api_url:
-        print("ERROR: AWS_API_URL environment variable is not set.")
+        logger.error("AWS_API_URL environment variable is not set.")
         return
     headers = {"Content-Type": "application/json"}
     async with ClientSession() as session:
-        response = await resilient_http_request(
+        await resilient_http_request(
             api_url,
             session,
             method="PUT",
@@ -24,5 +25,3 @@ async def send_items(items):
             timeout_seconds=10,
             retry_attempts=3,
         )
-
-    logger.info("Response from API:", response)

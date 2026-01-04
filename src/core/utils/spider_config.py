@@ -17,7 +17,8 @@ from src.core.algorithms.bfs_no_cycle_deep_crawl_strategy import (
 def crawl_config() -> CrawlerRunConfig:
     """Crawl URLs starting from the given URL using BFSNoCycleDeepCrawlStrategy."""
     strategy = BFSNoCycleDeepCrawlStrategy(
-        max_depth=1000,
+        max_depth=100,  # Deep enough to reach all pages on most websites
+        max_pages=999999,  # Effectively unlimited - crawl entire website
         include_external=False,
         exclude_extensions=[
             "jpg",
@@ -63,7 +64,7 @@ def crawl_config() -> CrawlerRunConfig:
 
 
 def crawl_dispatcher() -> MemoryAdaptiveDispatcher:
-    """Create a SemaphoreDispatcher for crawling."""
+    """Create a MemoryAdaptiveDispatcher with proper rate limiting."""
     dispatcher = MemoryAdaptiveDispatcher(
         memory_threshold_percent=80.0,
         check_interval=0.5,
@@ -77,7 +78,7 @@ def build_product_scraper_components() -> Tuple[BrowserConfig, CrawlerRunConfig]
     """
     Build and return the crawler configuration objects for the product scraper.
     """
-    browser_config = BrowserConfig(headless=True)
-    run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
+    browser_config = BrowserConfig(headless=True, verbose=False)
+    run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, verbose=False)
 
     return browser_config, run_config
