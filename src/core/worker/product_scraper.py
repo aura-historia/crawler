@@ -17,7 +17,10 @@ from src.core.aws.sqs.message_wrapper import (
 from src.core.aws.sqs.queue_wrapper import get_queue
 from src.core.utils.logger import logger
 from src.core.utils.send_items import send_items
-from src.core.utils.spider_config import build_product_scraper_components
+from src.core.utils.spider_config import (
+    build_product_scraper_components,
+    crawl_dispatcher,
+)
 from src.core.utils.standards_extractor import extract_standard
 from src.core.worker.base_worker import generic_worker, run_worker_pool
 from crawl4ai import AsyncWebCrawler
@@ -47,9 +50,6 @@ async def process_result(result: Any) -> Optional[ScrapedData]:
         unsupported syntax).
     """
     if not getattr(result, "success", False):
-        logger.debug(
-            "Result indicates failure: %s", getattr(result, "error_message", None)
-        )
         return None
 
     html = getattr(result, "html", None)
@@ -64,8 +64,6 @@ async def process_result(result: Any) -> Optional[ScrapedData]:
 
     standardized = await extract_standard(extracted_raw, url, preferred=syntaxes)
 
-    logger.info(f"Extracted raw data: {standardized}")
-
     return standardized
 
 
@@ -76,7 +74,6 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
         item = await q.get()
         if item is None:
             if batch:
-                logger.info(f"Sending Items remaining: {batch}")
                 await send_items(batch)
             break
 
@@ -115,13 +112,19 @@ async def scrape(
     try:
         for url in urls:
             if shutdown_event.is_set():
-                logger.info("Interrupted during crawl_streaming")
+                logger.warning(
+                    "Interrupted during crawl_streaming", extra={"domain": domain}
+                )
                 break
 
             try:
-                result = await crawler.arun(url, config=run_config)
+                result = await crawler.arun(
+                    url, config=run_config, dispatcher=crawl_dispatcher()
+                )
             except Exception as crawl_error:
-                logger.exception("Error crawling %s: %s", url, crawl_error)
+                logger.exception(
+                    "Error crawling %s: %s", url, crawl_error, extra={"domain": domain}
+                )
                 processed_count += 1
                 continue
 
@@ -133,12 +136,21 @@ async def scrape(
                         await q.put(extracted)
 
             except Exception as proc_error:
-                logger.exception("Processing error for %s: %s", url, proc_error)
+                logger.exception(
+                    "Processing error for %s: %s",
+                    url,
+                    proc_error,
+                    extra={"domain": domain},
+                )
 
             processed_count += 1
 
     except Exception as outer_error:
-        logger.exception("Unexpected error in crawl_streaming: %s", outer_error)
+        logger.exception(
+            "Unexpected error in crawl_streaming: %s",
+            outer_error,
+            extra={"domain": domain},
+        )
 
     finally:
         await q.put(None)
@@ -146,7 +158,7 @@ async def scrape(
         try:
             await consumer_task
         except Exception as ce:
-            logger.exception("Error in batch sender: %s", ce)
+            logger.exception("Error in batch sender: %s", ce, extra={"domain": domain})
 
     return processed_count
 
@@ -168,7 +180,7 @@ async def update_hash(extracted, domain, url) -> bool:
     price = price_obj.get("amount")
 
     if not status or not price:
-        logger.warning(f"Missing status or price for {url}")
+        logger.warning(f"Missing status or price for {url}", extra={"domain": domain})
         return False
 
     logger.debug(f"Status: {status}, Price: {price} for {url}")
@@ -183,8 +195,9 @@ async def update_hash(extracted, domain, url) -> bool:
             )
             return True
         except Exception as e:
-            logger.error(f"Failed to update hash for {url}: {e}")
-
+            logger.error(
+                f"Failed to update hash for {url}: {e}", extra={"domain": domain}
+            )
     return False
 
 
@@ -197,16 +210,12 @@ async def handle_domain_message(
 ) -> None:
     """Handles the full lifecycle of a single domain message."""
     domain, next_url = parse_message_body(message)
-    if not domain:
-        await asyncio.to_thread(delete_message, message)
-        return
 
     logger.info("Processing domain: %s", domain)
     stop_event = asyncio.Event()
     heartbeat_task = visibility_heartbeat(message, stop_event)
 
     try:
-        scrape_start_time = datetime.now().isoformat()
         product_urls = await asyncio.to_thread(
             db.get_all_product_urls_by_domain, domain
         )
@@ -217,6 +226,13 @@ async def handle_domain_message(
                 start_index = product_urls.index(next_url)
             except ValueError:
                 pass
+        else:
+            await asyncio.to_thread(
+                db.update_shop_metadata,
+                domain=domain,
+                last_scraped_start=datetime.now().isoformat(),
+                last_scraped_end=None,
+            )
 
         urls_to_crawl = product_urls[start_index:]
         if not urls_to_crawl:
@@ -265,7 +281,6 @@ async def handle_domain_message(
             await asyncio.to_thread(
                 db.update_shop_metadata,
                 domain=domain,
-                last_scraped_start=scrape_start_time,
                 last_scraped_end=datetime.now().isoformat(),
             )
             await asyncio.to_thread(delete_message, message)
@@ -331,4 +346,4 @@ async def main(n_workers: int = 2, batch_size: int = 10) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(n_workers=10, batch_size=10))
+    asyncio.run(main(n_workers=10, batch_size=200))

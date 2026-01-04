@@ -311,9 +311,9 @@ class TestHandleShopMessage:
             )
 
             mock_crawl.assert_called_once()
-            # Should be called twice: once at start, once at end
+            # Should be called twice: once at start, once at end (when processed_count > 1)
             assert db.update_shop_metadata.call_count == 2
-            # Message should be deleted because processed_count > 0
+            # Message should be deleted because processed_count > 1
             mock_delete.assert_called_once_with(message)
 
     @pytest.mark.asyncio
@@ -383,7 +383,7 @@ class TestHandleShopMessage:
             )
 
             mock_crawl.assert_called_once()
-            # Should be called once at the start with last_crawled_start
+            # Should be called once at start before error occurs
             db.update_shop_metadata.assert_called_once()
             # Message should NOT be deleted on error
             mock_delete.assert_not_called()
@@ -432,9 +432,58 @@ class TestHandleShopMessage:
             )
 
             mock_crawl.assert_called_once()
-            # Should be called twice (start and end)
-            assert db.update_shop_metadata.call_count == 2
-            # Message should NOT be deleted when no URLs found
+            # Should be called once at start (but not at end since processed_count <= 1)
+            db.update_shop_metadata.assert_called_once()
+            # Message should NOT be deleted when no URLs found (processed_count = 0)
+            mock_delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_handle_message_single_url_found(self):
+        """Test handling a message when only 1 URL is found (boundary case)."""
+        message = Mock()
+        message.body = json.dumps({"domain": "example.com"})
+
+        classifier = Mock()
+        db = Mock()
+        shutdown_event = asyncio.Event()
+
+        with (
+            patch(
+                "src.core.worker.product_spider.AsyncWebCrawler"
+            ) as mock_crawler_class,
+            patch(
+                "src.core.worker.product_spider.crawl_and_classify_urls",
+                new_callable=AsyncMock,
+                return_value=1,  # Only 1 URL found (boundary case)
+            ) as mock_crawl,
+            patch(
+                "src.core.worker.product_spider.asyncio.to_thread",
+                new_callable=AsyncMock,
+            ) as mock_thread,
+            patch("src.core.worker.product_spider.crawl_config"),
+            patch("src.core.worker.product_spider.BrowserConfig"),
+            patch("src.core.worker.product_spider.delete_message") as mock_delete,
+        ):
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
+            )
+            mock_crawler_instance = AsyncMock()
+            mock_crawler_class.return_value.__aenter__.return_value = (
+                mock_crawler_instance
+            )
+
+            await handle_shop_message(
+                message=message,
+                classifier=classifier,
+                db=db,
+                shutdown_event=shutdown_event,
+                batch_size=50,
+            )
+
+            mock_crawl.assert_called_once()
+            # Should be called once at start (but not at end since processed_count <= 1)
+            db.update_shop_metadata.assert_called_once()
+            # Message should NOT be deleted when processed_count <= 1
             mock_delete.assert_not_called()
 
 

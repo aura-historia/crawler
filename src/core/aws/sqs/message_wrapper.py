@@ -139,7 +139,6 @@ def delete_message(message: Any) -> None:
     """
     try:
         message.delete()
-        logger.info("Deleted message: %s", message.message_id)
     except ClientError as error:
         logger.exception("Couldn't delete message: %s", message.message_id)
         raise error
@@ -165,9 +164,6 @@ def delete_messages(queue: Any, messages: list) -> dict:
             for ind, msg in enumerate(messages)
         ]
         response = queue.delete_messages(Entries=entries)
-        if "Successful" in response:
-            for msg_meta in response["Successful"]:
-                logger.info("Deleted %s", messages[int(msg_meta["Id"])].receipt_handle)
         if "Failed" in response:
             for msg_meta in response["Failed"]:
                 logger.warning(

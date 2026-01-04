@@ -65,9 +65,7 @@ async def crawl_and_classify_urls(
                 break
 
             if not result.success:
-                logger.debug(
-                    f"Crawl failed for {result.url}: {getattr(result, 'error_message', 'Unknown error')}"
-                )
+                logger.warning(f"Failed to crawl URL: {result.url}")
                 processed_count += 1
                 continue
 
@@ -75,45 +73,41 @@ async def crawl_and_classify_urls(
 
             try:
                 # Classify the URL
-                is_product_bool, confidence = classifier.classify_url(url)
-
-                logger.info(
-                    f"URL: {url} | is_product: {is_product_bool} | confidence: {confidence:.3f}"
-                )
+                is_product_bool, _ = classifier.classify_url(url)
 
                 # Create URL entry with type field
                 url_entry = URLEntry(
-                    domain=domain,
-                    url=url,
-                    type="product" if is_product_bool else "other",
+                    domain=domain, url=url, type="product" if is_product_bool else None
                 )
 
                 url_batch.append(url_entry)
 
                 # Batch write to database
                 if len(url_batch) >= batch_size:
-                    logger.info(f"Writing batch of {len(url_batch)} URLs to database")
                     await asyncio.to_thread(db.batch_write_url_entries, url_batch)
                     url_batch.clear()
 
                 processed_count += 1
 
             except Exception as e:
-                logger.exception(f"Error processing URL {url}: {e}")
+                logger.exception(
+                    f"Error processing URL {url}: {e}", extra={"domain": domain}
+                )
                 processed_count += 1
                 continue
 
     except Exception as e:
-        logger.exception(f"Error during crawl: {e}")
+        logger.exception(f"Error during crawl: {e}", extra={"domain": domain})
 
     finally:
         # Write remaining URLs
         if url_batch:
-            logger.info(f"Writing final batch of {len(url_batch)} URLs to database")
             try:
                 await asyncio.to_thread(db.batch_write_url_entries, url_batch)
             except Exception as e:
-                logger.exception(f"Error writing final batch: {e}")
+                logger.exception(
+                    f"Error writing final batch: {e}", extra={"domain": domain}
+                )
 
     return processed_count
 
@@ -185,7 +179,7 @@ async def handle_shop_message(
             db.update_shop_metadata,
             domain=domain,
             last_crawled_start=crawl_start_time,
-            last_crawled_end=" ",
+            last_crawled_end=None,
         )
 
         browser_config = BrowserConfig(headless=True)
@@ -216,17 +210,17 @@ async def handle_shop_message(
             )
             return
 
-        crawl_end_time = datetime.now().isoformat()
-        await asyncio.to_thread(
-            db.update_shop_metadata,
-            domain=domain,
-            last_crawled_end=crawl_end_time,
-        )
-
         if processed_count > 1:
+            crawl_end_time = datetime.now().isoformat()
+            await asyncio.to_thread(
+                db.update_shop_metadata,
+                domain=domain,
+                last_crawled_end=crawl_end_time,
+            )
+
             await asyncio.to_thread(delete_message, message)
             logger.info(
-                f"Successfully processed {processed_count} URLs and deleted message for {domain}"
+                f"Successfully processed {processed_count} URLs and deleted message for {domain}, crawl started at {crawl_start_time} and ended at {crawl_end_time}."
             )
         else:
             logger.warning(
@@ -306,5 +300,4 @@ async def main(n_workers: int = 3, batch_size: int = 50) -> None:
 
 
 if __name__ == "__main__":
-    # In AWS ECS/Fargate, adjust n_workers based on available vCPU/RAM
     asyncio.run(main(n_workers=10, batch_size=50))

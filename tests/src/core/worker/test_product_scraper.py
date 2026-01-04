@@ -408,7 +408,8 @@ class TestHandleDomainMessage:
             )
 
             db.get_all_product_urls_by_domain.assert_called_once_with("example.com")
-            db.update_shop_metadata.assert_called_once()
+            # Should be called twice: once at start, once at end
+            assert db.update_shop_metadata.call_count == 2
             mock_delete.assert_called_once_with(message)
 
     @pytest.mark.asyncio
@@ -416,6 +417,7 @@ class TestHandleDomainMessage:
         """Test handling message without domain."""
         message = Mock()
         db = Mock()
+        db.get_all_product_urls_by_domain = Mock(return_value=[])
         queue = Mock()
         shutdown_event = asyncio.Event()
 
@@ -430,7 +432,9 @@ class TestHandleDomainMessage:
                 new_callable=AsyncMock,
             ) as mock_thread,
         ):
-            mock_thread.side_effect = lambda func, *args: func(*args)
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
+            )
 
             await handle_domain_message(
                 message, db, shutdown_event, queue, batch_size=10
@@ -458,7 +462,9 @@ class TestHandleDomainMessage:
                 new_callable=AsyncMock,
             ) as mock_thread,
         ):
-            mock_thread.side_effect = lambda func, *args: func(*args)
+            mock_thread.side_effect = lambda func, *args, **kwargs: func(
+                *args, **kwargs
+            )
 
             await handle_domain_message(
                 message, db, shutdown_event, queue, batch_size=10

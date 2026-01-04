@@ -378,8 +378,8 @@ class DynamoDBOperations:
             # DynamoDB batch_write_item supports max 25 items per request
             unprocessed_items = []
 
-            for i in range(0, len(items), 25):
-                batch = items[i : i + 25]
+            for i in range(0, len(unique_items), 25):
+                batch = unique_items[i : i + 25]
                 request_items = {
                     self.table_name: [{"PutRequest": {"Item": item}} for item in batch]
                 }
@@ -433,13 +433,44 @@ class DynamoDBOperations:
         items = [entry.to_dynamodb_item() for entry in url_entries]
         return self._batch_write_items(items, "URL entries")
 
+    def _add_timestamp_update(
+        self,
+        update_parts: list,
+        attr_values: dict,
+        field_name: str,
+        value: Optional[str],
+        placeholder: str,
+        gsi_key: Optional[str] = None,
+    ) -> None:
+        """
+        Add timestamp field update to expression parts.
+
+        Args:
+            update_parts: List to append update expressions to
+            attr_values: Dict to add attribute values to
+            field_name: Name of the field to update
+            value: Timestamp value (None for NULL, ... skipped in caller)
+            placeholder: Placeholder name for expression attribute value
+            gsi_key: Optional GSI key to also update
+        """
+        if value is not None:
+            update_parts.append(f"{field_name} = :{placeholder}")
+            attr_values[f":{placeholder}"] = {"S": value}
+            if gsi_key:
+                update_parts.append(f"{gsi_key} = :{placeholder}")
+        else:
+            update_parts.append(f"{field_name} = :{placeholder}_null")
+            attr_values[f":{placeholder}_null"] = {"NULL": True}
+            if gsi_key:
+                update_parts.append(f"{gsi_key} = :{placeholder}_null")
+
     def update_shop_metadata(
         self,
         domain: str,
-        last_crawled_start: Optional[str] = None,
-        last_crawled_end: Optional[str] = None,
-        last_scraped_start: Optional[str] = None,
-        last_scraped_end: Optional[str] = None,
+        last_crawled_start: Optional[str] = ...,
+        last_crawled_end: Optional[str] = ...,
+        last_scraped_start: Optional[str] = ...,
+        last_scraped_end: Optional[str] = ...,
     ) -> dict:
         """
         Update shop metadata with new timestamp values.
@@ -449,10 +480,10 @@ class DynamoDBOperations:
 
         Args:
             domain: Shop domain
-            last_crawled_start: ISO 8601 timestamp for crawl start
-            last_crawled_end: ISO 8601 timestamp for crawl end
-            last_scraped_start: ISO 8601 timestamp for scrape start
-            last_scraped_end: ISO 8601 timestamp for scrape end
+            last_crawled_start: ISO 8601 timestamp, None to set NULL, or ... to skip update
+            last_crawled_end: ISO 8601 timestamp, None to set NULL, or ... to skip update
+            last_scraped_start: ISO 8601 timestamp, None to set NULL, or ... to skip update
+            last_scraped_end: ISO 8601 timestamp, None to set NULL, or ... to skip update
 
         Returns:
             UpdateItem response
@@ -460,23 +491,43 @@ class DynamoDBOperations:
         update_expression_parts = []
         expression_attribute_values = {}
 
-        if last_crawled_start:
-            update_expression_parts.append("last_crawled_start = :crawled_start")
-            update_expression_parts.append("gsi2_sk = :crawled_start")
-            expression_attribute_values[":crawled_start"] = {"S": last_crawled_start}
+        if last_crawled_start is not ...:
+            self._add_timestamp_update(
+                update_expression_parts,
+                expression_attribute_values,
+                "last_crawled_start",
+                last_crawled_start,
+                "crawled_start",
+                "gsi2_sk",
+            )
 
-        if last_crawled_end:
-            update_expression_parts.append("last_crawled_end = :crawled_end")
-            expression_attribute_values[":crawled_end"] = {"S": last_crawled_end}
+        if last_crawled_end is not ...:
+            self._add_timestamp_update(
+                update_expression_parts,
+                expression_attribute_values,
+                "last_crawled_end",
+                last_crawled_end,
+                "crawled_end",
+            )
 
-        if last_scraped_start:
-            update_expression_parts.append("last_scraped_start = :scraped_start")
-            update_expression_parts.append("gsi3_sk = :scraped_start")
-            expression_attribute_values[":scraped_start"] = {"S": last_scraped_start}
+        if last_scraped_start is not ...:
+            self._add_timestamp_update(
+                update_expression_parts,
+                expression_attribute_values,
+                "last_scraped_start",
+                last_scraped_start,
+                "scraped_start",
+                "gsi3_sk",
+            )
 
-        if last_scraped_end:
-            update_expression_parts.append("last_scraped_end = :scraped_end")
-            expression_attribute_values[":scraped_end"] = {"S": last_scraped_end}
+        if last_scraped_end is not ...:
+            self._add_timestamp_update(
+                update_expression_parts,
+                expression_attribute_values,
+                "last_scraped_end",
+                last_scraped_end,
+                "scraped_end",
+            )
 
         if not update_expression_parts:
             logger.warning("No fields to update for shop metadata.")
@@ -527,7 +578,6 @@ class DynamoDBOperations:
                 ExpressionAttributeValues={":new_hash": {"S": new_hash}},
                 ReturnValues="UPDATED_NEW",
             )
-            logger.info(f"Updated hash for {url} in {domain}")
             return response["Attributes"]
         except ClientError as e:
             logger.error(
@@ -592,6 +642,32 @@ class DynamoDBOperations:
             entry: URLEntry object
         """
         self._upsert_item(entry.to_dynamodb_item(), f"URL entry for {entry.url}")
+
+    def get_shop_metadata(self, domain: str) -> Optional[ShopMetadata]:
+        """
+        Retrieve shop metadata for a domain.
+
+        Args:
+            domain: Shop domain
+
+        Returns:
+            ShopMetadata object if found, else None
+        """
+        try:
+            response = self.client.get_item(
+                TableName=self.table_name,
+                Key={
+                    "pk": {"S": f"SHOP#{domain}"},
+                    "sk": {"S": self.METADATA_SK},
+                },
+            )
+            item = response.get("Item")
+            if item:
+                return ShopMetadata.from_dynamodb_item(item)
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching shop metadata for {domain}: {e}")
+            return None
 
     def get_url_entry(self, domain: str, url: str) -> Optional[URLEntry]:
         """
