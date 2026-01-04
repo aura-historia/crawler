@@ -83,18 +83,18 @@ class ShopMetadata:
             item["gsi3_pk"] = {"S": self.shop_country}
         if self.last_crawled_start:
             item["last_crawled_start"] = {"S": self.last_crawled_start}
-            # GSI2: Country + crawled date
-            if self.shop_country:
-                item["gsi2_sk"] = {"S": self.last_crawled_start}
         if self.last_crawled_end:
             item["last_crawled_end"] = {"S": self.last_crawled_end}
+            # GSI2: Country + crawled end date
+            if self.shop_country:
+                item["gsi2_sk"] = {"S": self.last_crawled_end}
         if self.last_scraped_start:
             item["last_scraped_start"] = {"S": self.last_scraped_start}
-            # GSI3: Country + scraped date
-            if self.shop_country:
-                item["gsi3_sk"] = {"S": self.last_scraped_start}
         if self.last_scraped_end:
             item["last_scraped_end"] = {"S": self.last_scraped_end}
+            # GSI3: Country + scraped end date
+            if self.shop_country:
+                item["gsi3_sk"] = {"S": self.last_scraped_end}
         # GSI4: Core domain index
         if self.core_domain_name:
             item["gsi4_pk"] = {"S": self.core_domain_name}

@@ -33,12 +33,12 @@ class TestDynamoDBIntegration:
     def test_shop_metadata_raw_state_and_gsis(self):
         domain = "organic-beauty.com"
         country = "DE"
-        crawl_start = "2025-12-21T10:00:00Z"
+        crawl_end = "2025-12-21T10:00:00Z"
 
         shop = ShopMetadata(
             domain=domain,
             shop_country=country,
-            last_crawled_start=crawl_start,
+            last_crawled_end=crawl_end,
         )
         self.ops.upsert_shop_metadata(shop)
 
@@ -50,7 +50,7 @@ class TestDynamoDBIntegration:
         raw_item = response["Item"]
 
         assert raw_item["gsi2_pk"]["S"] == "COUNTRY#DE"
-        assert raw_item["gsi2_sk"]["S"] == crawl_start
+        assert raw_item["gsi2_sk"]["S"] == crawl_end
         assert raw_item["gsi4_pk"]["S"] == "organic-beauty"
         assert raw_item["gsi4_sk"]["S"] == domain
         assert raw_item["standards_used"]["BOOL"] is True
@@ -76,7 +76,7 @@ class TestDynamoDBIntegration:
             ShopMetadata(
                 domain=target_domain,
                 shop_country="DE",
-                last_crawled_start="2024-01-20T00:00:00Z",
+                last_crawled_end="2024-01-20T00:00:00Z",
             )
         )
 
@@ -84,7 +84,7 @@ class TestDynamoDBIntegration:
             ShopMetadata(
                 domain="old-germany.de",
                 shop_country="DE",
-                last_crawled_start="2020-01-01T00:00:00Z",
+                last_crawled_end="2020-01-01T00:00:00Z",
             )
         )
 
@@ -101,23 +101,23 @@ class TestDynamoDBIntegration:
     def test_scrape_vs_crawl_gsi_updates(self):
         """Verify Independence of GSI2 (Crawl) and GSI3 (Scrape)."""
         domain = "dual-index-shop.com"
-        crawl_date = "2025-12-21T10:00:00Z"
-        scrape_date = "2025-12-21T20:00:00Z"
+        crawl_end_date = "2025-12-21T10:00:00Z"
+        scrape_end_date = "2025-12-21T20:00:00Z"
 
         shop = ShopMetadata(
-            domain=domain, shop_country="DE", last_crawled_start=crawl_date
+            domain=domain, shop_country="DE", last_crawled_end=crawl_end_date
         )
         self.ops.upsert_shop_metadata(shop)
 
-        self.ops.update_shop_metadata(domain=domain, last_scraped_start=scrape_date)
+        self.ops.update_shop_metadata(domain=domain, last_scraped_end=scrape_end_date)
 
         raw_item = self.ops.client.get_item(
             TableName=self.table_name,
             Key={"pk": {"S": f"SHOP#{domain}"}, "sk": {"S": "META#"}},
         )["Item"]
 
-        assert raw_item["gsi2_sk"]["S"] == crawl_date
-        assert raw_item["gsi3_sk"]["S"] == scrape_date
+        assert raw_item["gsi2_sk"]["S"] == crawl_end_date
+        assert raw_item["gsi3_sk"]["S"] == scrape_end_date
 
     def test_scenario_upsert_with_geo_lookup(self):
         domain = "brand-new-store.com"
@@ -143,10 +143,10 @@ class TestDynamoDBIntegration:
 
         self.ops.upsert_shop_metadata(
             ShopMetadata(
-                domain=domain, shop_country="DE", last_crawled_start=initial_date
+                domain=domain, shop_country="DE", last_crawled_end=initial_date
             )
         )
-        self.ops.update_shop_metadata(domain=domain, last_crawled_start=target_date)
+        self.ops.update_shop_metadata(domain=domain, last_crawled_end=target_date)
 
         found_new = self.ops.get_shops_by_country_and_crawled_date(
             country="DE",
@@ -234,7 +234,7 @@ class TestDynamoDBIntegration:
             ShopMetadata(
                 domain=target_domain,
                 shop_country=country,
-                last_crawled_start="2025-12-21T10:00:00Z",
+                last_crawled_end="2025-12-21T10:00:00Z",
             )
         )
 
@@ -242,7 +242,7 @@ class TestDynamoDBIntegration:
             ShopMetadata(
                 domain="old-crawl.de",
                 shop_country=country,
-                last_crawled_start="2020-01-01T00:00:00Z",
+                last_crawled_end="2020-01-01T00:00:00Z",
             )
         )
 
@@ -250,7 +250,7 @@ class TestDynamoDBIntegration:
             ShopMetadata(
                 domain="french-shop.fr",
                 shop_country="FR",
-                last_crawled_start="2025-12-21T11:00:00Z",
+                last_crawled_end="2025-12-21T11:00:00Z",
             )
         )
 
@@ -261,7 +261,7 @@ class TestDynamoDBIntegration:
         )
 
         assert target_domain in results
-        assert "old-germany.de" not in results
+        assert "old-crawl.de" not in results
         assert "french-shop.fr" not in results
         assert len(results) == 1
 
@@ -269,13 +269,13 @@ class TestDynamoDBIntegration:
         """GSI3: Verify country-based scrape date filtering is independent of crawl data."""
         country = "DE"
         domain = "scrape-target.de"
-        scrape_date = "2025-12-21T15:00:00Z"
+        scrape_end_date = "2025-12-21T15:00:00Z"
 
         self.ops.upsert_shop_metadata(
             ShopMetadata(
                 domain=domain,
                 shop_country=country,
-                last_crawled_start="2025-12-21T10:00:00Z",
+                last_crawled_end="2025-12-21T10:00:00Z",
             )
         )
 
@@ -284,7 +284,7 @@ class TestDynamoDBIntegration:
         )
         assert domain not in before_update
 
-        self.ops.update_shop_metadata(domain=domain, last_scraped_start=scrape_date)
+        self.ops.update_shop_metadata(domain=domain, last_scraped_end=scrape_end_date)
 
         after_update = self.ops.get_shops_by_country_and_scraped_date(
             country, "2025-12-21T00:00:00Z", "2025-12-21T23:59:59Z"
@@ -464,7 +464,7 @@ class TestDynamoDBIntegration:
             ShopMetadata(
                 domain=domain,
                 shop_country="DE",
-                last_crawled_start="2025-12-21T10:00:00Z",
+                last_crawled_end="2025-12-21T10:00:00Z",
             )
         )
         self.ops.upsert_url_entry(

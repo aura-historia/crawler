@@ -95,7 +95,7 @@ Each GSI uses dedicated attributes (`gsi<n>_pk`, `gsi<n>_sk`) so items only proj
 - **Purpose:** Find shops from a specific country that were crawled within a date range.
 - **Key Schema:**
     - **HASH Key (`gsi2_pk`):** `shop_country` (e.g., `COUNTRY#DE`).
-    - **RANGE Key (`gsi2_sk`):** `last_crawled_start`.
+    - **RANGE Key (`gsi2_sk`):** `last_crawled_end`.
 - **Projection:** `domain`
 
 ### GSI3 – CountryLastScrapedIndex
@@ -103,7 +103,7 @@ Each GSI uses dedicated attributes (`gsi<n>_pk`, `gsi<n>_sk`) so items only proj
 - **Purpose:** Find shops from a specific country that were scraped for product data within a date range.
 - **Key Schema:**
     - **HASH Key (`gsi3_pk`):** `shop_country` (e.g., `COUNTRY#DE`).
-    - **RANGE Key (`gsi3_sk`):** `last_scraped_start`.
+    - **RANGE Key (`gsi3_sk`):** `last_scraped_end`.
 - **Projection:** `domain`
 
 ### GSI4 – CoreDomainNameIndex

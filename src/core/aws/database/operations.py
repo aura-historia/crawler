@@ -498,7 +498,6 @@ class DynamoDBOperations:
                 "last_crawled_start",
                 last_crawled_start,
                 "crawled_start",
-                "gsi2_sk",
             )
 
         if last_crawled_end is not ...:
@@ -508,6 +507,7 @@ class DynamoDBOperations:
                 "last_crawled_end",
                 last_crawled_end,
                 "crawled_end",
+                "gsi2_sk",
             )
 
         if last_scraped_start is not ...:
@@ -517,7 +517,6 @@ class DynamoDBOperations:
                 "last_scraped_start",
                 last_scraped_start,
                 "scraped_start",
-                "gsi3_sk",
             )
 
         if last_scraped_end is not ...:
@@ -527,6 +526,7 @@ class DynamoDBOperations:
                 "last_scraped_end",
                 last_scraped_end,
                 "scraped_end",
+                "gsi3_sk",
             )
 
         if not update_expression_parts:
