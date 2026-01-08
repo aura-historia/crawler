@@ -44,7 +44,6 @@ class ShopMetadata:
     """
 
     domain: str
-    standards_used: bool = field(default=True)
     shop_country: Optional[str] = field(default=None)
     shop_name: Optional[str] = field(default=None)
     pk: Optional[str] = field(default=None)
@@ -71,29 +70,32 @@ class ShopMetadata:
             "pk": {"S": self.pk},
             "sk": {"S": self.sk},
             "domain": {"S": self.domain},
-            "standards_used": {"BOOL": self.standards_used},
             "core_domain_name": {"S": self.core_domain_name},
         }
         if self.shop_name:
             item["shop_name"] = {"S": self.shop_name}
         if self.shop_country:
             item["shop_country"] = {"S": self.shop_country}
-            # GSI2/GSI3: Country-based indexes
+            # GSI2: Always set for shops with country (for orchestration queries)
             item["gsi2_pk"] = {"S": self.shop_country}
-            item["gsi3_pk"] = {"S": self.shop_country}
         if self.last_crawled_start:
             item["last_crawled_start"] = {"S": self.last_crawled_start}
         if self.last_crawled_end:
             item["last_crawled_end"] = {"S": self.last_crawled_end}
-            # GSI2: Country + crawled end date
+            # GSI2: Set actual crawled end date
             if self.shop_country:
                 item["gsi2_sk"] = {"S": self.last_crawled_end}
+        else:
+            # GSI2: Use epoch marker for new/never-crawled shops (enables GSI2 queries)
+            if self.shop_country:
+                item["gsi2_sk"] = {"S": "1970-01-01T00:00:00Z"}
         if self.last_scraped_start:
             item["last_scraped_start"] = {"S": self.last_scraped_start}
         if self.last_scraped_end:
             item["last_scraped_end"] = {"S": self.last_scraped_end}
-            # GSI3: Country + scraped end date
+            # GSI3: Country + scraped end date (sparse index)
             if self.shop_country:
+                item["gsi3_pk"] = {"S": self.shop_country}
                 item["gsi3_sk"] = {"S": self.last_scraped_end}
         # GSI4: Core domain index
         if self.core_domain_name:
@@ -108,7 +110,6 @@ class ShopMetadata:
             pk=item["pk"]["S"],
             sk=item["sk"]["S"],
             domain=item["domain"]["S"],
-            standards_used=item.get("standards_used", {}).get("BOOL"),
             shop_country=item.get("shop_country", {}).get("S"),
             shop_name=item.get("shop_name", {}).get("S"),
             last_crawled_start=item.get("last_crawled_start", {}).get("S"),

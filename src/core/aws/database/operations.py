@@ -475,7 +475,7 @@ class DynamoDBOperations:
         """
         Update shop metadata with new timestamp values.
 
-        Important: GSI keys (gsi2_sk, gsi3_sk) must be explicitly updated.
+        Important: GSI keys (gsi2_pk, gsi2_sk, gsi3_pk, gsi3_sk) must be explicitly updated.
         DynamoDB does NOT automatically sync them when base attributes change.
 
         Args:
@@ -488,6 +488,10 @@ class DynamoDBOperations:
         Returns:
             UpdateItem response
         """
+        # Fetch current shop metadata to get shop_country for GSI keys
+        current_metadata = self.get_shop_metadata(domain)
+        shop_country = current_metadata.shop_country if current_metadata else None
+
         update_expression_parts = []
         expression_attribute_values = {}
 
@@ -509,6 +513,10 @@ class DynamoDBOperations:
                 "crawled_end",
                 "gsi2_sk",
             )
+            # Set gsi2_pk if shop_country is available and last_crawled_end is set
+            if shop_country and last_crawled_end is not None:
+                update_expression_parts.append("gsi2_pk = :gsi2_pk")
+                expression_attribute_values[":gsi2_pk"] = {"S": shop_country}
 
         if last_scraped_start is not ...:
             self._add_timestamp_update(
@@ -528,6 +536,10 @@ class DynamoDBOperations:
                 "scraped_end",
                 "gsi3_sk",
             )
+            # Set gsi3_pk if shop_country is available
+            if shop_country and last_scraped_end is not None:
+                update_expression_parts.append("gsi3_pk = :gsi3_pk")
+                expression_attribute_values[":gsi3_pk"] = {"S": shop_country}
 
         if not update_expression_parts:
             logger.warning("No fields to update for shop metadata.")
@@ -695,6 +707,132 @@ class DynamoDBOperations:
         except Exception as e:
             logger.error(f"Error fetching URL entry for {url} in {domain}: {e}")
             return None
+
+    def get_shops_for_orchestration(
+        self, cutoff_date: str, country: Optional[str] = None
+    ) -> List[ShopMetadata]:
+        """
+        Get shops that need crawling based on last_crawled_end date using GSI2.
+
+        Returns shops where:
+        1. last_crawled_end is older than cutoff_date (stale shops)
+        2. last_crawled_end = "1970-01-01T00:00:00Z" (never crawled - new shops)
+
+        Note: New shops have gsi2_sk set to "1970-01-01T00:00:00Z" marker value,
+        making them queryable via GSI2 alongside old shops.
+
+        Crawling and scraping are independent operations - shops can be crawled
+        regardless of their scraping status.
+
+        Args:
+            cutoff_date: ISO 8601 date string (e.g., '2026-01-02T00:00:00Z')
+            country: Optional country filter (without COUNTRY# prefix)
+
+        Returns:
+            List of ShopMetadata objects that need crawling
+        """
+        shops_to_crawl = []
+
+        try:
+            # If country is specified, query that country
+            # Otherwise, query all default countries
+            if country:
+                countries = [
+                    country if country.startswith("COUNTRY#") else f"COUNTRY#{country}"
+                ]
+            else:
+                # For global orchestration, query common countries
+                countries = [
+                    "COUNTRY#DE",
+                ]
+                logger.info(
+                    "No country specified, querying default countries: %s", countries
+                )
+
+            for country_key in countries:
+                # Query GSI2 for all shops (old and new) with gsi2_sk <= cutoff_date
+                # This includes:
+                # - Shops with old last_crawled_end (< cutoff_date)
+                # - New shops with marker "1970-01-01T00:00:00Z"
+                shops_to_crawl.extend(
+                    self._query_gsi2_for_shops_needing_crawl(country_key, cutoff_date)
+                )
+
+            logger.info(
+                f"Found {len(shops_to_crawl)} shops for orchestration "
+                f"(cutoff: {cutoff_date})"
+            )
+            return shops_to_crawl
+
+        except ClientError as e:
+            logger.error(f"Error querying shops for orchestration: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in get_shops_for_orchestration: {e}")
+            raise
+
+    def _query_gsi2_for_shops_needing_crawl(
+        self, country: str, cutoff_date: str
+    ) -> List[ShopMetadata]:
+        """
+        Query GSI2 for shops that need crawling.
+
+        Returns shops with gsi2_sk <= cutoff_date, which includes:
+        - Shops with old last_crawled_end dates
+        - New shops with marker value "1970-01-01T00:00:00Z"
+
+        Validates new shops by checking that BOTH last_crawled_start
+        AND last_crawled_end are missing (not just checking the marker).
+
+        Note: Crawling and scraping are independent operations. Shops are
+        selected for crawling based solely on their crawl timestamps,
+        regardless of scraping status.
+
+        Args:
+            country: Country key with COUNTRY# prefix
+            cutoff_date: Cutoff date for last_crawled_end
+
+        Returns:
+            List of ShopMetadata objects
+        """
+        shops = []
+        last_evaluated_key = None
+
+        try:
+            while True:
+                query_args = {
+                    "TableName": self.table_name,
+                    "IndexName": "GSI2",
+                    "KeyConditionExpression": "gsi2_pk = :country AND gsi2_sk <= :cutoff",
+                    "ExpressionAttributeValues": {
+                        ":country": {"S": country},
+                        ":cutoff": {"S": cutoff_date},
+                    },
+                }
+
+                if last_evaluated_key:
+                    query_args["ExclusiveStartKey"] = last_evaluated_key
+
+                response = self.client.query(**query_args)
+
+                for item in response.get("Items", []):
+                    shops.append(ShopMetadata.from_dynamodb_item(item))
+
+                last_evaluated_key = response.get("LastEvaluatedKey")
+                if not last_evaluated_key:
+                    break
+
+            logger.debug(
+                f"Found {len(shops)} shops needing crawl in {country} "
+                f"(cutoff: {cutoff_date})"
+            )
+            return shops
+
+        except ClientError as e:
+            logger.error(
+                f"Error querying GSI2 for shops needing crawl in {country}: {e}"
+            )
+            return []
 
 
 # Global operations instance

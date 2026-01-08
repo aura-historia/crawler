@@ -29,7 +29,6 @@ were detected during crawls.
   "sk": "META#",
   "domain": "example.com",
   "core_domain_name": "example",
-  "standards_used": true,
   "shop_name": "Example Shop",
   "shop_country": "COUNTRY#DE",
   "last_crawled_start": "2023-10-27T00:00:00Z",
@@ -45,7 +44,6 @@ were detected during crawls.
 | `sk` | String | Fixed value: "META#" |
 | `domain` | String | Domain name (duplicate for convenience) |
 | `core_domain_name` | String | The core domain name, extracted (e.g., 'example' from 'www.example.co.uk'). Used by a GSI to find related domains. |
-| `standards_used` | Boolean (BOOL) | Indicates whether any recognized structured-data standard was detected for this shop (true/false). This is a compact flag for the new schema (not a list). |
 | `shop_name` | String (optional) | Human-readable shop name, if available. This is a convenience field for downstream systems. |
 | `shop_country` | String | Country identifier prefixed with `COUNTRY#` (e.g., `COUNTRY#DE`). |
 | `last_crawled_start` | String | ISO 8601 timestamp marking when the latest crawl began. |
@@ -92,11 +90,16 @@ Each GSI uses dedicated attributes (`gsi<n>_pk`, `gsi<n>_sk`) so items only proj
 
 ### GSI2 – CountryLastCrawledIndex
 
-- **Purpose:** Find shops from a specific country that were crawled within a date range.
+- **Purpose:** Find shops from a specific country that were crawled within a date range, or find new shops that have never been crawled.
 - **Key Schema:**
-    - **HASH Key (`gsi2_pk`):** `shop_country` (e.g., `COUNTRY#DE`).
-    - **RANGE Key (`gsi2_sk`):** `last_crawled_end`.
+    - **HASH Key (`gsi2_pk`):** `shop_country` (e.g., `COUNTRY#DE`). Set for all shops with a country.
+    - **RANGE Key (`gsi2_sk`):** `last_crawled_end` timestamp or marker value for new shops.
 - **Projection:** `domain`
+- **Special Behavior for New Shops:** 
+    - When a shop has NEVER been crawled (`last_crawled_end` is NULL), `gsi2_sk` is set to `"1970-01-01T00:00:00Z"` (epoch marker).
+    - This allows efficient queries for new shops: `gsi2_sk = "1970-01-01T00:00:00Z" AND attribute_not_exists(last_crawled_start) AND attribute_not_exists(last_crawled_end)`
+    - Orchestration can query all shops needing crawl with: `gsi2_sk <= cutoff_date` (includes both old shops and new shops with marker)
+
 
 ### GSI3 – CountryLastScrapedIndex
 
