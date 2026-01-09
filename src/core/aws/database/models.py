@@ -64,6 +64,35 @@ class ShopMetadata:
         if self.shop_country and not self.shop_country.startswith("COUNTRY#"):
             self.shop_country = f"COUNTRY#{self.shop_country}"
 
+    def _add_optional_field(
+        self, item: Dict[str, Any], field_name: str, value: Optional[str]
+    ) -> None:
+        """Add optional string field to DynamoDB item if value is not None."""
+        if value:
+            item[field_name] = {"S": value}
+
+    def _add_gsi2_keys(self, item: Dict[str, Any]) -> None:
+        """Add GSI2 keys for crawl orchestration (country + last_crawled_end)."""
+        if not self.shop_country:
+            return
+
+        item["gsi2_pk"] = {"S": self.shop_country}
+        # Use actual crawled end date or epoch marker for never-crawled shops
+        gsi2_sk_value = self.last_crawled_end or "1970-01-01T00:00:00Z"
+        item["gsi2_sk"] = {"S": gsi2_sk_value}
+
+    def _add_gsi3_keys(self, item: Dict[str, Any]) -> None:
+        """Add GSI3 keys for scrape queries (country + last_scraped_end, sparse index)."""
+        if self.shop_country and self.last_scraped_end:
+            item["gsi3_pk"] = {"S": self.shop_country}
+            item["gsi3_sk"] = {"S": self.last_scraped_end}
+
+    def _add_gsi4_keys(self, item: Dict[str, Any]) -> None:
+        """Add GSI4 keys for core domain discovery."""
+        if self.core_domain_name:
+            item["gsi4_pk"] = {"S": self.core_domain_name}
+            item["gsi4_sk"] = {"S": self.domain}
+
     def to_dynamodb_item(self) -> Dict[str, Any]:
         """Convert to DynamoDB item format."""
         item = {
@@ -72,35 +101,20 @@ class ShopMetadata:
             "domain": {"S": self.domain},
             "core_domain_name": {"S": self.core_domain_name},
         }
-        if self.shop_name:
-            item["shop_name"] = {"S": self.shop_name}
-        if self.shop_country:
-            item["shop_country"] = {"S": self.shop_country}
-            # GSI2: Always set for shops with country (for orchestration queries)
-            item["gsi2_pk"] = {"S": self.shop_country}
-        if self.last_crawled_start:
-            item["last_crawled_start"] = {"S": self.last_crawled_start}
-        if self.last_crawled_end:
-            item["last_crawled_end"] = {"S": self.last_crawled_end}
-            # GSI2: Set actual crawled end date
-            if self.shop_country:
-                item["gsi2_sk"] = {"S": self.last_crawled_end}
-        else:
-            # GSI2: Use epoch marker for new/never-crawled shops (enables GSI2 queries)
-            if self.shop_country:
-                item["gsi2_sk"] = {"S": "1970-01-01T00:00:00Z"}
-        if self.last_scraped_start:
-            item["last_scraped_start"] = {"S": self.last_scraped_start}
-        if self.last_scraped_end:
-            item["last_scraped_end"] = {"S": self.last_scraped_end}
-            # GSI3: Country + scraped end date (sparse index)
-            if self.shop_country:
-                item["gsi3_pk"] = {"S": self.shop_country}
-                item["gsi3_sk"] = {"S": self.last_scraped_end}
-        # GSI4: Core domain index
-        if self.core_domain_name:
-            item["gsi4_pk"] = {"S": self.core_domain_name}
-            item["gsi4_sk"] = {"S": self.domain}
+
+        # Add optional base fields
+        self._add_optional_field(item, "shop_name", self.shop_name)
+        self._add_optional_field(item, "shop_country", self.shop_country)
+        self._add_optional_field(item, "last_crawled_start", self.last_crawled_start)
+        self._add_optional_field(item, "last_crawled_end", self.last_crawled_end)
+        self._add_optional_field(item, "last_scraped_start", self.last_scraped_start)
+        self._add_optional_field(item, "last_scraped_end", self.last_scraped_end)
+
+        # Add GSI keys
+        self._add_gsi2_keys(item)
+        self._add_gsi3_keys(item)
+        self._add_gsi4_keys(item)
+
         return item
 
     @classmethod

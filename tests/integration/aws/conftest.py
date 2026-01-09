@@ -1,7 +1,6 @@
 import os
 import pytest
 from testcontainers.localstack import LocalStackContainer
-from testcontainers.core.wait_strategies import HttpWaitStrategy
 from src.core.aws.database.migrations import create_tables
 from src.core.aws.database.operations import DynamoDBOperations
 
@@ -13,8 +12,6 @@ def dynamodb_setup():
     container = LocalStackContainer("localstack/localstack:3.8.1").with_services(
         "dynamodb"
     )
-
-    container.waiting_for(HttpWaitStrategy(4566).for_status_code(200))
 
     with container as ls:
         host = ls.get_container_host_ip()
