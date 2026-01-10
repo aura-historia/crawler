@@ -42,9 +42,6 @@ with st.container(border=True):
 
     # --- Model controls (Preload / Clear cache) ---
     st.markdown("---")
-    model_name = st.text_input(
-        "Model name (HuggingFace repo)", value="Qwen/Qwen3-4B", key="model_name_input"
-    )
     col1, col2 = st.columns([1, 1])
     with col1:
         preload_btn = st.button("🔁 Preload model", key="preload_btn")
@@ -57,33 +54,6 @@ def beautify_json(data):
         return json.dumps(data, indent=2, ensure_ascii=False)
     except Exception:
         return str(data)
-
-
-def display_json_sections(data: dict):
-    syntaxes = []
-    for syntax, entries in data.items():
-        if not entries:
-            continue
-        clean_entries = []
-        for entry in entries:
-            if (
-                isinstance(entry, dict)
-                and list(entry.keys()) == ["@id"]
-                or (
-                    "http://www.w3.org/1999/xhtml/vocab#role" in entry
-                    and len(entry.keys()) <= 2
-                )
-            ):
-                continue
-            clean_entries.append(entry)
-        if clean_entries:
-            syntaxes.append((syntax, clean_entries))
-    for syntax, entries in syntaxes:
-        with st.expander(
-            f"📦 {syntax.upper()} — {len(entries)} entries", expanded=True
-        ):
-            for entry in entries:
-                st.code(beautify_json(entry), language="json", line_numbers=False)
 
 
 # === Model / Tokenizer cache helpers ===
@@ -150,7 +120,7 @@ except Exception:
     # Simple fallback cache
     _MODEL_CACHE = {}
 
-    def get_model_and_tokenizer(model_name: str = "Qwen/Qwen3-4B"):
+    def get_model_and_tokenizer(model_name: str):
         if model_name not in _MODEL_CACHE:
             _MODEL_CACHE[model_name] = _load_model_and_tokenizer(model_name)
         return _MODEL_CACHE[model_name]
@@ -205,7 +175,7 @@ async def extract_and_display_standards(url: str, model_name: str = "Qwen/Qwen3-
     browser_config = BrowserConfig(headless=True, verbose=False)
 
     # Load the tokenizer and the Qwen3 model (cached using provided model_name)
-    tokenizer, model, device = get_model_and_tokenizer(model_name)
+    tokenizer, model, _ = get_model_and_tokenizer(model_name)
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
         result = await crawler.arun(url=url, config=run_config)

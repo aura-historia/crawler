@@ -21,50 +21,63 @@ from src.core.utils.spider_config import (
     build_product_scraper_components,
     crawl_dispatcher,
 )
-from src.core.utils.standards_extractor import extract_standard
 from src.core.worker.base_worker import generic_worker, run_worker_pool
 from crawl4ai import AsyncWebCrawler
 from src.core.aws.database.models import URLEntry
+from src.core.scraper.qwen import extract as qwen_extract
 
 load_dotenv()
-
 
 ScrapedData = Dict[str, Any]
 
 QUEUE_NAME = os.getenv("SQS_QUEUE_NAME")
 
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "50"))
+LOG_METRICS_INTERVAL = int(os.getenv("LOG_METRICS_INTERVAL", "50"))
+
+_metrics = {
+    "processed": 0,
+    "success": 0,
+    "timeout": 0,
+    "error": 0,
+    "extracted": 0,
+    "sent_batches": 0,
+}
+
 shutdown_event: asyncio.Event = asyncio.Event()
 
 
-async def process_result(result: Any) -> Optional[ScrapedData]:
+async def process_result_async(result: Any) -> Optional[ScrapedData]:
     """
-    Normalize the structured data contained in a single crawl result.
-
-    Args:
-        result: Object returned by `AsyncWebCrawler.arun` containing `success`,
-            `html`, and `url` attributes.
-
-    Returns:
-        A ScrapedData dict when the crawl succeeded and extraction worked,
-        otherwise ``None`` (e.g., network failure, missing html/url, or
-        unsupported syntax).
+    Async version of process_result that uses async qwen extraction.
     """
     if not getattr(result, "success", False):
         return None
+    markdown = result.markdown
 
-    html = getattr(result, "html", None)
-    url = getattr(result, "url", None)
-    if not html or not url:
-        logger.debug("Skipping result without html or url: %s", url)
+    try:
+        qwen_out = await qwen_extract(markdown[:40000])
+    except Exception as e:
+        logger.exception("qwen.extract failed: %s", e, extra={"url": getattr(result, "url", None)})
         return None
 
-    base_url = get_base_url(html, url)
-    syntaxes = ["microdata", "opengraph", "json-ld", "rdfa"]
-    extracted_raw = extruct_extract(html, base_url=base_url, syntaxes=syntaxes)
+    parsed = json.loads(qwen_out)
 
-    standardized = await extract_standard(extracted_raw, url, preferred=syntaxes)
+    if not parsed:
+        return None
 
-    return standardized
+    data: ScrapedData = {
+        "shopsProductId": parsed.get("shop_item_id") or result.url,
+        "title": {"text": parsed.get("title") or "", "language": parsed.get("language") or "UNKNOWN"},
+        "description": {"text": parsed.get("description") or "", "language": parsed.get("language") or "UNKNOWN"},
+        "price": {"amount": int(parsed.get("current_price")) or 0, "currency": parsed.get("currency") or "UNKNOWN"},
+        "state": parsed.get("state") or "UNKNOWN",
+        "images": parsed.get("images") or [],
+        "url": result.url,
+    }
+    logger.info(data)
+
+    return data
 
 
 async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
@@ -74,12 +87,20 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
         item = await q.get()
         if item is None:
             if batch:
-                await send_items(batch)
+                try:
+                    await send_items(batch)
+                    _metrics["sent_batches"] += 1
+                except Exception as e:
+                    logger.exception("Failed to send final batch: %s", e)
             break
 
         batch.append(item)
         if len(batch) >= batch_size:
-            await send_items(batch)
+            try:
+                await send_items(batch)
+                _metrics["sent_batches"] += 1
+            except Exception as e:
+                logger.exception("Failed to send batch: %s", e)
             batch.clear()
 
 
@@ -92,73 +113,67 @@ async def scrape(
     batch_size: int = 500,
 ) -> int:
     """
-    Crawl the given URLs sequentially, enqueue extracted products, and flush them in batches.
+    Crawl and extract URLs sequentially with inline processing.
 
-    Args:
-        crawler: Initialized `AsyncWebCrawler` instance (context-managed by caller).
-        domain: Domain being processed.
-        urls: URLs to fetch.
-        shutdown_event: Cooperative cancellation flag checked before each request.
-        run_config: Dict passed to `crawler.arun(url, config=run_config)`.
-        batch_size: Number of extracted items passed to `send_items` at once.
-
-    Returns:
-        Count of URLs attempted (successful or not).
+    Each worker:
+    1. Fetches HTML
+    2. Waits for vLLM extraction response
+    3. Queues result immediately
     """
     processed_count = 0
     q: asyncio.Queue = asyncio.Queue()
     consumer_task = asyncio.create_task(batch_sender(q, batch_size))
 
-    try:
-        for url in urls:
-            if shutdown_event.is_set():
-                logger.warning(
-                    "Interrupted during crawl_streaming", extra={"domain": domain}
-                )
-                break
+    async def process_url(url: str):
+        """Fetch HTML and extract inline - each worker waits for its response"""
+        nonlocal processed_count
 
-            try:
-                result = await crawler.arun(
-                    url, config=run_config, dispatcher=crawl_dispatcher()
-                )
-            except Exception as crawl_error:
-                logger.exception(
-                    "Error crawling %s: %s", url, crawl_error, extra={"domain": domain}
-                )
-                processed_count += 1
-                continue
+        if shutdown_event.is_set():
+            return
 
-            try:
-                extracted = await process_result(result)
+        try:
+            result = await asyncio.wait_for(
+                crawler.arun(url, config=run_config, dispatcher=crawl_dispatcher()),
+                timeout=REQUEST_TIMEOUT
+            )
+
+            if result and getattr(result, "success", False):
+                extracted = await process_result_async(result)
                 if extracted:
-                    hash_changed = await update_hash(extracted, domain, url)
-                    if hash_changed:
-                        await q.put(extracted)
+                    _metrics["extracted"] += 1
+                    await q.put(extracted)
 
-            except Exception as proc_error:
-                logger.exception(
-                    "Processing error for %s: %s",
-                    url,
-                    proc_error,
+        except Exception as e:
+            _metrics["error"] += 1
+            logger.exception("Error processing %s: %s", url, e, extra={"domain": domain})
+        finally:
+            processed_count += 1
+            _metrics["processed"] += 1
+
+            # Log metrics periodically
+            if _metrics["processed"] % LOG_METRICS_INTERVAL == 0:
+                logger.info(
+                    "Metrics: processed=%s, extracted=%s, timeouts=%s, errors=%s, sent_batches=%s",
+                    _metrics["processed"],
+                    _metrics["extracted"],
+                    _metrics["timeout"],
+                    _metrics["error"],
+                    _metrics["sent_batches"],
                     extra={"domain": domain},
                 )
 
-            processed_count += 1
+    # Process URLs one by one
+    for url in urls:
+        if shutdown_event.is_set():
+            logger.info("Shutdown detected, stopping scrape loop.")
+            break
+        await process_url(url)
 
-    except Exception as outer_error:
-        logger.exception(
-            "Unexpected error in crawl_streaming: %s",
-            outer_error,
-            extra={"domain": domain},
-        )
-
-    finally:
-        await q.put(None)
-
-        try:
-            await consumer_task
-        except Exception as ce:
-            logger.exception("Error in batch sender: %s", ce, extra={"domain": domain})
+    await q.put(None)
+    try:
+        await consumer_task
+    except Exception as ce:
+        logger.exception("Error in batch sender: %s", ce, extra={"domain": domain})
 
     return processed_count
 
@@ -174,7 +189,6 @@ async def update_hash(extracted, domain, url) -> bool:
     Returns:
         True if the hash was updated, False otherwise.
     """
-
     status = extracted.get("state")
     price_obj = extracted.get("price") or {}
     price = price_obj.get("amount")
@@ -346,4 +360,4 @@ async def main(n_workers: int = 2, batch_size: int = 10) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(n_workers=10, batch_size=200))
+    asyncio.run(main(n_workers=2, batch_size=50))
