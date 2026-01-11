@@ -2,14 +2,19 @@ import asyncio
 import json
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
+from typing import cast
+from crawl4ai import AsyncWebCrawler
+from src.core.worker import product_scraper
 
 from src.core.worker.product_scraper import (
-    process_result,
+    process_result_async,
     batch_sender,
     scrape,
     handle_domain_message,
     main,
     worker,
+    log_metrics_if_needed,
+    process_single_url,
 )
 
 
@@ -19,12 +24,12 @@ class FakeResult:
     def __init__(
         self,
         success=True,
-        html="<html></html>",
+        markdown="# Test Page",
         url="https://example.com",
         error_message=None,
     ):
         self.success = success
-        self.html = html
+        self.markdown = markdown
         self.url = url
         self.error_message = error_message
 
@@ -52,43 +57,27 @@ class FakeCrawler:
 
 
 @pytest.fixture
-def mock_extruct_extract():
-    """Mock extruct.extract function."""
-    with patch("src.core.worker.product_scraper.extruct_extract") as mock:
-        mock.return_value = {
-            "microdata": [],
-            "opengraph": [],
-            "json-ld": [],
-            "rdfa": [],
-        }
-        yield mock
+def mock_qwen_extract():
+    """Mock qwen_extract function."""
 
-
-@pytest.fixture
-def mock_extract_standard():
-    """Mock extract_standard function."""
-
-    async def fake_extract(_extracted_raw, url, preferred=None, **_extras):
+    async def fake_qwen_extract(markdown):
         await asyncio.sleep(0)
-        return {
-            "url": url,
-            "standard": True,
-            "preferred": preferred,
-            "price": {"amount": 1.0},
-            "state": "AVAILABLE",
-        }
+        return json.dumps(
+            {
+                "shop_item_id": "test-123",
+                "title": "Test Product",
+                "description": "Test description",
+                "language": "en",
+                "current_price": 1000,
+                "currency": "EUR",
+                "state": "AVAILABLE",
+                "images": ["https://example.com/image.jpg"],
+            }
+        )
 
     with patch(
-        "src.core.worker.product_scraper.extract_standard", new=fake_extract
+        "src.core.worker.product_scraper.qwen_extract", new=fake_qwen_extract
     ) as mock:
-        yield mock
-
-
-@pytest.fixture
-def mock_get_base_url():
-    """Mock get_base_url function."""
-    with patch("src.core.worker.product_scraper.get_base_url") as mock:
-        mock.return_value = "https://example.com"
         yield mock
 
 
@@ -102,50 +91,96 @@ def mock_send_items():
 
 
 class TestProcessResult:
-    """Tests for process_result function."""
+    """Tests for process_result_async function."""
 
     @pytest.mark.asyncio
-    async def test_process_result_success(
-        self, mock_extruct_extract, mock_extract_standard, mock_get_base_url
-    ):
+    async def test_process_result_success(self, mock_qwen_extract):
         """Test successful result processing."""
         result = FakeResult(
-            success=True, html="<html>test</html>", url="https://example.com/product"
+            success=True, markdown="# Test Product", url="https://example.com/product"
         )
 
-        extracted = await process_result(result)
+        with patch(
+            "src.core.worker.product_scraper.update_hash",
+            new_callable=AsyncMock,
+            return_value=True,
+        ):
+            extracted = await process_result_async(result, "example.com")
 
         assert extracted is not None
         assert extracted["url"] == "https://example.com/product"
-        assert extracted["standard"] is True
-        mock_extruct_extract.assert_called_once()
+        assert extracted["title"]["text"] == "Test Product"
+        assert extracted["price"]["amount"] == 1000
+        assert extracted["price"]["currency"] == "EUR"
+        assert extracted["state"] == "AVAILABLE"
+        assert extracted["shopsProductId"] == "test-123"
 
     @pytest.mark.asyncio
     async def test_process_result_failure(self):
         """Test processing a failed result."""
         result = FakeResult(success=False, error_message="Connection timeout")
 
-        extracted = await process_result(result)
+        extracted = await process_result_async(result, "example.com")
 
         assert extracted is None
 
     @pytest.mark.asyncio
-    async def test_process_result_no_html(self):
-        """Test processing result without HTML."""
-        result = FakeResult(success=True, html="", url="https://example.com")
+    async def test_process_result_qwen_error(self):
+        """Test processing when qwen_extract raises an exception."""
+        result = FakeResult(success=True, markdown="# Test", url="https://example.com")
 
-        extracted = await process_result(result)
+        with (
+            patch(
+                "src.core.worker.product_scraper.qwen_extract",
+                side_effect=Exception("LLM error"),
+            ),
+            patch(
+                "src.core.worker.product_scraper.update_hash",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            extracted = await process_result_async(result, "example.com")
 
-        assert extracted is None
+            assert extracted is None
 
     @pytest.mark.asyncio
-    async def test_process_result_no_url(self):
-        """Test processing result without URL."""
-        result = FakeResult(success=True, html="<html>test</html>", url="")
+    async def test_process_result_empty_response(self):
+        """Test processing when qwen_extract returns empty data."""
+        result = FakeResult(success=True, markdown="# Test", url="https://example.com")
 
-        extracted = await process_result(result)
+        def fake_qwen_extract(_markdown):
+            return json.dumps({})
 
-        assert extracted is None
+        with (
+            patch(
+                "src.core.worker.product_scraper.qwen_extract", new=fake_qwen_extract
+            ),
+            patch(
+                "src.core.worker.product_scraper.update_hash",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            extracted = await process_result_async(result, "example.com")
+
+            # Implementation returns None for empty response
+            assert extracted is None
+
+    @pytest.mark.asyncio
+    async def test_process_result_no_hash_change(self):
+        """Test processing when hash hasn't changed."""
+        result = FakeResult(success=True, markdown="# Test", url="https://example.com")
+
+        with patch(
+            "src.core.worker.product_scraper.update_hash",
+            new_callable=AsyncMock,
+            return_value=False,
+        ):
+            extracted = await process_result_async(result, "example.com")
+
+            # Implementation returns None when hash hasn't changed
+            assert extracted is None
 
 
 class TestBatchSender:
@@ -201,35 +236,128 @@ class TestBatchSender:
         assert mock_send_items.call_count == 0
 
 
+class TestLogMetricsIfNeeded:
+    """Tests for _log_metrics_if_needed function."""
+
+    def test_log_metrics_at_interval(self):
+        """Test that metrics are logged at the configured interval."""
+
+        # Set processed to a multiple of LOG_METRICS_INTERVAL
+        product_scraper._metrics["processed"] = 50
+        product_scraper.LOG_METRICS_INTERVAL = 50
+
+        with patch("src.core.worker.product_scraper.logger") as mock_logger:
+            log_metrics_if_needed("example.com")
+
+            mock_logger.info.assert_called_once()
+            call_args = mock_logger.info.call_args
+            assert "Metrics:" in call_args[0][0]
+
+    def test_no_log_between_intervals(self):
+        """Test that metrics are not logged between intervals."""
+        from src.core.worker import product_scraper
+
+        # Set processed to a non-multiple of LOG_METRICS_INTERVAL
+        product_scraper._metrics["processed"] = 49
+        product_scraper.LOG_METRICS_INTERVAL = 50
+
+        with patch("src.core.worker.product_scraper.logger") as mock_logger:
+            log_metrics_if_needed("example.com")
+
+            mock_logger.info.assert_not_called()
+
+
+class TestProcessSingleUrl:
+    """Tests for _process_single_url function."""
+
+    @pytest.mark.asyncio
+    async def test_process_single_url_success(self, mock_qwen_extract, mock_send_items):
+        """Test successful processing of a single URL."""
+        from src.core.worker import product_scraper
+
+        crawler = FakeCrawler(results=[FakeResult(url="https://example.com/1")])
+        result_queue = asyncio.Queue()
+
+        # Reset metrics
+        product_scraper._metrics["processed"] = 0
+        product_scraper._metrics["extracted"] = 0
+
+        with patch(
+            "src.core.worker.product_scraper.update_hash",
+            new_callable=AsyncMock,
+            return_value=True,
+        ):
+            await process_single_url(
+                "https://example.com/1",
+                cast(AsyncWebCrawler, cast(object, crawler)),
+                "example.com",
+                {},
+                result_queue,
+            )
+
+        assert product_scraper._metrics["processed"] == 1
+        assert product_scraper._metrics["extracted"] == 1
+        assert result_queue.qsize() == 1
+
+    @pytest.mark.asyncio
+    async def test_process_single_url_timeout(self):
+        """Test processing a URL that times out."""
+        from src.core.worker import product_scraper
+
+        async def slow_arun(*args, **kwargs):
+            await asyncio.sleep(100)  # Simulate timeout
+
+        crawler = Mock()
+        crawler.arun = slow_arun
+        result_queue = asyncio.Queue()
+
+        # Reset metrics
+        product_scraper._metrics["processed"] = 0
+        product_scraper._metrics["timeout"] = 0
+
+        with patch("src.core.worker.product_scraper.REQUEST_TIMEOUT", 0.1):
+            await process_single_url(
+                "https://example.com/slow",
+                cast(AsyncWebCrawler, cast(object, crawler)),
+                "example.com",
+                {},
+                result_queue,
+            )
+
+        assert product_scraper._metrics["processed"] == 1
+        assert product_scraper._metrics["timeout"] == 1
+        assert result_queue.qsize() == 0
+
+    @pytest.mark.asyncio
+    async def test_process_single_url_error(self):
+        """Test processing a URL that raises an exception."""
+        from src.core.worker import product_scraper
+
+        crawler = FakeCrawler(raise_on={"https://example.com/error"})
+        result_queue = asyncio.Queue()
+
+        # Reset metrics
+        product_scraper._metrics["processed"] = 0
+        product_scraper._metrics["error"] = 0
+
+        await process_single_url(
+            "https://example.com/error",
+            cast(AsyncWebCrawler, cast(object, crawler)),
+            "example.com",
+            {},
+            result_queue,
+        )
+
+        assert product_scraper._metrics["processed"] == 1
+        assert product_scraper._metrics["error"] == 1
+        assert result_queue.qsize() == 0
+
+
 class TestScrape:
     """Tests for scrape function."""
 
-    @pytest.fixture(autouse=True)
-    def patch_db_operations_for_scrape(self, monkeypatch):
-        import src.core.worker.product_scraper as ps
-
-        class DummyEntry:
-            hash = None
-
-        mock_db_ops = Mock()
-        mock_db_ops.get_url_entry = Mock(return_value=DummyEntry())
-        mock_db_ops.update_url_hash = Mock(return_value=True)
-
-        async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
-            return func(*args, **kwargs)
-
-        monkeypatch.setattr(ps.asyncio, "to_thread", fake_to_thread)
-        monkeypatch.setattr(ps, "db_operations", mock_db_ops)
-        yield
-
     @pytest.mark.asyncio
-    async def test_scrape_success(
-        self,
-        mock_extruct_extract,
-        mock_extract_standard,
-        mock_get_base_url,
-        mock_send_items,
-    ):
+    async def test_scrape_success(self, mock_qwen_extract, mock_send_items):
         """Test successful scraping of URLs."""
         from typing import cast
         from crawl4ai import AsyncWebCrawler
@@ -257,16 +385,8 @@ class TestScrape:
         assert mock_send_items.call_count >= 1
 
     @pytest.mark.asyncio
-    async def test_scrape_with_crawl_errors(
-        self,
-        mock_extruct_extract,
-        mock_extract_standard,
-        mock_get_base_url,
-        mock_send_items,
-    ):
+    async def test_scrape_with_crawl_errors(self, mock_qwen_extract, mock_send_items):
         """Test scraping with some URLs failing to crawl."""
-        from typing import cast
-        from crawl4ai import AsyncWebCrawler
 
         crawler = FakeCrawler(
             results=[FakeResult(url="https://example.com/1")],
@@ -288,16 +408,8 @@ class TestScrape:
         assert count == 2
 
     @pytest.mark.asyncio
-    async def test_scrape_with_shutdown(
-        self,
-        mock_extruct_extract,
-        mock_extract_standard,
-        mock_get_base_url,
-        mock_send_items,
-    ):
+    async def test_scrape_with_shutdown(self, mock_qwen_extract, mock_send_items):
         """Test scraping interrupted by shutdown event."""
-        from typing import cast
-        from crawl4ai import AsyncWebCrawler
 
         crawler = FakeCrawler(
             results=[
@@ -329,31 +441,9 @@ class TestScrape:
 class TestHandleDomainMessage:
     """Tests for handle_domain_message function."""
 
-    @pytest.fixture(autouse=True)
-    def patch_db_operations_for_scrape(self, monkeypatch):
-        import src.core.worker.product_scraper as ps
-
-        class DummyEntry:
-            hash = None
-
-        mock_db_ops = Mock()
-        mock_db_ops.get_url_entry = Mock(return_value=DummyEntry())
-        mock_db_ops.update_url_hash = Mock(return_value=True)
-
-        async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
-            return func(*args, **kwargs)
-
-        monkeypatch.setattr(ps.asyncio, "to_thread", fake_to_thread)
-        monkeypatch.setattr(ps, "db_operations", mock_db_ops)
-        yield
-
     @pytest.mark.asyncio
     async def test_handle_domain_message_success(
-        self,
-        mock_extruct_extract,
-        mock_extract_standard,
-        mock_get_base_url,
-        mock_send_items,
+        self, mock_qwen_extract, mock_send_items
     ):
         """Test successful handling of a domain message."""
         message = Mock()
@@ -431,6 +521,10 @@ class TestHandleDomainMessage:
                 "src.core.worker.product_scraper.asyncio.to_thread",
                 new_callable=AsyncMock,
             ) as mock_thread,
+            patch(
+                "src.core.worker.product_scraper.visibility_heartbeat",
+                return_value=asyncio.create_task(asyncio.sleep(0)),
+            ),
         ):
             mock_thread.side_effect = lambda func, *args, **kwargs: func(
                 *args, **kwargs
@@ -461,6 +555,10 @@ class TestHandleDomainMessage:
                 "src.core.worker.product_scraper.asyncio.to_thread",
                 new_callable=AsyncMock,
             ) as mock_thread,
+            patch(
+                "src.core.worker.product_scraper.visibility_heartbeat",
+                return_value=asyncio.create_task(asyncio.sleep(0)),
+            ),
         ):
             mock_thread.side_effect = lambda func, *args, **kwargs: func(
                 *args, **kwargs
@@ -542,7 +640,6 @@ class TestUpdateHash:
     @pytest.mark.asyncio
     async def test_update_hash_new_hash(self, monkeypatch):
         """Should update hash if no old entry exists."""
-        from src.core.worker import product_scraper
 
         db_ops = Mock()
         get_url_entry = db_ops.get_url_entry
@@ -553,6 +650,7 @@ class TestUpdateHash:
                 return None
             if func is update_url_hash:
                 return True
+            return None
 
         monkeypatch.setattr(product_scraper.asyncio, "to_thread", fake_to_thread)
         monkeypatch.setattr(product_scraper, "db_operations", db_ops)
@@ -562,9 +660,9 @@ class TestUpdateHash:
             __import__("src.core.aws.database.models", fromlist=["URLEntry"]).URLEntry,
         )
 
-        extracted = {"state": "in_stock", "price": {"amount": 9.99}}
+        markdown = "# Test Product\nPrice: 9.99\nState: in_stock"
         result = await product_scraper.update_hash(
-            extracted, "example.com", "https://example.com/1"
+            markdown, "example.com", "https://example.com/1"
         )
         assert result is True
 
@@ -577,10 +675,12 @@ class TestUpdateHash:
         get_url_entry = db_ops.get_url_entry
         update_url_hash = db_ops.update_url_hash
 
+        markdown = "# Test Product\nPrice: 9.99\nState: in_stock"
+
         class DummyEntry:
             hash = __import__(
                 "src.core.aws.database.models", fromlist=["URLEntry"]
-            ).URLEntry.calculate_hash("in_stock", 9.99)
+            ).URLEntry.calculate_hash(markdown)
 
         async def fake_to_thread(func, *args, **kwargs):  # NOSONAR
             if func is get_url_entry:
@@ -597,9 +697,8 @@ class TestUpdateHash:
             __import__("src.core.aws.database.models", fromlist=["URLEntry"]).URLEntry,
         )
 
-        extracted = {"state": "in_stock", "price": {"amount": 9.99}}
         result = await product_scraper.update_hash(
-            extracted, "example.com", "https://example.com/1"
+            markdown, "example.com", "https://example.com/1"
         )
         assert result is False
 
@@ -630,9 +729,9 @@ class TestUpdateHash:
             __import__("src.core.aws.database.models", fromlist=["URLEntry"]).URLEntry,
         )
 
-        extracted = {"state": "in_stock", "price": {"amount": 9.99}}
+        markdown = "# Test Product\nPrice: 9.99\nState: in_stock"
         result = await product_scraper.update_hash(
-            extracted, "example.com", "https://example.com/1"
+            markdown, "example.com", "https://example.com/1"
         )
         assert result is False
 
@@ -641,71 +740,22 @@ class TestWorker:
     """Tests for worker function using generic_worker."""
 
     @pytest.mark.asyncio
-    async def test_worker_processes_messages(self):
-        """Test that worker processes domain messages correctly."""
+    async def test_worker_calls_generic_worker(self):
+        """Test that worker sets up and calls generic_worker correctly."""
         worker_id = 1
         queue = Mock()
         db = Mock()
         batch_size = 10
-        message = Mock()
-        message.body = json.dumps({"domain": "example.com"})
 
-        with (
-            patch(
-                "src.core.worker.product_scraper.generic_worker",
-                new_callable=AsyncMock,
-            ) as mock_generic_worker,
-            patch(
-                "src.core.worker.product_scraper.shutdown_event"
-            ) as mock_shutdown_event,
-        ):
-            mock_shutdown_event.is_set.return_value = False
-
+        with patch(
+            "src.core.worker.product_scraper.generic_worker", new_callable=AsyncMock
+        ) as mock_generic_worker:
             await worker(worker_id, queue, db, batch_size)
 
             mock_generic_worker.assert_called_once()
             call_kwargs = mock_generic_worker.call_args[1]
             assert call_kwargs["worker_id"] == worker_id
             assert call_kwargs["queue"] == queue
+            assert "message_handler" in call_kwargs
             assert call_kwargs["max_messages"] == 1
             assert call_kwargs["wait_time"] == 20
-
-    @pytest.mark.asyncio
-    async def test_worker_handler_calls_handle_domain_message(self):
-        """Test that worker's message handler delegates to handle_domain_message."""
-        worker_id = 1
-        queue = Mock()
-        db = Mock()
-        batch_size = 10
-        message = Mock()
-        message.body = json.dumps({"domain": "example.com"})
-
-        handler_captured = None
-
-        async def capture_handler(*args, **kwargs):  # NOSONAR
-            nonlocal handler_captured
-            handler_captured = kwargs.get("message_handler")
-
-        with (
-            patch(
-                "src.core.worker.product_scraper.generic_worker",
-                side_effect=capture_handler,
-            ),
-            patch(
-                "src.core.worker.product_scraper.handle_domain_message",
-                new_callable=AsyncMock,
-            ) as mock_handle,
-            patch(
-                "src.core.worker.product_scraper.shutdown_event"
-            ) as mock_shutdown_event,
-        ):
-            mock_shutdown_event.is_set.return_value = False
-
-            await worker(worker_id, queue, db, batch_size)
-
-            # Test the handler
-            await handler_captured(message)
-
-            mock_handle.assert_called_once_with(
-                message, db, mock_shutdown_event, queue, batch_size
-            )

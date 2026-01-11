@@ -82,8 +82,17 @@ def build_product_scraper_components() -> Tuple[BrowserConfig, CrawlerRunConfig]
     run_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
         check_robots_txt=True,
-        excluded_tags=["nav", "footer", "header", "navbar", "navigation", "site-header", "site-footer", "aside"],
-        process_iframes=True
+        excluded_tags=[
+            "nav",
+            "footer",
+            "header",
+            "navbar",
+            "navigation",
+            "site-header",
+            "site-footer",
+            "aside",
+        ],
+        process_iframes=True,
     )
 
     return browser_config, run_config

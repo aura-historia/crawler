@@ -165,57 +165,49 @@ class TestURLEntry:
 class TestURLEntryHashing:
     """Tests for URLEntry hash calculation."""
 
-    def test_calculate_hash_with_price(self):
-        """Test hash calculation with status and a valid price."""
-        status = "in_stock"
-        price = 99.99
-        expected_hash = (
-            "6e74ec8d33d1c00ffc74de5cff6ea992a58a7cdad3bad329a3cccaf89e788801"
-        )
+    def test_calculate_hash_changes_with_content(self):
+        """Test that the hash changes when content changes."""
+        markdown1 = "# Product A\nPrice: €19.99"
+        markdown2 = "# Product B\nPrice: €19.99"
+        markdown3 = "# Product A\nPrice: €29.99"
 
-        assert URLEntry.calculate_hash(status, price) == expected_hash
+        hash1 = URLEntry.calculate_hash(markdown1)
+        hash2 = URLEntry.calculate_hash(markdown2)
+        hash3 = URLEntry.calculate_hash(markdown3)
 
-    def test_calculate_hash_without_price(self):
-        """Test hash calculation with status and no price."""
-        status = "out_of_stock"
-        price = None
-        expected_hash = (
-            "2c7d77ebe2c94ec6ac66eae99fd760393d37651cd6dfd1fc003c51e6ef1e5836"
-        )
-
-        assert URLEntry.calculate_hash(status, price) == expected_hash
-
-    def test_calculate_hash_consistency(self):
-        """Test that the hash is consistent for the same inputs."""
-        status = "in_stock"
-        price = 19.99
-
-        hash1 = URLEntry.calculate_hash(status, price)
-        hash2 = URLEntry.calculate_hash(status, price)
-
-        assert hash1 == hash2
-
-    @pytest.mark.parametrize(
-        "status1,price1,status2,price2",
-        [
-            ("in_stock", 19.99, "out_of_stock", 19.99),
-            ("in_stock", 19.99, "in_stock", 29.99),
-            ("in_stock", 19.99, "in_stock", None),
-            ("available", 10.00, "available", 10.01),
-        ],
-    )
-    def test_calculate_hash_changes(self, status1, price1, status2, price2):
-        """Test that the hash changes when inputs change."""
-        hash1 = URLEntry.calculate_hash(status1, price1)
-        hash2 = URLEntry.calculate_hash(status2, price2)
-
+        # All should be different
         assert hash1 != hash2
+        assert hash1 != hash3
+        assert hash2 != hash3
 
     def test_calculate_hash_idempotent(self):
         """Test that calling calculate_hash multiple times gives same result."""
-        status = "in_stock"
-        price = 29.99
+        markdown = "# Antique Table\nPrice: €299.99\nState: available"
 
-        hashes = [URLEntry.calculate_hash(status, price) for _ in range(5)]
+        hashes = [URLEntry.calculate_hash(markdown) for _ in range(5)]
 
         assert all(h == hashes[0] for h in hashes)
+
+    def test_calculate_hash_with_unicode(self):
+        """Test hash calculation with Unicode characters."""
+        markdown = "# Möbel für Küche\nPreis: €19,99\nZustand: verfügbar"
+
+        # Should not raise an error
+        hash_result = URLEntry.calculate_hash(markdown)
+
+        assert isinstance(hash_result, str)
+        assert len(hash_result) == 64
+
+    def test_calculate_hash_length(self):
+        """Test that hash is always 64 characters (SHA256)."""
+        test_cases = [
+            "short",
+            "a" * 1000,
+            "# Product\nLong description " * 100,
+            "",
+        ]
+
+        for markdown in test_cases:
+            hash_result = URLEntry.calculate_hash(markdown)
+            assert len(hash_result) == 64
+            assert all(c in "0123456789abcdef" for c in hash_result)
