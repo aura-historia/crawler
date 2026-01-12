@@ -1,16 +1,28 @@
 import logging
 import os
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 import requests
 from requests import Session
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import tldextract
+from pythonjsonlogger import jsonlogger
 
 from src.core.aws.database.models import METADATA_SK, ShopMetadata
 from src.core.aws.database.operations import db_operations
 
+# Configure JSON logging for CloudWatch
 logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = jsonlogger.JsonFormatter(
+        "%(asctime)s %(levelname)s %(name)s %(message)s",
+        rename_fields={"levelname": "level", "asctime": "timestamp"},
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 BACKEND_API_URL = os.getenv("BACKEND_API_URL")
 
@@ -76,6 +88,15 @@ def resilient_http_request_sync(
 
     Raises on non-2xx responses after retries.
     """
+    logger.info(
+        "Making HTTP request",
+        extra={
+            "method": method.upper(),
+            "url": url,
+            "has_json_payload": json_data is not None,
+            "payload": json_data,
+        },
+    )
 
     try:
         # Merge headers with session defaults so callers can override/extend
@@ -94,6 +115,17 @@ def resilient_http_request_sync(
             data=data,
             timeout=timeout_seconds,
         )
+
+        logger.info(
+            "HTTP request completed",
+            extra={
+                "method": method.upper(),
+                "url": url,
+                "status": response.status_code,
+                "response_preview": response.text[:200] if response.text else None,
+            },
+        )
+
         response.raise_for_status()
 
         if return_json:
@@ -109,11 +141,19 @@ def resilient_http_request_sync(
         body = getattr(exc.response, "text", None)
         logger.error(
             "HTTP request failed",
-            extra={"status": status, "body": body},
+            extra={
+                "method": method.upper(),
+                "url": url,
+                "status": status,
+                "body": body,
+            },
         )
         raise
     except Exception as exc:
-        logger.error(f"Unexpected error during HTTP request to {url}: {str(exc)}")
+        logger.error(
+            "Unexpected error during HTTP request",
+            extra={"method": method.upper(), "url": url, "error": str(exc)},
+        )
         raise
 
 
@@ -135,19 +175,35 @@ def find_existing_shop(
         # Extract core domain name from new_domain (e.g., 'example' from 'shop.example.co.uk')
         core_domain_name = extract_with_cache(new_domain).domain
 
+    logger.info(
+        "Searching for existing shop",
+        extra={"new_domain": new_domain, "core_domain_name": core_domain_name},
+    )
+
     # Get ALL shops with the same core domain name, excluding the new domain
     all_shops = db_operations.find_all_domains_by_core_domain_name(
         core_domain_name, domain_to_exclude=new_domain
     )
 
     if not all_shops:
-        logger.info("No other shops found with same core domain name.")
+        logger.info(
+            "No other shops found with same core domain name",
+            extra={"core_domain_name": core_domain_name, "new_domain": new_domain},
+        )
         return None
 
     # Extract all domains from the shop metadata objects
     all_domains = [shop.domain for shop in all_shops]
 
-    logger.info(f"Found {len(all_domains)} existing domain(s): {all_domains}")
+    logger.info(
+        "Found existing shop with multiple domains",
+        extra={
+            "core_domain_name": core_domain_name,
+            "existing_domains": all_domains,
+            "shop_identifier": all_domains[0],
+            "total_existing_domains": len(all_domains),
+        },
+    )
 
     # Use the first existing domain as the shopIdentifier for the PATCH request
     return all_domains[0], all_domains
@@ -168,6 +224,15 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
         ValueError: If BACKEND_API_URL is not set.
         requests.RequestException: If HTTP calls fail after retries.
     """
+    logger.info(
+        "Starting shop registration/update process",
+        extra={
+            "domain": shop.domain,
+            "shop_name": shop.shop_name,
+            "core_domain_name": shop.core_domain_name,
+        },
+    )
+
     if not BACKEND_API_URL:
         logger.error("BACKEND_API_URL environment variable is not set.")
         raise ValueError("Backend API URL is not configured.")
@@ -191,8 +256,14 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
         patch_url = f"{shops_endpoint}/{shop_identifier}"
 
         logger.info(
-            f"Adding domain '{shop.domain}' to shop via '{shop_identifier}'. "
-            f"Total domains: {len(all_domains_for_backend)}"
+            "Adding domain to existing shop",
+            extra={
+                "operation": "PATCH",
+                "new_domain": shop.domain,
+                "shop_identifier": shop_identifier,
+                "all_domains": all_domains_for_backend,
+                "total_domains_count": len(all_domains_for_backend),
+            },
         )
 
         # Backend PATCH endpoint is idempotent:
@@ -205,7 +276,10 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
             headers=headers,
             timeout_seconds=10,
         )
-        logger.info(f"Successfully added domain '{shop.domain}'")
+        logger.info(
+            "Successfully added domain to existing shop",
+            extra={"domain": shop.domain, "shop_identifier": shop_identifier},
+        )
     else:
         shop_name = shop.shop_name if shop.shop_name else None
         if not shop_name:
@@ -221,7 +295,13 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
         }
 
         logger.info(
-            f"Creating new shop for domain '{shop.domain}' with name '{shop_name}'"
+            "Creating new shop",
+            extra={
+                "operation": "POST",
+                "domain": shop.domain,
+                "shop_name": shop_name,
+                "payload": payload,
+            },
         )
         resilient_http_request_sync(
             shops_endpoint,
@@ -231,7 +311,10 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
             headers=headers,
             timeout_seconds=10,
         )
-        logger.info(f"Successfully created shop for domain '{shop.domain}'")
+        logger.info(
+            "Successfully created new shop",
+            extra={"domain": shop.domain, "shop_name": shop_name},
+        )
 
 
 def _extract_minimal_shop_from_image(
@@ -280,29 +363,68 @@ def _process_record(record: Dict[str, Any], session: Session) -> Optional[str]:
     batchItemFailure identifier), or None on success.
     """
     event_name = record.get("eventName")
+    seq = record.get("dynamodb", {}).get("SequenceNumber", "UNKNOWN")
+
+    logger.info(
+        "Processing DynamoDB stream record",
+        extra={"event_name": event_name, "sequence_number": seq},
+    )
+
     if event_name != "INSERT":
+        logger.debug(
+            "Skipping non-INSERT event",
+            extra={"event_name": event_name, "sequence_number": seq},
+        )
         return None
 
     dynamodb_data = record.get("dynamodb", {})
     new_image = dynamodb_data.get("NewImage")
 
     if not new_image or new_image.get("sk", {}).get("S") != METADATA_SK:
+        logger.debug(
+            "Skipping record: not a METADATA record",
+            extra={
+                "has_new_image": bool(new_image),
+                "sk": new_image.get("sk", {}).get("S") if new_image else None,
+                "sequence_number": seq,
+            },
+        )
         return None
-
-    seq = dynamodb_data.get("SequenceNumber")
 
     shop = _extract_minimal_shop_from_image(new_image)
     if not shop:
-        logger.error("Skipping record: domain missing in NewImage")
+        logger.error(
+            "Skipping record: domain missing in NewImage",
+            extra={"sequence_number": seq, "new_image_keys": list(new_image.keys())},
+        )
         return seq
+
+    logger.info(
+        "Extracted shop data from stream record",
+        extra={
+            "domain": shop.domain,
+            "shop_name": shop.shop_name,
+            "core_domain_name": shop.core_domain_name,
+            "sequence_number": seq,
+        },
+    )
 
     try:
         register_or_update_shop(shop, session)
+        logger.info(
+            "Successfully processed record",
+            extra={"domain": shop.domain, "sequence_number": seq},
+        )
         return None
     except Exception as exc:
         logger.error(
             "Failed to register/update shop",
-            extra={"domain": shop.domain, "error": str(exc)},
+            extra={
+                "domain": shop.domain,
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "sequence_number": seq,
+            },
         )
         return seq
 
@@ -314,14 +436,33 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
     Processes only INSERT events and builds a minimal ShopMetadata from the
     provided NewImage (domain + optional shop_name) to avoid extra DB reads.
     """
+    records = event.get("Records", []) or []
+
+    logger.info(
+        "Lambda invoked with DynamoDB stream batch",
+        extra={
+            "record_count": len(records),
+            "event_names": [r.get("eventName") for r in records][:10],
+        },
+    )
+
     batch_item_failures: List[Dict[str, str]] = []
 
     session = _get_session()
 
-    records = event.get("Records", []) or []
-    for record in records:
+    for idx, record in enumerate(records, 1):
+        logger.info(f"Processing record {idx}/{len(records)}")
         seq = _process_record(record, session)
         if seq:
             batch_item_failures.append({"itemIdentifier": seq})
+
+    logger.info(
+        "Finished processing DynamoDB stream batch",
+        extra={
+            "total_records": len(records),
+            "successful_records": len(records) - len(batch_item_failures),
+            "failed_records": len(batch_item_failures),
+        },
+    )
 
     return {"batchItemFailures": batch_item_failures}

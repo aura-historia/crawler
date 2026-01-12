@@ -1,4 +1,5 @@
 tldextract
 python-dotenv
 iptocc
+numpy==1.26.4
 

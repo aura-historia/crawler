@@ -5,6 +5,7 @@ boto3
 tldextract
 requests
 python-dotenv
+python-json-logger
 iptocc
 urllib3
 tinydb

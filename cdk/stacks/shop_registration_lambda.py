@@ -6,7 +6,6 @@ from aws_cdk import (
     aws_lambda_event_sources as lambda_events,
     Stack,
 )
-from aws_cdk.aws_logs import RetentionDays
 from constructs import Construct
 from dotenv import load_dotenv
 
@@ -126,7 +125,6 @@ class ShopRegistrationLambdaConstruct(Construct):
             role=role,
             memory_size=256,
             architecture=_lambda.Architecture.X86_64,
-            log_retention=RetentionDays.ONE_WEEK,
             environment={
                 "BACKEND_API_URL": backend_api_url,
                 "DYNAMODB_TABLE_NAME": table.table_name,
