@@ -7,7 +7,6 @@ from typing import Any, Callable, Awaitable
 from src.core.utils.logger import logger
 from src.core.aws.sqs.message_wrapper import receive_messages
 from src.core.aws.spot.spot_termination_watcher import (
-    watch_spot_termination,
     signal_handler,
 )
 
@@ -127,9 +126,6 @@ async def run_worker_pool(
             # Windows doesn't support add_signal_handler
             signal.signal(sig, lambda s, f: shutdown_event.set())
 
-    # Start spot termination watcher
-    watcher_task = asyncio.create_task(watch_spot_termination(shutdown_event))
-
     # Spawn worker pool
     logger.info(f"Starting {n_workers} concurrent workers...")
     workers = [asyncio.create_task(worker_factory(i)) for i in range(n_workers)]
@@ -152,8 +148,3 @@ async def run_worker_pool(
         await asyncio.gather(*workers, return_exceptions=True)
     except Exception as e:
         logger.error(f"Error during worker drain: {e}")
-    finally:
-        # Cancel watcher if still running
-        if not watcher_task.done():
-            watcher_task.cancel()
-        logger.info("All workers stopped. Process finished.")

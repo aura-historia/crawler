@@ -171,17 +171,14 @@ class URLEntry:
         )
 
     @staticmethod
-    def calculate_hash(status: Optional[str], price: Optional[float]) -> str:
+    def calculate_hash(markdown: str) -> str:
         """
         Calculate hash from status and price to detect changes.
 
         Args:
-            status: Product status (e.g., 'in_stock', 'out_of_stock')
-            price: Product price
+            markdown: Markdown content string
 
         Returns:
             SHA256 hash string
         """
-        price_str = "" if price is None else str(price)
-        hash_input = f"{status}|{price_str}"
-        return hashlib.sha256(hash_input.encode()).hexdigest()
+        return hashlib.sha256(markdown.encode()).hexdigest()
