@@ -322,7 +322,14 @@ class TestResilientHttpRequestSync:
         """HTTP errors raised by raise_for_status are propagated."""
         session = Mock()
         response = Mock()
-        response.raise_for_status = Mock(side_effect=requests.HTTPError("Server error"))
+        response.status_code = 500
+        response.text = "Internal Server Error"
+
+        # Create HTTPError with response attribute for logging
+        http_error = requests.HTTPError("Server error")
+        http_error.response = response
+
+        response.raise_for_status = Mock(side_effect=http_error)
 
         session.headers = {}
         session.request = Mock(return_value=response)
