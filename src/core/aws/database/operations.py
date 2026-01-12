@@ -19,6 +19,7 @@ class DynamoDBOperations:
     METADATA_SK = "META#"
     DOMAIN_ATTR = "#domain_attr"
     URL_ATTR = "#url_attr"
+    COUNTRY_PREFIX = "COUNTRY#"
 
     def __init__(self):
         self.client = get_dynamodb_client()
@@ -241,7 +242,7 @@ class DynamoDBOperations:
         Returns:
             A list of domains.
         """
-        if not country.startswith("COUNTRY#"):
+        if not country.startswith(self.COUNTRY_PREFIX):
             country = f"COUNTRY#{country}"
 
         return self._query_shops_by_country_and_date(
@@ -267,7 +268,7 @@ class DynamoDBOperations:
             A list of domains.
         """
         # Ensure country has COUNTRY# prefix
-        if not country.startswith("COUNTRY#"):
+        if not country.startswith(self.COUNTRY_PREFIX):
             country = f"COUNTRY#{country}"
 
         return self._query_shops_by_country_and_date(
@@ -708,7 +709,7 @@ class DynamoDBOperations:
             logger.error(f"Error fetching URL entry for {url} in {domain}: {e}")
             return None
 
-    def get_shops_for_orchestration(
+    def get_last_crawled_shops(
         self, cutoff_date: str, country: Optional[str] = None
     ) -> List[ShopMetadata]:
         """
@@ -738,7 +739,9 @@ class DynamoDBOperations:
             # Otherwise, query all default countries
             if country:
                 countries = [
-                    country if country.startswith("COUNTRY#") else f"COUNTRY#{country}"
+                    country
+                    if country.startswith(self.COUNTRY_PREFIX)
+                    else f"COUNTRY#{country}"
                 ]
             else:
                 # For global orchestration, query common countries

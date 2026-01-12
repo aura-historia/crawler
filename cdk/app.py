@@ -3,10 +3,10 @@ import os
 import aws_cdk as cdk
 from dotenv import load_dotenv
 
-from cdk.stacks.database import DatabaseStack
-from cdk.stacks.orchestration_spider_lambda import SpiderOrchestrationStack
-from cdk.stacks.queues import QueueStack
-from cdk.stacks.shop_registration_lambda import CrawlerStack
+from stacks.database import DatabaseStack
+from stacks.orchestration_spider_lambda import SpiderOrchestrationStack
+from stacks.queues import QueueStack
+from stacks.shop_registration_lambda import CrawlerStack
 
 load_dotenv(verbose=True)
 app = cdk.App()

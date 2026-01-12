@@ -51,7 +51,7 @@ class TestSpiderOrchestrationHandler:
         from src.lambdas.orchestration_spider import orchestration_handler
 
         # Mock empty shop list
-        mock_db_ops.get_shops_for_orchestration.return_value = []
+        mock_db_ops.get_last_crawled_shops.return_value = []
 
         result = orchestration_handler.handler({}, None)
 
@@ -69,7 +69,7 @@ class TestSpiderOrchestrationHandler:
         from src.lambdas.orchestration_spider import orchestration_handler
 
         # Mock shops found
-        mock_db_ops.get_shops_for_orchestration.return_value = sample_shops
+        mock_db_ops.get_last_crawled_shops.return_value = sample_shops
 
         # Mock SQS client
         mock_sqs_client = MagicMock()
@@ -100,7 +100,7 @@ class TestSpiderOrchestrationHandler:
         """Test handler when some SQS messages fail to send."""
         from src.lambdas.orchestration_spider import orchestration_handler
 
-        mock_db_ops.get_shops_for_orchestration.return_value = sample_shops
+        mock_db_ops.get_last_crawled_shops.return_value = sample_shops
 
         # Mock partial SQS failure
         mock_sqs_client = MagicMock()
@@ -127,9 +127,7 @@ class TestSpiderOrchestrationHandler:
         from src.lambdas.orchestration_spider import orchestration_handler
 
         # Mock database exception
-        mock_db_ops.get_shops_for_orchestration.side_effect = Exception(
-            "DynamoDB error"
-        )
+        mock_db_ops.get_last_crawled_shops.side_effect = Exception("DynamoDB error")
 
         result = orchestration_handler.handler({}, None)
 
@@ -168,7 +166,7 @@ class TestSpiderOrchestrationHandler:
 
 
 class TestGetShopsForOrchestration:
-    """Tests for the database operation get_shops_for_orchestration."""
+    """Tests for the database operation get_last_crawled_shops."""
 
     @pytest.fixture
     def mock_dynamodb_client(self):
@@ -176,7 +174,7 @@ class TestGetShopsForOrchestration:
         with patch("src.core.aws.database.operations.get_dynamodb_client") as mock:
             yield mock.return_value
 
-    def test_get_shops_for_orchestration_with_old_shops(self, mock_dynamodb_client):
+    def test_get_last_crawled_shops_with_old_shops(self, mock_dynamodb_client):
         """Test querying shops with old last_crawled_end dates using GSI2."""
         from src.core.aws.database.operations import DynamoDBOperations
 
@@ -199,14 +197,14 @@ class TestGetShopsForOrchestration:
         ops = DynamoDBOperations()
         ops.client = mock_dynamodb_client
 
-        result = ops.get_shops_for_orchestration(cutoff_str, country="DE")
+        result = ops.get_last_crawled_shops(cutoff_str, country="DE")
 
         assert len(result) >= 1
         assert any(shop.domain == "example.com" for shop in result)
         # Should have called query once (unified query with marker value)
         assert mock_dynamodb_client.query.call_count == 1
 
-    def test_get_shops_for_orchestration_with_new_shops(self, mock_dynamodb_client):
+    def test_get_last_crawled_shops_with_new_shops(self, mock_dynamodb_client):
         """Test querying new shops (with marker value 1970-01-01T00:00:00Z) using GSI2."""
         from src.core.aws.database.operations import DynamoDBOperations
 
@@ -231,7 +229,7 @@ class TestGetShopsForOrchestration:
         ops = DynamoDBOperations()
         ops.client = mock_dynamodb_client
 
-        result = ops.get_shops_for_orchestration(cutoff_str, country="DE")
+        result = ops.get_last_crawled_shops(cutoff_str, country="DE")
 
         assert len(result) >= 1
         new_shop = next((s for s in result if s.domain == "newshop.com"), None)
@@ -258,7 +256,7 @@ class TestGetShopsForOrchestration:
         ops = DynamoDBOperations()
         ops.client = mock_dynamodb_client
 
-        ops.get_shops_for_orchestration(cutoff_str, country="DE")
+        ops.get_last_crawled_shops(cutoff_str, country="DE")
 
         # Verify query structure
         query_call = mock_dynamodb_client.query.call_args_list[0]
@@ -271,7 +269,7 @@ class TestGetShopsForOrchestration:
         # Should NOT have FilterExpression (simplified)
         assert "FilterExpression" not in query_call[1]
 
-    def test_get_shops_for_orchestration_no_country(self, mock_dynamodb_client):
+    def test_get_last_crawled_shops_no_country(self, mock_dynamodb_client):
         """Test orchestration without country filter (queries default countries)."""
         from src.core.aws.database.operations import DynamoDBOperations
 
@@ -286,6 +284,6 @@ class TestGetShopsForOrchestration:
         ops = DynamoDBOperations()
         ops.client = mock_dynamodb_client
 
-        ops.get_shops_for_orchestration(cutoff_str, country=None)
+        ops.get_last_crawled_shops(cutoff_str, country=None)
 
         assert mock_dynamodb_client.query.call_count == 1

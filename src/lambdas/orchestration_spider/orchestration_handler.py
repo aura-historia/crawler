@@ -152,7 +152,7 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
 
     try:
         # Get shops that need crawling
-        shops = db_operations.get_shops_for_orchestration(
+        shops = db_operations.get_last_crawled_shops(
             cutoff_date=cutoff_date_str, country="DE"
         )
 

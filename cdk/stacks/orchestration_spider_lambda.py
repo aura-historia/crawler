@@ -11,12 +11,10 @@ from __future__ import annotations
 import os
 from aws_cdk import (
     Duration,
-    RemovalPolicy,
     Stack,
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
-    aws_logs as logs,
     aws_sqs as sqs,
 )
 from constructs import Construct
@@ -118,15 +116,6 @@ class SpiderOrchestrationLambdaConstruct(Construct):
         """
         lambda_dir = os.path.join(os.path.dirname(__file__), "../../")
 
-        # Create CloudWatch Log Group
-        log_group = logs.LogGroup(
-            self,
-            "SpiderOrchestrationLogGroup",
-            log_group_name="/aws/lambda/SpiderOrchestrationLambda",
-            retention=logs.RetentionDays.ONE_WEEK,
-            removal_policy=RemovalPolicy.DESTROY,
-        )
-
         lambda_func = _lambda.DockerImageFunction(
             self,
             "SpiderOrchestrationLambda",
@@ -167,14 +156,16 @@ class SpiderOrchestrationLambdaConstruct(Construct):
                     "src/core/worker",
                     "src/core/shops_finder",
                     "src/core/classifier",
+                    "src/core/scraper",
                     "src/lambdas/shop_registration",
+                    "local_development",
+                    "scripts",
                 ],
             ),
             role=role,
             memory_size=512,
             timeout=Duration.minutes(5),
             architecture=_lambda.Architecture.X86_64,
-            log_group=log_group,
             environment={
                 "DYNAMODB_TABLE_NAME": table.table_name,
                 "SQS_PRODUCT_SPIDER_QUEUE_URL": spider_queue.queue_url,
