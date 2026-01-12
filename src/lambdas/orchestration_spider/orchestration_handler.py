@@ -3,16 +3,28 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import boto3
 from botocore.exceptions import ClientError
+from pythonjsonlogger import json as pythonjson
 
 from src.core.aws.database.operations import db_operations
 
+# Configure JSON logging for CloudWatch
 logger = logging.getLogger(__name__)
-logger.setLevel(os.getenv("LOG_LEVEL", "INFO"))
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = pythonjson.JsonFormatter(
+        "%(asctime)s %(levelname)s %(name)s %(message)s",
+        rename_fields={"levelname": "level", "asctime": "timestamp"},
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    logger.setLevel(log_level)
 
 # Global SQS client for connection reuse across warm Lambda invocations
 _GLOBAL_SQS_CLIENT: Optional[Any] = None
@@ -56,18 +68,42 @@ def _send_batch_to_sqs(
         return 0
 
     try:
+        logger.info(
+            "Sending batch to SQS",
+            extra={"batch_size": len(messages), "queue_url": queue_url},
+        )
+
         response = sqs_client.send_message_batch(QueueUrl=queue_url, Entries=messages)
 
         successful = len(response.get("Successful", []))
         failed = response.get("Failed", [])
 
         if failed:
-            logger.error(f"Failed to send {len(failed)} messages to SQS: {failed}")
+            logger.error(
+                "Failed to send messages to SQS",
+                extra={
+                    "failed_count": len(failed),
+                    "failures": failed,
+                    "successful_count": successful,
+                },
+            )
+
+        logger.info(
+            "SQS batch send completed",
+            extra={"successful": successful, "failed": len(failed)},
+        )
 
         return successful
 
     except ClientError as e:
-        logger.error(f"SQS batch send failed: {e}")
+        logger.error(
+            "SQS batch send failed",
+            extra={
+                "error": str(e),
+                "error_code": e.response.get("Error", {}).get("Code"),
+                "queue_url": queue_url,
+            },
+        )
         raise
 
 
@@ -83,13 +119,21 @@ def _enqueue_shops_to_spider_queue(
     Returns:
         Dict with 'successful' count and 'failed' list of domains.
     """
+
     sqs_client = _get_sqs_client()
     total_sent = 0
     failed_domains: List[str] = []
 
     # Process in batches of 10 (SQS limit)
+    batch_count = (len(domains) + 9) // 10  # Round up division
     for i in range(0, len(domains), 10):
+        batch_num = (i // 10) + 1
         batch = domains[i : i + 10]
+
+        logger.info(
+            f"Processing batch {batch_num}/{batch_count}",
+            extra={"batch_domains": batch, "batch_size": len(batch)},
+        )
 
         messages = [
             {
@@ -105,16 +149,46 @@ def _enqueue_shops_to_spider_queue(
 
             # Track failed domains if not all were sent
             if sent < len(batch):
-                failed_domains.extend(batch[sent:])
+                batch_failed = batch[sent:]
+                failed_domains.extend(batch_failed)
+                logger.warning(
+                    f"Batch {batch_num}: partial failure",
+                    extra={
+                        "sent": sent,
+                        "failed": len(batch_failed),
+                        "failed_domains": batch_failed,
+                    },
+                )
         except Exception as e:
-            logger.error(f"Failed to send batch to SQS: {e}")
+            logger.error(
+                f"Batch {batch_num}: complete failure",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "failed_domains": batch,
+                },
+            )
             failed_domains.extend(batch)
 
-    logger.info(f"Enqueued {total_sent}/{len(domains)} domains to spider queue")
+    logger.info(
+        "Finished enqueueing domains",
+        extra={
+            "total_domains": len(domains),
+            "successful": total_sent,
+            "failed": len(failed_domains),
+            "success_rate": f"{(total_sent / len(domains) * 100):.1f}%"
+            if domains
+            else "N/A",
+        },
+    )
 
     if failed_domains:
         logger.warning(
-            f"Failed to enqueue {len(failed_domains)} domains: {failed_domains}"
+            "Some domains failed to enqueue",
+            extra={
+                "failed_count": len(failed_domains),
+                "failed_domains": failed_domains,
+            },
         )
 
     return {
@@ -133,7 +207,10 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
     Returns:
         Dict with status and summary of enqueued shops.
     """
-    logger.info("Starting spider orchestration")
+    logger.info(
+        "Spider orchestration lambda invoked",
+        extra={"event_source": event.get("source", "manual"), "event": event},
+    )
 
     queue_url = os.getenv("SQS_PRODUCT_SPIDER_QUEUE_URL")
     if not queue_url:
@@ -148,7 +225,14 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=cutoff_days)
     cutoff_date_str = cutoff_date.isoformat()
 
-    logger.info(f"Querying shops with last_crawled_end < {cutoff_date_str}")
+    logger.info(
+        "Querying shops needing crawl",
+        extra={
+            "cutoff_date": cutoff_date_str,
+            "cutoff_days": cutoff_days,
+            "country": "DE",
+        },
+    )
 
     try:
         # Get shops that need crawling
@@ -157,7 +241,10 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
         )
 
         if not shops:
-            logger.info("No shops found requiring crawling")
+            logger.info(
+                "No shops found requiring crawling",
+                extra={"cutoff_date": cutoff_date_str, "country": "DE"},
+            )
             return {
                 "statusCode": 200,
                 "body": json.dumps(
@@ -170,27 +257,47 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
             }
 
         domains = [shop.domain for shop in shops]
-        logger.info(f"Found {len(domains)} shops to enqueue")
+        logger.info(
+            "Found shops requiring crawl",
+            extra={
+                "shops_count": len(domains),
+                "domains_preview": domains[:5],
+                "cutoff_date": cutoff_date_str,
+            },
+        )
 
         # Enqueue domains to SQS spider queue
         enqueue_result = _enqueue_shops_to_spider_queue(domains, queue_url)
 
+        response_body = {
+            "message": "Spider orchestration completed",
+            "shops_found": len(domains),
+            "shops_enqueued": enqueue_result["successful"],
+            "shops_failed": len(enqueue_result["failed"]),
+            "failed_domains": enqueue_result["failed"],
+            "cutoff_date": cutoff_date_str,
+        }
+
+        logger.info(
+            "Spider orchestration completed successfully",
+            extra=response_body,
+        )
+
         return {
             "statusCode": 200,
-            "body": json.dumps(
-                {
-                    "message": "Spider orchestration completed",
-                    "shops_found": len(domains),
-                    "shops_enqueued": enqueue_result["successful"],
-                    "shops_failed": len(enqueue_result["failed"]),
-                    "failed_domains": enqueue_result["failed"],
-                    "cutoff_date": cutoff_date_str,
-                }
-            ),
+            "body": json.dumps(response_body),
         }
 
     except Exception as e:
-        logger.error(f"Spider orchestration failed: {e}", exc_info=True)
+        logger.error(
+            "Spider orchestration failed",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "cutoff_date": cutoff_date_str,
+            },
+            exc_info=True,
+        )
         return {
             "statusCode": 500,
             "body": json.dumps({"error": str(e)}),

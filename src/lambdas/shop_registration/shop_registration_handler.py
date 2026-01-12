@@ -7,7 +7,7 @@ from requests import Session
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import tldextract
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger import json as pythonjson
 
 from src.core.aws.database.models import METADATA_SK, ShopMetadata
 from src.core.aws.database.operations import db_operations
@@ -16,7 +16,7 @@ from src.core.aws.database.operations import db_operations
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     handler = logging.StreamHandler(sys.stdout)
-    formatter = jsonlogger.JsonFormatter(
+    formatter = pythonjson.JsonFormatter(
         "%(asctime)s %(levelname)s %(name)s %(message)s",
         rename_fields={"levelname": "level", "asctime": "timestamp"},
     )
