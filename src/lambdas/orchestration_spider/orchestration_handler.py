@@ -270,7 +270,7 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
         enqueue_result = _enqueue_shops_to_spider_queue(domains, queue_url)
 
         response_body = {
-            "message": "Spider orchestration completed",
+            "summary": "Spider orchestration completed",
             "shops_found": len(domains),
             "shops_enqueued": enqueue_result["successful"],
             "shops_failed": len(enqueue_result["failed"]),
@@ -285,7 +285,16 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
 
         return {
             "statusCode": 200,
-            "body": json.dumps(response_body),
+            "body": json.dumps(
+                {
+                    "message": "Spider orchestration completed",
+                    "shops_found": response_body["shops_found"],
+                    "shops_enqueued": response_body["shops_enqueued"],
+                    "shops_failed": response_body["shops_failed"],
+                    "failed_domains": response_body["failed_domains"],
+                    "cutoff_date": response_body["cutoff_date"],
+                }
+            ),
         }
 
     except Exception as e:
