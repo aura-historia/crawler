@@ -107,14 +107,15 @@ def _send_batch_to_sqs(
         raise
 
 
-def _enqueue_shops_to_spider_queue(
-    domains: List[str], queue_url: str
+def _enqueue_shops_to_queue(
+    domains: List[str], queue_url: str, operation_type: str
 ) -> Dict[str, Any]:
-    """Enqueue shop domains to the spider SQS queue in batches.
+    """Enqueue shop domains to the SQS queue in batches.
 
     Args:
         domains: List of shop domains to enqueue.
         queue_url: SQS queue URL.
+        operation_type: Type of operation ("crawl" or "scrape").
 
     Returns:
         Dict with 'successful' count and 'failed' list of domains.
@@ -132,7 +133,11 @@ def _enqueue_shops_to_spider_queue(
 
         logger.info(
             f"Processing batch {batch_num}/{batch_count}",
-            extra={"batch_domains": batch, "batch_size": len(batch)},
+            extra={
+                "batch_domains": batch,
+                "batch_size": len(batch),
+                "operation_type": operation_type,
+            },
         )
 
         messages = [
@@ -176,6 +181,7 @@ def _enqueue_shops_to_spider_queue(
             "total_domains": len(domains),
             "successful": total_sent,
             "failed": len(failed_domains),
+            "operation_type": operation_type,
             "success_rate": f"{(total_sent / len(domains) * 100):.1f}%"
             if domains
             else "N/A",
@@ -198,58 +204,112 @@ def _enqueue_shops_to_spider_queue(
 
 
 def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
-    """AWS Lambda handler for spider orchestration.
+    """AWS Lambda handler for unified orchestration (crawl or scrape).
+
+    Supports two operation modes controlled by event parameter:
+    - "crawl": Uses GSI2 and spider queue (finds new product URLs)
+    - "scrape": Uses GSI3 and scraper queue (scrapes product data)
+
+    Event structure:
+    {
+        "operation": "crawl" or "scrape",  # Required
+        "country": "DE",                    # Optional, defaults to "DE"
+        "cutoff_days": 2                    # Optional, defaults to 2
+    }
 
     Args:
-        event: EventBridge scheduled event or manual invocation.
+        event: Event with operation type, or EventBridge scheduled event.
         context: Lambda context object.
 
     Returns:
         Dict with status and summary of enqueued shops.
     """
-    logger.info(
-        "Spider orchestration lambda invoked",
-        extra={"event_source": event.get("source", "manual"), "event": event},
-    )
+    # Determine operation type from event
+    operation_type = event.get("operation", "crawl")  # Default to crawl
 
-    queue_url = os.getenv("SQS_PRODUCT_SPIDER_QUEUE_URL")
-    if not queue_url:
-        logger.error("SQS_PRODUCT_SPIDER_QUEUE_URL environment variable not set")
+    # Validate operation type
+    if operation_type not in ("crawl", "scrape"):
+        logger.error(
+            f"Invalid operation type: {operation_type}",
+            extra={"allowed_values": ["crawl", "scrape"], "event": event},
+        )
         return {
-            "statusCode": 500,
-            "body": json.dumps({"error": "Queue URL not configured"}),
+            "statusCode": 400,
+            "body": json.dumps(
+                {
+                    "error": f"Invalid operation type: {operation_type}",
+                    "allowed_values": ["crawl", "scrape"],
+                }
+            ),
         }
 
-    # Calculate cutoff date (2 days ago from now)
-    cutoff_days = int(os.getenv("ORCHESTRATION_CUTOFF_DAYS", "2"))
+    logger.info(
+        f"{operation_type.capitalize()} orchestration lambda invoked",
+        extra={
+            "event_source": event.get("source", "manual"),
+            "operation_type": operation_type,
+            "event": event,
+        },
+    )
+
+    # Determine queue URL based on operation type
+    queue_env_var = (
+        "SQS_PRODUCT_SPIDER_QUEUE_URL"
+        if operation_type == "crawl"
+        else "SQS_PRODUCT_SCRAPER_QUEUE_URL"
+    )
+    queue_url = os.getenv(queue_env_var)
+
+    if not queue_url:
+        logger.error(f"{queue_env_var} environment variable not set")
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": f"{queue_env_var} not configured"}),
+        }
+
+    # Calculate cutoff date
+    cutoff_days = event.get(
+        "cutoff_days", int(os.getenv("ORCHESTRATION_CUTOFF_DAYS", "2"))
+    )
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=cutoff_days)
     cutoff_date_str = cutoff_date.isoformat()
 
+    # Get country from event or default to DE
+    country = event.get("country", "DE")
+
     logger.info(
-        "Querying shops needing crawl",
+        f"Querying shops needing {operation_type}",
         extra={
             "cutoff_date": cutoff_date_str,
             "cutoff_days": cutoff_days,
-            "country": "DE",
+            "country": country,
+            "operation_type": operation_type,
         },
     )
 
     try:
-        # Get shops that need crawling
-        shops = db_operations.get_last_crawled_shops(
-            cutoff_date=cutoff_date_str, country="DE"
+        # Get shops using unified method
+        shops = db_operations.get_shops_for_orchestration(
+            operation_type=operation_type,
+            cutoff_date=cutoff_date_str,
+            country=country,
         )
 
         if not shops:
             logger.info(
-                "No shops found requiring crawling",
-                extra={"cutoff_date": cutoff_date_str, "country": "DE"},
+                f"No shops found requiring {operation_type}",
+                extra={
+                    "cutoff_date": cutoff_date_str,
+                    "country": country,
+                    "operation_type": operation_type,
+                },
             )
             return {
                 "statusCode": 200,
                 "body": json.dumps(
                     {
-                        "message": "No shops to enqueue",
+                        "message": f"No shops to enqueue for {operation_type}",
+                        "operation_type": operation_type,
                         "shops_count": 0,
                         "cutoff_date": cutoff_date_str,
                     }
@@ -258,28 +318,31 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
 
         domains = [shop.domain for shop in shops]
         logger.info(
-            "Found shops requiring crawl",
+            f"Found shops requiring {operation_type}",
             extra={
                 "shops_count": len(domains),
                 "domains_preview": domains[:5],
                 "cutoff_date": cutoff_date_str,
+                "operation_type": operation_type,
             },
         )
 
-        # Enqueue domains to SQS spider queue
-        enqueue_result = _enqueue_shops_to_spider_queue(domains, queue_url)
+        # Enqueue domains to appropriate SQS queue
+        enqueue_result = _enqueue_shops_to_queue(domains, queue_url, operation_type)
 
         response_body = {
-            "summary": "Spider orchestration completed",
+            "summary": f"{operation_type.capitalize()} orchestration completed",
+            "operation_type": operation_type,
             "shops_found": len(domains),
             "shops_enqueued": enqueue_result["successful"],
             "shops_failed": len(enqueue_result["failed"]),
             "failed_domains": enqueue_result["failed"],
             "cutoff_date": cutoff_date_str,
+            "country": country,
         }
 
         logger.info(
-            "Spider orchestration completed successfully",
+            f"{operation_type.capitalize()} orchestration completed successfully",
             extra=response_body,
         )
 
@@ -287,27 +350,30 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
             "statusCode": 200,
             "body": json.dumps(
                 {
-                    "message": "Spider orchestration completed",
+                    "message": f"{operation_type.capitalize()} orchestration completed",
+                    "operation_type": operation_type,
                     "shops_found": response_body["shops_found"],
                     "shops_enqueued": response_body["shops_enqueued"],
                     "shops_failed": response_body["shops_failed"],
                     "failed_domains": response_body["failed_domains"],
                     "cutoff_date": response_body["cutoff_date"],
+                    "country": response_body["country"],
                 }
             ),
         }
 
     except Exception as e:
         logger.error(
-            "Spider orchestration failed",
+            f"{operation_type.capitalize()} orchestration failed",
             extra={
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "cutoff_date": cutoff_date_str,
+                "operation_type": operation_type,
             },
             exc_info=True,
         )
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": str(e)}),
+            "body": json.dumps({"error": str(e), "operation_type": operation_type}),
         }

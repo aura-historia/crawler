@@ -709,30 +709,39 @@ class DynamoDBOperations:
             logger.error(f"Error fetching URL entry for {url} in {domain}: {e}")
             return None
 
-    def get_last_crawled_shops(
-        self, cutoff_date: str, country: Optional[str] = None
+    def get_shops_for_orchestration(
+        self,
+        operation_type: str,
+        cutoff_date: str,
+        country: Optional[str] = None,
     ) -> List[ShopMetadata]:
-        """
-        Get shops that need crawling based on last_crawled_end date using GSI2.
+        """Get shops that need crawling or scraping based on operation type.
 
-        Returns shops where:
-        1. last_crawled_end is older than cutoff_date (stale shops)
-        2. last_crawled_end = "1970-01-01T00:00:00Z" (never crawled - new shops)
-
-        Note: New shops have gsi2_sk set to "1970-01-01T00:00:00Z" marker value,
-        making them queryable via GSI2 alongside old shops.
-
-        Crawling and scraping are independent operations - shops can be crawled
-        regardless of their scraping status.
+        Returns shops where the relevant timestamp is older than cutoff_date
+        or has the marker value "1970-01-01T00:00:00Z" (never processed).
 
         Args:
+            operation_type: Either "crawl" or "scrape"
             cutoff_date: ISO 8601 date string (e.g., '2026-01-02T00:00:00Z')
             country: Optional country filter (without COUNTRY# prefix)
 
         Returns:
-            List of ShopMetadata objects that need crawling
+            List of ShopMetadata objects that need processing
+
+        Raises:
+            ValueError: If operation_type is not "crawl" or "scrape"
         """
-        shops_to_crawl = []
+        if operation_type not in ("crawl", "scrape"):
+            raise ValueError(
+                f"operation_type must be 'crawl' or 'scrape', got: {operation_type}"
+            )
+
+        # Determine which GSI to use
+        index_name = "GSI2" if operation_type == "crawl" else "GSI3"
+        pk_attr = "gsi2_pk" if operation_type == "crawl" else "gsi3_pk"
+        sk_attr = "gsi2_sk" if operation_type == "crawl" else "gsi3_sk"
+
+        shops = []
 
         try:
             # If country is specified, query that country
@@ -753,47 +762,48 @@ class DynamoDBOperations:
                 )
 
             for country_key in countries:
-                # Query GSI2 for all shops (old and new) with gsi2_sk <= cutoff_date
-                # This includes:
-                # - Shops with old last_crawled_end (< cutoff_date)
-                # - New shops with marker "1970-01-01T00:00:00Z"
-                shops_to_crawl.extend(
-                    self._query_gsi2_for_shops_needing_crawl(country_key, cutoff_date)
+                shops.extend(
+                    self._query_gsi_for_shops(
+                        index_name, pk_attr, sk_attr, country_key, cutoff_date
+                    )
                 )
 
             logger.info(
-                f"Found {len(shops_to_crawl)} shops for orchestration "
-                f"(cutoff: {cutoff_date})"
+                f"Found {len(shops)} shops for {operation_type} (cutoff: {cutoff_date})"
             )
-            return shops_to_crawl
+            return shops
 
         except ClientError as e:
-            logger.error(f"Error querying shops for orchestration: {e}")
+            logger.error(
+                f"Error querying shops for {operation_type} orchestration: {e}"
+            )
             raise
         except Exception as e:
-            logger.error(f"Unexpected error in get_shops_for_orchestration: {e}")
+            logger.error(
+                f"Unexpected error in get_shops_for_orchestration ({operation_type}): {e}"
+            )
             raise
 
-    def _query_gsi2_for_shops_needing_crawl(
-        self, country: str, cutoff_date: str
+    def _query_gsi_for_shops(
+        self,
+        index_name: str,
+        pk_attr: str,
+        sk_attr: str,
+        country: str,
+        cutoff_date: str,
     ) -> List[ShopMetadata]:
-        """
-        Query GSI2 for shops that need crawling.
+        """Query a GSI for shops that need processing.
 
-        Returns shops with gsi2_sk <= cutoff_date, which includes:
-        - Shops with old last_crawled_end dates
+        Returns shops with sk_attr <= cutoff_date, which includes:
+        - Shops with old timestamps
         - New shops with marker value "1970-01-01T00:00:00Z"
 
-        Validates new shops by checking that BOTH last_crawled_start
-        AND last_crawled_end are missing (not just checking the marker).
-
-        Note: Crawling and scraping are independent operations. Shops are
-        selected for crawling based solely on their crawl timestamps,
-        regardless of scraping status.
-
         Args:
+            index_name: GSI name (GSI2 or GSI3)
+            pk_attr: Partition key attribute name
+            sk_attr: Sort key attribute name
             country: Country key with COUNTRY# prefix
-            cutoff_date: Cutoff date for last_crawled_end
+            cutoff_date: Cutoff date
 
         Returns:
             List of ShopMetadata objects
@@ -805,8 +815,8 @@ class DynamoDBOperations:
             while True:
                 query_args = {
                     "TableName": self.table_name,
-                    "IndexName": "GSI2",
-                    "KeyConditionExpression": "gsi2_pk = :country AND gsi2_sk <= :cutoff",
+                    "IndexName": index_name,
+                    "KeyConditionExpression": f"{pk_attr} = :country AND {sk_attr} <= :cutoff",
                     "ExpressionAttributeValues": {
                         ":country": {"S": country},
                         ":cutoff": {"S": cutoff_date},
@@ -826,15 +836,13 @@ class DynamoDBOperations:
                     break
 
             logger.debug(
-                f"Found {len(shops)} shops needing crawl in {country} "
+                f"Found {len(shops)} shops in {country} using {index_name} "
                 f"(cutoff: {cutoff_date})"
             )
             return shops
 
         except ClientError as e:
-            logger.error(
-                f"Error querying GSI2 for shops needing crawl in {country}: {e}"
-            )
+            logger.error(f"Error querying {index_name} for shops in {country}: {e}")
             return []
 
 
