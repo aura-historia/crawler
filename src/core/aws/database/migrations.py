@@ -20,7 +20,7 @@ def create_tables():
     - pk: 'SHOP#' + domain (e.g., 'SHOP#example.com')
     - sk: Two types:
         1. 'META#' - Shop metadata
-           Attributes: domain, standards_used (BOOL), shop_name (optional), shop_country (COUNTRY#XX),
+           Attributes: domain, shop_name (optional), shop_country (COUNTRY#XX),
                       last_crawled_start/end, last_scraped_start/end (ISO 8601),
                       core_domain_name
         2. 'URL#<full_url>' - Individual URL data
@@ -28,8 +28,8 @@ def create_tables():
 
     GSIs:
     - GSI1: Product type index (gsi1_pk=SHOP#domain, gsi1_sk=type)
-    - GSI2: Country + crawled date (gsi2_pk=COUNTRY#XX, gsi2_sk=last_crawled_start)
-    - GSI3: Country + scraped date (gsi3_pk=COUNTRY#XX, gsi3_sk=last_scraped_start)
+    - GSI2: Country + crawled end date (gsi2_pk=COUNTRY#XX, gsi2_sk=last_crawled_end)
+    - GSI3: Country + scraped end date (gsi3_pk=COUNTRY#XX, gsi3_sk=last_scraped_end)
     - GSI4: Core domain name (gsi4_pk=core_domain_name, gsi4_sk=domain)
 
     Operations:

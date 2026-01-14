@@ -270,45 +270,45 @@ class TestUpdateOperations:
     """Tests for UpdateItem operations."""
 
     def test_update_shop_metadata_success(self, db_ops, mock_boto_client):
-        """Test successfully updating shop metadata with crawled date."""
+        """Test successfully updating shop metadata with crawled end date."""
         mock_boto_client.update_item.return_value = {
-            "Attributes": {"last_crawled_start": {"S": "2025-12-14T12:00:00"}}
+            "Attributes": {"last_crawled_end": {"S": "2025-12-14T12:00:00"}}
         }
         domain = "example.com"
-        crawled_date = "2025-12-14T12:00:00"
+        crawled_end_date = "2025-12-14T12:00:00"
 
         result = db_ops.update_shop_metadata(
-            domain=domain, last_crawled_start=crawled_date
+            domain=domain, last_crawled_end=crawled_end_date
         )
 
         mock_boto_client.update_item.assert_called_once_with(
             TableName=db_ops.table_name,
             Key={"pk": {"S": f"SHOP#{domain}"}, "sk": {"S": db_ops.METADATA_SK}},
-            UpdateExpression="SET last_crawled_start = :crawled_start, gsi2_sk = :crawled_start",
-            ExpressionAttributeValues={":crawled_start": {"S": crawled_date}},
+            UpdateExpression="SET last_crawled_end = :crawled_end, gsi2_sk = :crawled_end",
+            ExpressionAttributeValues={":crawled_end": {"S": crawled_end_date}},
             ReturnValues="UPDATED_NEW",
         )
-        assert result == {"last_crawled_start": {"S": "2025-12-14T12:00:00"}}
+        assert result == {"last_crawled_end": {"S": "2025-12-14T12:00:00"}}
 
     def test_update_shop_metadata_with_both_dates(self, db_ops, mock_boto_client):
-        """Test updating shop metadata with both crawled and scraped dates."""
+        """Test updating shop metadata with both crawled and scraped end dates."""
         mock_boto_client.update_item.return_value = {"Attributes": {}}
         domain = "example.com"
-        crawled_date = "2025-01-01T00:00:00"
-        scraped_date = "2025-01-02T00:00:00"
+        crawled_end_date = "2025-01-01T00:00:00"
+        scraped_end_date = "2025-01-02T00:00:00"
 
         db_ops.update_shop_metadata(
             domain=domain,
-            last_crawled_start=crawled_date,
-            last_scraped_start=scraped_date,
+            last_crawled_end=crawled_end_date,
+            last_scraped_end=scraped_end_date,
         )
 
         mock_boto_client.update_item.assert_called_once()
         call_kwargs = mock_boto_client.update_item.call_args.kwargs
-        assert "last_crawled_start = :crawled_start" in call_kwargs["UpdateExpression"]
-        assert "last_scraped_start = :scraped_start" in call_kwargs["UpdateExpression"]
-        assert "gsi2_sk = :crawled_start" in call_kwargs["UpdateExpression"]
-        assert "gsi3_sk = :scraped_start" in call_kwargs["UpdateExpression"]
+        assert "last_crawled_end = :crawled_end" in call_kwargs["UpdateExpression"]
+        assert "last_scraped_end = :scraped_end" in call_kwargs["UpdateExpression"]
+        assert "gsi2_sk = :crawled_end" in call_kwargs["UpdateExpression"]
+        assert "gsi3_sk = :scraped_end" in call_kwargs["UpdateExpression"]
 
     def test_update_shop_metadata_no_updates(self, db_ops, mock_boto_client):
         """Test that update is skipped when no update fields are provided."""

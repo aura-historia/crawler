@@ -6,9 +6,19 @@ from typing import Any, Callable, Awaitable
 
 from src.core.utils.logger import logger
 from src.core.aws.sqs.message_wrapper import receive_messages
-from src.core.aws.spot.spot_termination_watcher import (
-    signal_handler,
-)
+
+
+def signal_handler(signum: int, shutdown_event) -> None:
+    """Signal handler that marks the worker as interrupted and re-queues
+    the currently-processing SQS message (if any).
+    """
+    logger.info("Signal %s received. Finishing current task and shutting down.", signum)
+
+    if shutdown_event is not None:
+        try:
+            shutdown_event.set()
+        except Exception:
+            logger.debug("Failed to signal shutdown_event to the loop")
 
 
 async def handle_stolen_message(worker_id: int, fetch_task: asyncio.Task) -> None:

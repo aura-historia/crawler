@@ -16,7 +16,6 @@ class TestShopMetadata:
         assert metadata.pk == "SHOP#example.com"
         assert metadata.sk == "META#"
         assert metadata.domain == "example.com"
-        assert metadata.standards_used is True
         assert metadata.shop_country == "COUNTRY#US"
         assert metadata.core_domain_name == "example"
 
@@ -39,7 +38,6 @@ class TestShopMetadata:
         assert item["sk"]["S"] == "META#"
         assert item["domain"]["S"] == "example.com"
         assert item["shop_country"]["S"] == "COUNTRY#CA"
-        assert item["standards_used"]["BOOL"] is True
         assert item["core_domain_name"]["S"] == "example"
 
     def test_from_dynamodb_item(self):
@@ -48,14 +46,12 @@ class TestShopMetadata:
             "pk": {"S": "SHOP#example.com"},
             "sk": {"S": "META#"},
             "domain": {"S": "example.com"},
-            "standards_used": {"BOOL": True},
             "shop_country": {"S": "COUNTRY#DE"},
         }
 
         metadata = ShopMetadata.from_dynamodb_item(item)
 
         assert metadata.domain == "example.com"
-        assert metadata.standards_used is True
         assert metadata.shop_country == "COUNTRY#DE"
         assert metadata.pk == "SHOP#example.com"
         assert metadata.sk == "META#"
@@ -134,7 +130,6 @@ class TestURLEntry:
             "pk": {"S": "SHOP#example.com"},
             "sk": {"S": "URL#https://example.com/product/123"},
             "url": {"S": "https://example.com/product/123"},
-            "standards_used": {"BOOL": True},
             "type": {"S": "product"},
             "hash": {"S": "some_hash"},
         }

@@ -1,0 +1,6 @@
+tldextract
+python-dotenv
+python-json-logger
+iptocc
+numpy==1.26.4
+

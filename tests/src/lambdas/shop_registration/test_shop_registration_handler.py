@@ -15,7 +15,6 @@ from src.lambdas.shop_registration.shop_registration_handler import (
 def sample_shop_metadata():
     return ShopMetadata(
         domain="shop.com",
-        standards_used=True,
         shop_country="DE",
     )
 
@@ -26,7 +25,6 @@ def sample_dynamodb_item():
         "pk": {"S": "SHOP#shop.com"},
         "sk": {"S": METADATA_SK},
         "domain": {"S": "shop.com"},
-        "standards_used": {"BOOL": True},
         "core_domain_name": {"S": "shop"},
     }
 
@@ -136,7 +134,7 @@ class TestRegisterOrUpdateShop:
     )
     @patch("src.lambdas.shop_registration.shop_registration_handler.find_existing_shop")
     def test_handles_invalid_shop_metadata(self, mock_find_existing, mock_resilient):
-        shop = ShopMetadata(domain="", standards_used=False, shop_country="DE")
+        shop = ShopMetadata(domain="", shop_country="DE")
         session = Mock()
         with pytest.raises(Exception):
             register_or_update_shop(shop, session)
@@ -324,7 +322,14 @@ class TestResilientHttpRequestSync:
         """HTTP errors raised by raise_for_status are propagated."""
         session = Mock()
         response = Mock()
-        response.raise_for_status = Mock(side_effect=requests.HTTPError("Server error"))
+        response.status_code = 500
+        response.text = "Internal Server Error"
+
+        # Create HTTPError with response attribute for logging
+        http_error = requests.HTTPError("Server error")
+        http_error.response = response
+
+        response.raise_for_status = Mock(side_effect=http_error)
 
         session.headers = {}
         session.request = Mock(return_value=response)
