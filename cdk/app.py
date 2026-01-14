@@ -4,7 +4,7 @@ import aws_cdk as cdk
 from dotenv import load_dotenv
 
 from stacks.database import DatabaseStack
-from stacks.orchestration_spider_lambda import SpiderOrchestrationStack
+from stacks.orchestration_lambda import OrchestrationStack
 from stacks.queues import QueueStack
 from stacks.shop_registration_lambda import CrawlerStack
 
@@ -27,11 +27,13 @@ shop_registration_lambda_stack = CrawlerStack(
     env=env_config,
 )
 
-spider_orchestration_stack = SpiderOrchestrationStack(
+# Unified orchestration stack supporting both crawl and scrape operations
+orchestration_stack = OrchestrationStack(
     app,
-    "SpiderOrchestrationStack",
+    "OrchestrationStack",
     table=db_stack.shop_table,
     spider_queue=queue_stack.spider_queue,
+    scraper_queue=queue_stack.scraper_queue,
     env=env_config,
 )
 

@@ -1,9 +1,9 @@
-"""CDK Stack for Spider Orchestration Lambda.
+"""CDK Stack for unified Orchestration Lambda.
 
 This stack creates:
-- Lambda function from Docker image (manual invocation)
-- SQS queue for spider tasks (or uses existing one)
-- IAM permissions for Lambda to read DynamoDB and write to SQS
+- Lambda function from Docker image (supports both crawl and scrape operations)
+- SQS queues for spider and scraper tasks
+- IAM permissions for Lambda to read DynamoDB and write to both SQS queues
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-class SpiderOrchestrationLambdaConstruct(Construct):
-    """Construct for Spider Orchestration Lambda (manual invocation only)."""
+class OrchestrationLambdaConstruct(Construct):
+    """Construct for unified Orchestration Lambda (supports both crawl and scrape)."""
 
     def __init__(
         self,
@@ -32,46 +32,53 @@ class SpiderOrchestrationLambdaConstruct(Construct):
         id_: str,
         table: dynamodb.ITable,
         spider_queue: sqs.IQueue,
+        scraper_queue: sqs.IQueue,
     ) -> None:
-        """Initialize the Spider Orchestration Lambda construct.
+        """Initialize the unified Orchestration Lambda construct.
 
         Args:
             scope: CDK construct scope.
             id_: Construct ID.
             table: DynamoDB table for shop metadata.
-            spider_queue: SQS queue for spider tasks.
+            spider_queue: SQS queue for spider tasks (crawl).
+            scraper_queue: SQS queue for scraper tasks (scrape).
         """
         super().__init__(scope, id_)
 
         # Lambda role with permissions
-        self.lambda_role = self._build_lambda_role(table, spider_queue)
+        self.lambda_role = self._build_lambda_role(table, spider_queue, scraper_queue)
 
         # Lambda from Docker image
         self.lambda_func = self._build_lambda_function(
-            self.lambda_role, table, spider_queue
+            self.lambda_role, table, spider_queue, scraper_queue
         )
 
         # Grant DynamoDB query permissions (for orchestration)
         table.grant_read_data(self.lambda_func)
 
-        # Grant SQS send permissions
+        # Grant SQS send permissions for both queues
         spider_queue.grant_send_messages(self.lambda_func)
+        scraper_queue.grant_send_messages(self.lambda_func)
 
     def _build_lambda_role(
-        self, table: dynamodb.ITable, spider_queue: sqs.IQueue
+        self,
+        table: dynamodb.ITable,
+        spider_queue: sqs.IQueue,
+        scraper_queue: sqs.IQueue,
     ) -> iam.Role:
         """Create IAM role for Lambda with necessary permissions.
 
         Args:
             table: DynamoDB table reference.
-            spider_queue: SQS queue reference.
+            spider_queue: SQS spider queue reference.
+            scraper_queue: SQS scraper queue reference.
 
         Returns:
             IAM Role for Lambda.
         """
         role = iam.Role(
             self,
-            "SpiderOrchestrationLambdaRole",
+            "OrchestrationLambdaRole",
             assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name(
@@ -91,25 +98,30 @@ class SpiderOrchestrationLambdaConstruct(Construct):
             )
         )
 
-        # SQS send permission
+        # SQS send permission for both queues
         role.add_to_policy(
             iam.PolicyStatement(
                 actions=["sqs:SendMessage", "sqs:SendMessageBatch"],
-                resources=[spider_queue.queue_arn],
+                resources=[spider_queue.queue_arn, scraper_queue.queue_arn],
             )
         )
 
         return role
 
     def _build_lambda_function(
-        self, role: iam.Role, table: dynamodb.ITable, spider_queue: sqs.IQueue
+        self,
+        role: iam.Role,
+        table: dynamodb.ITable,
+        spider_queue: sqs.IQueue,
+        scraper_queue: sqs.IQueue,
     ) -> _lambda.DockerImageFunction:
         """Build Lambda function from Docker image.
 
         Args:
             role: IAM role for Lambda.
             table: DynamoDB table reference.
-            spider_queue: SQS queue reference.
+            spider_queue: SQS spider queue reference.
+            scraper_queue: SQS scraper queue reference.
 
         Returns:
             Lambda function.
@@ -118,10 +130,10 @@ class SpiderOrchestrationLambdaConstruct(Construct):
 
         lambda_func = _lambda.DockerImageFunction(
             self,
-            "SpiderOrchestrationLambda",
+            "OrchestrationLambda",
             code=_lambda.DockerImageCode.from_image_asset(
                 directory=lambda_dir,
-                file="src/lambdas/orchestration_spider/Dockerfile",
+                file="src/lambdas/orchestration/Dockerfile",
                 exclude=[
                     ".github",
                     "cdk",
@@ -158,6 +170,7 @@ class SpiderOrchestrationLambdaConstruct(Construct):
                     "src/core/classifier",
                     "src/core/scraper",
                     "src/lambdas/shop_registration",
+                    "src/lambdas/orchestration_scraper",
                     "local_development",
                     "scripts",
                 ],
@@ -169,6 +182,7 @@ class SpiderOrchestrationLambdaConstruct(Construct):
             environment={
                 "DYNAMODB_TABLE_NAME": table.table_name,
                 "SQS_PRODUCT_SPIDER_QUEUE_URL": spider_queue.queue_url,
+                "SQS_PRODUCT_SCRAPER_QUEUE_URL": scraper_queue.queue_url,
                 "ORCHESTRATION_CUTOFF_DAYS": "2",
                 "LOG_LEVEL": "INFO",
             },
@@ -177,8 +191,8 @@ class SpiderOrchestrationLambdaConstruct(Construct):
         return lambda_func
 
 
-class SpiderOrchestrationStack(Stack):
-    """CDK Stack for Spider Orchestration Lambda."""
+class OrchestrationStack(Stack):
+    """CDK Stack for unified Orchestration Lambda (supports crawl and scrape)."""
 
     def __init__(
         self,
@@ -186,22 +200,25 @@ class SpiderOrchestrationStack(Stack):
         id: str,
         table: dynamodb.ITable,
         spider_queue: sqs.IQueue,
+        scraper_queue: sqs.IQueue,
         **kwargs,
     ):
-        """Initialize the Spider Orchestration Stack.
+        """Initialize the Orchestration Stack.
 
         Args:
             scope: CDK app scope.
             id: Stack ID.
             table: DynamoDB table for shop metadata.
-            spider_queue: SQS queue for spider tasks.
+            spider_queue: SQS queue for spider tasks (crawl).
+            scraper_queue: SQS queue for scraper tasks (scrape).
             **kwargs: Additional stack arguments.
         """
         super().__init__(scope, id, **kwargs)
 
-        SpiderOrchestrationLambdaConstruct(
+        OrchestrationLambdaConstruct(
             self,
-            "SpiderOrchestrationLambdaConstruct",
+            "OrchestrationLambdaConstruct",
             table=table,
             spider_queue=spider_queue,
+            scraper_queue=scraper_queue,
         )
