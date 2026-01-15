@@ -627,13 +627,23 @@ class TestHandlerWithFiltering:
 
     @patch("src.lambdas.orchestration.orchestration_handler.db_operations")
     @patch("src.lambdas.orchestration.orchestration_handler._get_sqs_client")
-    def test_crawl_handler_no_filtering(self, mock_get_sqs, mock_db_ops, mock_env_vars):
-        """Test crawl handler does not apply filtering."""
+    def test_crawl_handler_with_filtering(
+        self, mock_get_sqs, mock_db_ops, mock_env_vars
+    ):
+        """Test crawl handler applies filtering and all shops are eligible."""
         from src.lambdas.orchestration import orchestration_handler
 
         mock_db_ops.get_shops_for_orchestration.return_value = [
-            ShopMetadata(domain="shop1.com"),
-            ShopMetadata(domain="shop2.com"),
+            ShopMetadata(
+                domain="shop1.com",
+                last_crawled_start=None,
+                last_crawled_end="2026-01-10T10:00:00Z",
+            ),
+            ShopMetadata(
+                domain="shop2.com",
+                last_crawled_start=None,
+                last_crawled_end="2026-01-11T10:00:00Z",
+            ),
         ]
 
         mock_sqs_client = MagicMock()
@@ -649,5 +659,76 @@ class TestHandlerWithFiltering:
         body = json.loads(result["body"])
         assert body["shops_found"] == 2
         assert body["shops_enqueued"] == 2
-        # No filter_stats for crawl operations
-        assert "filter_stats" not in body
+        # Filter stats should be present for crawl operations
+        assert "filter_stats" in body
+        assert body["filter_stats"]["total_queried"] == 2
+        assert body["filter_stats"]["eligible"] == 2
+        assert body["filter_stats"]["in_progress"] == 0
+
+    @patch("src.lambdas.orchestration.orchestration_handler.db_operations")
+    @patch("src.lambdas.orchestration.orchestration_handler._get_sqs_client")
+    def test_crawl_handler_filters_in_progress(
+        self, mock_get_sqs, mock_db_ops, mock_env_vars
+    ):
+        """Test crawl handler filters out shops that are already crawling."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        mock_db_ops.get_shops_for_orchestration.return_value = [
+            # Shop 1: Not crawling
+            ShopMetadata(
+                domain="shop1.com",
+                last_crawled_start=None,
+                last_crawled_end="2026-01-10T10:00:00Z",
+            ),
+            # Shop 2: Currently crawling (start > end)
+            ShopMetadata(
+                domain="shop2.com",
+                last_crawled_start="2026-01-15T10:00:00Z",
+                last_crawled_end="2026-01-10T10:00:00Z",
+            ),
+            # Shop 3: Currently crawling (end = None)
+            ShopMetadata(
+                domain="shop3.com",
+                last_crawled_start="2026-01-15T09:00:00Z",
+                last_crawled_end=None,
+            ),
+        ]
+
+        mock_sqs_client = MagicMock()
+        mock_sqs_client.send_message_batch.return_value = {
+            "Successful": [{"Id": "0"}],
+            "Failed": [],
+        }
+        mock_get_sqs.return_value = mock_sqs_client
+
+        result = orchestration_handler.handler({"operation": "crawl"}, None)
+
+        assert result["statusCode"] == 200
+        body = json.loads(result["body"])
+        assert body["shops_found"] == 1  # Only shop1
+        assert body["shops_enqueued"] == 1
+        assert body["filter_stats"]["total_queried"] == 3
+        assert body["filter_stats"]["eligible"] == 1
+        assert body["filter_stats"]["in_progress"] == 2
+
+    @patch("src.lambdas.orchestration.orchestration_handler.db_operations")
+    def test_crawl_handler_all_filtered_out(self, mock_db_ops, mock_env_vars):
+        """Test crawl handler when all shops are filtered out (all in progress)."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        mock_db_ops.get_shops_for_orchestration.return_value = [
+            ShopMetadata(
+                domain="shop1.com",
+                last_crawled_start="2026-01-15T10:00:00Z",
+                last_crawled_end=None,
+            ),
+        ]
+
+        result = orchestration_handler.handler({"operation": "crawl"}, None)
+
+        assert result["statusCode"] == 200
+        body = json.loads(result["body"])
+        assert body["shops_count"] == 0
+        assert body["shops_queried"] == 1
+        assert body["shops_filtered"] == 1
+        assert "No eligible shops" in body["message"]
