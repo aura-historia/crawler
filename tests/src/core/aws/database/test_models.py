@@ -69,6 +69,61 @@ class TestShopMetadata:
         metadata = ShopMetadata(domain=domain)
         assert metadata.pk == expected_pk
 
+    def test_gsi2_uses_sentinel_for_never_crawled_shops(self):
+        """Test GSI2 keys use sentinel timestamp for shops that were never crawled."""
+        metadata = ShopMetadata(domain="example.com", shop_country="DE")
+
+        item = metadata.to_dynamodb_item()
+
+        assert "gsi2_pk" in item
+        assert "gsi2_sk" in item
+        assert item["gsi2_pk"]["S"] == "COUNTRY#DE"
+        assert item["gsi2_sk"]["S"] == "1970-01-01T00:00:00Z"
+
+    def test_gsi2_uses_actual_timestamp_when_available(self):
+        """Test GSI2 uses actual last_crawled_end when available."""
+        metadata = ShopMetadata(
+            domain="example.com",
+            shop_country="DE",
+            last_crawled_end="2026-01-15T10:00:00Z",
+        )
+
+        item = metadata.to_dynamodb_item()
+
+        assert item["gsi2_sk"]["S"] == "2026-01-15T10:00:00Z"
+
+    def test_gsi3_uses_sentinel_for_never_scraped_shops(self):
+        """Test GSI3 keys use sentinel timestamp for shops that were never scraped."""
+        metadata = ShopMetadata(domain="example.com", shop_country="DE")
+
+        item = metadata.to_dynamodb_item()
+
+        assert "gsi3_pk" in item
+        assert "gsi3_sk" in item
+        assert item["gsi3_pk"]["S"] == "COUNTRY#DE"
+        assert item["gsi3_sk"]["S"] == "1970-01-01T00:00:00Z"
+
+    def test_gsi3_uses_actual_timestamp_when_available(self):
+        """Test GSI3 uses actual last_scraped_end when available."""
+        metadata = ShopMetadata(
+            domain="example.com",
+            shop_country="DE",
+            last_scraped_end="2026-01-15T10:00:00Z",
+        )
+
+        item = metadata.to_dynamodb_item()
+
+        assert item["gsi3_sk"]["S"] == "2026-01-15T10:00:00Z"
+
+    def test_gsi3_not_added_without_country(self):
+        """Test GSI3 keys are not added when shop_country is None."""
+        metadata = ShopMetadata(domain="example.com")
+
+        item = metadata.to_dynamodb_item()
+
+        assert "gsi3_pk" not in item
+        assert "gsi3_sk" not in item
+
 
 class TestURLEntry:
     """Tests for URLEntry model."""

@@ -11,6 +11,11 @@ import boto3
 from botocore.exceptions import ClientError
 from pythonjsonlogger import json as pythonjson
 
+from src.core.aws.database.constants import (
+    is_scrape_eligible,
+    is_scrape_in_progress,
+    is_crawl_in_progress,
+)
 from src.core.aws.database.operations import db_operations
 
 # Configure JSON logging for CloudWatch
@@ -203,6 +208,144 @@ def _enqueue_shops_to_queue(
     }
 
 
+def _filter_eligible_shops_for_crawl(
+    shops: List[Any],
+) -> tuple[List[Any], Dict[str, int]]:
+    """Filter shops to include only those eligible for crawling.
+
+    Applies in-memory filtering after GSI query to reduce duplicate crawl jobs.
+    GSI2 query may return shops that are currently being crawled.
+
+    Args:
+        shops: List of ShopMetadata objects from GSI query.
+
+    Returns:
+        Tuple of (eligible_shops, filter_stats).
+    """
+    eligible = []
+    stats = {
+        "total_queried": len(shops),
+        "in_progress": 0,
+        "eligible": 0,
+    }
+
+    for shop in shops:
+        # Check if crawl already in progress
+        if is_crawl_in_progress(shop.last_crawled_start, shop.last_crawled_end):
+            stats["in_progress"] += 1
+            logger.debug(
+                "Skipping shop - crawl in progress",
+                extra={
+                    "domain": shop.domain,
+                    "last_crawled_start": shop.last_crawled_start,
+                    "last_crawled_end": shop.last_crawled_end,
+                },
+            )
+            continue
+
+        eligible.append(shop)
+        stats["eligible"] += 1
+
+    logger.info(
+        "Crawl eligibility filtering completed",
+        extra={
+            "total_queried": stats["total_queried"],
+            "eligible": stats["eligible"],
+            "filtered_out": stats["total_queried"] - stats["eligible"],
+            "in_progress": stats["in_progress"],
+            "filter_rate": f"{((stats['total_queried'] - stats['eligible']) / stats['total_queried'] * 100):.1f}%"
+            if stats["total_queried"] > 0
+            else "0.0%",
+        },
+    )
+
+    return eligible, stats
+
+
+def _filter_eligible_shops_for_scrape(
+    shops: List[Any],
+) -> tuple[List[Any], Dict[str, int]]:
+    """Filter shops to include only those eligible for scraping.
+
+    Applies in-memory filtering after GSI query to reduce no-op scrape jobs.
+    GSI3 query may return shops that are:
+    - Already scraped (scrape is newer than crawl)
+    - Currently being scraped (scrape in progress)
+    - Not yet crawled (crawl in progress)
+
+    Args:
+        shops: List of ShopMetadata objects from GSI query.
+
+    Returns:
+        Tuple of (eligible_shops, filter_stats).
+    """
+    eligible = []
+    stats = {
+        "total_queried": len(shops),
+        "in_progress": 0,
+        "crawl_not_finished": 0,
+        "already_scraped": 0,
+        "eligible": 0,
+    }
+
+    for shop in shops:
+        # Check if scrape already in progress
+        if is_scrape_in_progress(shop.last_scraped_start, shop.last_scraped_end):
+            stats["in_progress"] += 1
+            logger.debug(
+                "Skipping shop - scrape in progress",
+                extra={
+                    "domain": shop.domain,
+                    "last_scraped_start": shop.last_scraped_start,
+                    "last_scraped_end": shop.last_scraped_end,
+                },
+            )
+            continue
+
+        # Check eligibility (crawl finished and newer than scrape)
+        if not is_scrape_eligible(
+            shop.last_crawled_end, shop.last_scraped_end, shop.last_scraped_start
+        ):
+            # Determine reason for ineligibility
+            if (
+                shop.last_crawled_end is None
+                or shop.last_crawled_end == "1970-01-01T00:00:00Z"
+            ):
+                stats["crawl_not_finished"] += 1
+            else:
+                stats["already_scraped"] += 1
+
+            logger.debug(
+                "Skipping shop - not eligible",
+                extra={
+                    "domain": shop.domain,
+                    "last_crawled_end": shop.last_crawled_end,
+                    "last_scraped_end": shop.last_scraped_end,
+                },
+            )
+            continue
+
+        eligible.append(shop)
+        stats["eligible"] += 1
+
+    logger.info(
+        "Scrape eligibility filtering completed",
+        extra={
+            "total_queried": stats["total_queried"],
+            "eligible": stats["eligible"],
+            "filtered_out": stats["total_queried"] - stats["eligible"],
+            "in_progress": stats["in_progress"],
+            "crawl_not_finished": stats["crawl_not_finished"],
+            "already_scraped": stats["already_scraped"],
+            "filter_rate": f"{((stats['total_queried'] - stats['eligible']) / stats['total_queried'] * 100):.1f}%"
+            if stats["total_queried"] > 0
+            else "0.0%",
+        },
+    )
+
+    return eligible, stats
+
+
 def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
     """AWS Lambda handler for unified orchestration (crawl or scrape).
 
@@ -316,6 +459,67 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
                 ),
             }
 
+        # Apply in-memory filtering for both operations
+        # GSI queries may return shops that are currently in progress
+        filter_stats = None
+        if operation_type == "crawl":
+            shops, filter_stats = _filter_eligible_shops_for_crawl(shops)
+
+            if not shops:
+                logger.info(
+                    "No eligible shops after filtering",
+                    extra={
+                        "cutoff_date": cutoff_date_str,
+                        "country": country,
+                        "operation_type": operation_type,
+                        "filter_stats": filter_stats,
+                    },
+                )
+                return {
+                    "statusCode": 200,
+                    "body": json.dumps(
+                        {
+                            "message": "No eligible shops to enqueue for crawl",
+                            "operation_type": operation_type,
+                            "shops_count": 0,
+                            "shops_queried": filter_stats["total_queried"],
+                            "shops_filtered": filter_stats["total_queried"]
+                            - filter_stats["eligible"],
+                            "filter_stats": filter_stats,
+                            "cutoff_date": cutoff_date_str,
+                        }
+                    ),
+                }
+
+        elif operation_type == "scrape":
+            shops, filter_stats = _filter_eligible_shops_for_scrape(shops)
+
+            if not shops:
+                logger.info(
+                    "No eligible shops after filtering",
+                    extra={
+                        "cutoff_date": cutoff_date_str,
+                        "country": country,
+                        "operation_type": operation_type,
+                        "filter_stats": filter_stats,
+                    },
+                )
+                return {
+                    "statusCode": 200,
+                    "body": json.dumps(
+                        {
+                            "message": "No eligible shops to enqueue for scrape",
+                            "operation_type": operation_type,
+                            "shops_count": 0,
+                            "shops_queried": filter_stats["total_queried"],
+                            "shops_filtered": filter_stats["total_queried"]
+                            - filter_stats["eligible"],
+                            "filter_stats": filter_stats,
+                            "cutoff_date": cutoff_date_str,
+                        }
+                    ),
+                }
+
         domains = [shop.domain for shop in shops]
         logger.info(
             f"Found shops requiring {operation_type}",
@@ -324,6 +528,7 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
                 "domains_preview": domains[:5],
                 "cutoff_date": cutoff_date_str,
                 "operation_type": operation_type,
+                "filter_stats": filter_stats,
             },
         )
 
@@ -341,25 +546,33 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
             "country": country,
         }
 
+        # Add filter stats for scrape operations
+        if filter_stats:
+            response_body["filter_stats"] = filter_stats
+
         logger.info(
             f"{operation_type.capitalize()} orchestration completed successfully",
             extra=response_body,
         )
 
+        result_body = {
+            "message": f"{operation_type.capitalize()} orchestration completed",
+            "operation_type": operation_type,
+            "shops_found": response_body["shops_found"],
+            "shops_enqueued": response_body["shops_enqueued"],
+            "shops_failed": response_body["shops_failed"],
+            "failed_domains": response_body["failed_domains"],
+            "cutoff_date": response_body["cutoff_date"],
+            "country": response_body["country"],
+        }
+
+        # Add filter stats to response for scrape operations
+        if filter_stats:
+            result_body["filter_stats"] = filter_stats
+
         return {
             "statusCode": 200,
-            "body": json.dumps(
-                {
-                    "message": f"{operation_type.capitalize()} orchestration completed",
-                    "operation_type": operation_type,
-                    "shops_found": response_body["shops_found"],
-                    "shops_enqueued": response_body["shops_enqueued"],
-                    "shops_failed": response_body["shops_failed"],
-                    "failed_domains": response_body["failed_domains"],
-                    "cutoff_date": response_body["cutoff_date"],
-                    "country": response_body["country"],
-                }
-            ),
+            "body": json.dumps(result_body),
         }
 
     except Exception as e:

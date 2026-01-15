@@ -94,20 +94,29 @@ Each GSI uses dedicated attributes (`gsi<n>_pk`, `gsi<n>_sk`) so items only proj
 - **Key Schema:**
     - **HASH Key (`gsi2_pk`):** `shop_country` (e.g., `COUNTRY#DE`). Set for all shops with a country.
     - **RANGE Key (`gsi2_sk`):** `last_crawled_end` timestamp or marker value for new shops.
-- **Projection:** `domain`
+- **Projection:** `domain`, `last_crawled_start`
 - **Special Behavior for New Shops:** 
     - When a shop has NEVER been crawled (`last_crawled_end` is NULL), `gsi2_sk` is set to `"1970-01-01T00:00:00Z"` (epoch marker).
     - This allows efficient queries for new shops: `gsi2_sk = "1970-01-01T00:00:00Z" AND attribute_not_exists(last_crawled_start) AND attribute_not_exists(last_crawled_end)`
     - Orchestration can query all shops needing crawl with: `gsi2_sk <= cutoff_date` (includes both old shops and new shops with marker)
+- **Note:** Projected attribute enables in-progress detection without additional queries:
+    - `last_crawled_start` (with `gsi2_sk` as `last_crawled_end`) - Check if crawl is in progress
 
 
 ### GSI3 – CountryLastScrapedIndex
 
-- **Purpose:** Find shops from a specific country that were scraped for product data within a date range.
+- **Purpose:** Find shops from a specific country that were scraped for product data within a date range, or find shops that have never been scraped.
 - **Key Schema:**
-    - **HASH Key (`gsi3_pk`):** `shop_country` (e.g., `COUNTRY#DE`).
-    - **RANGE Key (`gsi3_sk`):** `last_scraped_end`.
-- **Projection:** `domain`
+    - **HASH Key (`gsi3_pk`):** `shop_country` (e.g., `COUNTRY#DE`). Set for all shops with a country.
+    - **RANGE Key (`gsi3_sk`):** `last_scraped_end` timestamp or marker value for new shops.
+- **Projection:** `domain`, `last_scraped_start`, `last_crawled_end`
+- **Special Behavior for New Shops:**
+    - When a shop has NEVER been scraped (`last_scraped_end` is NULL), `gsi3_sk` is set to `"1970-01-01T00:00:00Z"` (epoch marker).
+    - This allows efficient queries for shops needing scrape: `gsi3_sk = "1970-01-01T00:00:00Z" AND attribute_not_exists(last_scraped_start) AND attribute_not_exists(last_scraped_end)`
+    - Orchestration can query all shops eligible for scraping with: `gsi3_sk <= cutoff_date` (includes both old shops and never-scraped shops with marker)
+- **Note:** Projected attributes enable eligibility checks without additional queries:
+    - `last_scraped_start` (with `gsi3_sk` as `last_scraped_end`) - Check if scrape is in progress
+    - `last_crawled_end` (with `gsi3_sk` as `last_scraped_end`) - Verify crawl is newer than last scrape
 
 ### GSI4 – CoreDomainNameIndex
 

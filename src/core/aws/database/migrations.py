@@ -85,7 +85,7 @@ def create_tables():
                     ],
                     "Projection": {
                         "ProjectionType": "INCLUDE",
-                        "NonKeyAttributes": ["domain"],
+                        "NonKeyAttributes": ["domain", "last_crawled_start"],
                     },
                 },
                 {
@@ -96,7 +96,11 @@ def create_tables():
                     ],
                     "Projection": {
                         "ProjectionType": "INCLUDE",
-                        "NonKeyAttributes": ["domain"],
+                        "NonKeyAttributes": [
+                            "domain",
+                            "last_scraped_start",
+                            "last_crawled_end",
+                        ],
                     },
                 },
                 {

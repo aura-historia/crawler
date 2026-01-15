@@ -82,10 +82,14 @@ class ShopMetadata:
         item["gsi2_sk"] = {"S": gsi2_sk_value}
 
     def _add_gsi3_keys(self, item: Dict[str, Any]) -> None:
-        """Add GSI3 keys for scrape queries (country + last_scraped_end, sparse index)."""
-        if self.shop_country and self.last_scraped_end:
-            item["gsi3_pk"] = {"S": self.shop_country}
-            item["gsi3_sk"] = {"S": self.last_scraped_end}
+        """Add GSI3 keys for scrape orchestration (country + last_scraped_end)."""
+        if not self.shop_country:
+            return
+
+        item["gsi3_pk"] = {"S": self.shop_country}
+        # Use actual scraped end date or epoch marker for never-scraped shops
+        gsi3_sk_value = self.last_scraped_end or "1970-01-01T00:00:00Z"
+        item["gsi3_sk"] = {"S": gsi3_sk_value}
 
     def _add_gsi4_keys(self, item: Dict[str, Any]) -> None:
         """Add GSI4 keys for core domain discovery."""

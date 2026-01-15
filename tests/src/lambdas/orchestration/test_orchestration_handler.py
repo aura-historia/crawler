@@ -139,13 +139,32 @@ class TestOrchestrationHandler:
 
     @patch("src.lambdas.orchestration.orchestration_handler.db_operations")
     @patch("src.lambdas.orchestration.orchestration_handler._get_sqs_client")
-    def test_handler_scrape_success(
-        self, mock_get_sqs, mock_db_ops, mock_env_vars, sample_shops
-    ):
+    def test_handler_scrape_success(self, mock_get_sqs, mock_db_ops, mock_env_vars):
         """Test successful scrape orchestration."""
         from src.lambdas.orchestration import orchestration_handler
 
-        mock_db_ops.get_shops_for_orchestration.return_value = sample_shops
+        # Create shops with proper timestamps for scrape eligibility
+        eligible_shops = [
+            ShopMetadata(
+                domain="example.com",
+                shop_name="Example Shop",
+                last_crawled_end="2026-01-15T12:00:00Z",
+                last_scraped_end="2026-01-14T10:00:00Z",
+            ),
+            ShopMetadata(
+                domain="test-shop.de",
+                shop_name="Test Shop",
+                last_crawled_end="2026-01-15T14:00:00Z",
+                last_scraped_end="1970-01-01T00:00:00Z",
+            ),
+            ShopMetadata(
+                domain="new-shop.com",
+                last_crawled_end="2026-01-15T16:00:00Z",
+                last_scraped_end="2026-01-14T12:00:00Z",
+            ),
+        ]
+
+        mock_db_ops.get_shops_for_orchestration.return_value = eligible_shops
 
         mock_sqs_client = MagicMock()
         mock_get_sqs.return_value = mock_sqs_client
@@ -381,3 +400,254 @@ class TestGetShopsForOrchestration:
 
         assert len(shops) == 2
         assert mock_dynamodb_client.query.call_count == 2
+
+
+class TestFilterEligibleShopsForScrape:
+    """Tests for the _filter_eligible_shops_for_scrape function."""
+
+    def test_filter_all_eligible(self):
+        """Test filtering when all shops are eligible."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        shops = [
+            ShopMetadata(
+                domain="shop1.com",
+                last_crawled_end="2026-01-15T12:00:00Z",
+                last_scraped_end="2026-01-14T10:00:00Z",
+            ),
+            ShopMetadata(
+                domain="shop2.com",
+                last_crawled_end="2026-01-15T14:00:00Z",
+                last_scraped_end="1970-01-01T00:00:00Z",  # Never scraped
+            ),
+        ]
+
+        eligible, stats = orchestration_handler._filter_eligible_shops_for_scrape(shops)
+
+        assert len(eligible) == 2
+        assert stats["total_queried"] == 2
+        assert stats["eligible"] == 2
+        assert stats["in_progress"] == 0
+        assert stats["crawl_not_finished"] == 0
+        assert stats["already_scraped"] == 0
+
+    def test_filter_scrape_in_progress(self):
+        """Test filtering out shops with scrape in progress."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        shops = [
+            ShopMetadata(
+                domain="shop1.com",
+                last_crawled_end="2026-01-15T12:00:00Z",
+                last_scraped_start="2026-01-15T13:00:00Z",
+                last_scraped_end="2026-01-15T10:00:00Z",  # Start > End
+            ),
+        ]
+
+        eligible, stats = orchestration_handler._filter_eligible_shops_for_scrape(shops)
+
+        assert len(eligible) == 0
+        assert stats["in_progress"] == 1
+        assert stats["eligible"] == 0
+
+    def test_filter_crawl_not_finished(self):
+        """Test filtering out shops where crawl is not finished."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        shops = [
+            ShopMetadata(
+                domain="shop1.com",
+                last_crawled_end=None,  # Crawl in progress
+                last_scraped_end="2026-01-14T10:00:00Z",
+            ),
+            ShopMetadata(
+                domain="shop2.com",
+                last_crawled_end="1970-01-01T00:00:00Z",  # Never crawled
+                last_scraped_end="1970-01-01T00:00:00Z",
+            ),
+        ]
+
+        eligible, stats = orchestration_handler._filter_eligible_shops_for_scrape(shops)
+
+        assert len(eligible) == 0
+        assert stats["crawl_not_finished"] == 2
+        assert stats["eligible"] == 0
+
+    def test_filter_already_scraped(self):
+        """Test filtering out shops where scrape is newer than crawl."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        shops = [
+            ShopMetadata(
+                domain="shop1.com",
+                last_crawled_end="2026-01-14T10:00:00Z",
+                last_scraped_end="2026-01-15T12:00:00Z",  # Scrape newer
+            ),
+        ]
+
+        eligible, stats = orchestration_handler._filter_eligible_shops_for_scrape(shops)
+
+        assert len(eligible) == 0
+        assert stats["already_scraped"] == 1
+        assert stats["eligible"] == 0
+
+    def test_filter_mixed_scenarios(self):
+        """Test filtering with mixed eligible and ineligible shops."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        shops = [
+            # Eligible
+            ShopMetadata(
+                domain="eligible1.com",
+                last_crawled_end="2026-01-15T12:00:00Z",
+                last_scraped_end="2026-01-14T10:00:00Z",
+            ),
+            # In progress
+            ShopMetadata(
+                domain="in-progress.com",
+                last_crawled_end="2026-01-15T12:00:00Z",
+                last_scraped_start="2026-01-15T13:00:00Z",
+                last_scraped_end="2026-01-15T10:00:00Z",
+            ),
+            # Crawl not finished
+            ShopMetadata(
+                domain="crawl-not-done.com",
+                last_crawled_end=None,
+                last_scraped_end="2026-01-14T10:00:00Z",
+            ),
+            # Already scraped
+            ShopMetadata(
+                domain="already-scraped.com",
+                last_crawled_end="2026-01-14T10:00:00Z",
+                last_scraped_end="2026-01-15T12:00:00Z",
+            ),
+            # Eligible
+            ShopMetadata(
+                domain="eligible2.com",
+                last_crawled_end="2026-01-15T14:00:00Z",
+                last_scraped_end="1970-01-01T00:00:00Z",
+            ),
+        ]
+
+        eligible, stats = orchestration_handler._filter_eligible_shops_for_scrape(shops)
+
+        assert len(eligible) == 2
+        assert eligible[0].domain == "eligible1.com"
+        assert eligible[1].domain == "eligible2.com"
+        assert stats["total_queried"] == 5
+        assert stats["eligible"] == 2
+        assert stats["in_progress"] == 1
+        assert stats["crawl_not_finished"] == 1
+        assert stats["already_scraped"] == 1
+
+    def test_filter_empty_list(self):
+        """Test filtering with empty shop list."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        eligible, stats = orchestration_handler._filter_eligible_shops_for_scrape([])
+
+        assert len(eligible) == 0
+        assert stats["total_queried"] == 0
+        assert stats["eligible"] == 0
+
+
+class TestHandlerWithFiltering:
+    """Tests for handler with scrape filtering enabled."""
+
+    @pytest.fixture
+    def mock_env_vars(self, monkeypatch):
+        """Set up environment variables for testing."""
+        monkeypatch.setenv("SQS_PRODUCT_SPIDER_QUEUE_URL", "https://spider-queue.url")
+        monkeypatch.setenv("SQS_PRODUCT_SCRAPER_QUEUE_URL", "https://scraper-queue.url")
+        monkeypatch.setenv("DYNAMODB_TABLE_NAME", "test-table")
+        monkeypatch.setenv("ORCHESTRATION_CUTOFF_DAYS", "2")
+
+    @patch("src.lambdas.orchestration.orchestration_handler.db_operations")
+    @patch("src.lambdas.orchestration.orchestration_handler._get_sqs_client")
+    def test_scrape_handler_with_filtering(
+        self, mock_get_sqs, mock_db_ops, mock_env_vars
+    ):
+        """Test scrape handler applies in-memory filtering."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        # Return mix of eligible and ineligible shops
+        mock_db_ops.get_shops_for_orchestration.return_value = [
+            ShopMetadata(
+                domain="eligible.com",
+                last_crawled_end="2026-01-15T12:00:00Z",
+                last_scraped_end="2026-01-14T10:00:00Z",
+            ),
+            ShopMetadata(
+                domain="already-scraped.com",
+                last_crawled_end="2026-01-14T10:00:00Z",
+                last_scraped_end="2026-01-15T12:00:00Z",
+            ),
+        ]
+
+        mock_sqs_client = MagicMock()
+        mock_sqs_client.send_message_batch.return_value = {
+            "Successful": [{"Id": "0"}],
+            "Failed": [],
+        }
+        mock_get_sqs.return_value = mock_sqs_client
+
+        result = orchestration_handler.handler({"operation": "scrape"}, None)
+
+        assert result["statusCode"] == 200
+        body = json.loads(result["body"])
+        assert body["shops_found"] == 1  # Only eligible shop
+        assert body["shops_enqueued"] == 1
+        assert "filter_stats" in body
+        assert body["filter_stats"]["total_queried"] == 2
+        assert body["filter_stats"]["eligible"] == 1
+        assert body["filter_stats"]["already_scraped"] == 1
+
+    @patch("src.lambdas.orchestration.orchestration_handler.db_operations")
+    def test_scrape_handler_all_filtered_out(self, mock_db_ops, mock_env_vars):
+        """Test scrape handler when all shops are filtered out."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        # Return only ineligible shops
+        mock_db_ops.get_shops_for_orchestration.return_value = [
+            ShopMetadata(
+                domain="already-scraped.com",
+                last_crawled_end="2026-01-14T10:00:00Z",
+                last_scraped_end="2026-01-15T12:00:00Z",
+            ),
+        ]
+
+        result = orchestration_handler.handler({"operation": "scrape"}, None)
+
+        assert result["statusCode"] == 200
+        body = json.loads(result["body"])
+        assert body["shops_count"] == 0
+        assert body["shops_queried"] == 1
+        assert body["shops_filtered"] == 1
+        assert "No eligible shops" in body["message"]
+
+    @patch("src.lambdas.orchestration.orchestration_handler.db_operations")
+    @patch("src.lambdas.orchestration.orchestration_handler._get_sqs_client")
+    def test_crawl_handler_no_filtering(self, mock_get_sqs, mock_db_ops, mock_env_vars):
+        """Test crawl handler does not apply filtering."""
+        from src.lambdas.orchestration import orchestration_handler
+
+        mock_db_ops.get_shops_for_orchestration.return_value = [
+            ShopMetadata(domain="shop1.com"),
+            ShopMetadata(domain="shop2.com"),
+        ]
+
+        mock_sqs_client = MagicMock()
+        mock_sqs_client.send_message_batch.return_value = {
+            "Successful": [{"Id": "0"}, {"Id": "1"}],
+            "Failed": [],
+        }
+        mock_get_sqs.return_value = mock_sqs_client
+
+        result = orchestration_handler.handler({"operation": "crawl"}, None)
+
+        assert result["statusCode"] == 200
+        body = json.loads(result["body"])
+        assert body["shops_found"] == 2
+        assert body["shops_enqueued"] == 2
+        # No filter_stats for crawl operations
+        assert "filter_stats" not in body
