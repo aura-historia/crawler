@@ -4,6 +4,11 @@ import json
 import logging
 from openai import AsyncOpenAI
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode, BrowserConfig
+from datetime import datetime, timezone
+from pydantic import ValidationError
+
+from core.scraper.prompt import EXTRACTION_PROMPT_TEMPLATE
+from core.scraper.schemas import ExtractedProduct
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -16,50 +21,6 @@ client = AsyncOpenAI(
     api_key="dummy",  # vLLM server doesn't require a real key
 )
 MODEL_NAME = "unsloth/Qwen3-8B-bnb-4bit"
-
-EXTRACTION_PROMPT_TEMPLATE = """
-### TASK
-Determine if the content is a SINGLE product page or a LIST/BLOG.
-
-### STEP 1: STRUCTURE ANALYSIS (STRICT)
-Check for these 'Red Flags' of a List or Blog page:
-- Presence of multiple "WEITERLESEN" or "READ MORE" buttons.
-- Multiple different Art.Nr. (e.g., 1941, 2025, 3344) in the same text.
-- Home page indicators like "Startseite", "Home", "Willkommen".
-
-IF ANY RED FLAGS ARE FOUND:
-You MUST return ONLY {{}}. Do not extract any data.
-
-### STEP 2: PRODUCT VERIFICATION
-Only proceed if there is EXACTLY ONE main product.
-- A real product page must have a "Warenkorb" (Cart) button or a clear "In den Warenkorb" text.
-- A real product page must have a clear Price with a Currency symbol (e.g. €, EUR) that is NOT inside an image link.
-
-### STEP 3: EXTRACTION
-If Step 1 and 2 pass:
-- shop_item_id (string): The product ID, SKU, or article number (e.g., "Art.Nr", "SKU", "ID")
-- title (string): The product title or name
-- current_price (number, optional): The current selling price as a numeric value in cents (e.g., 1999 for €19.99)
-- currency (string, optional): The currency code (e.g., "EUR", "USD")
-- description (string): The longest and most detailed product description found
-    - Extract ONLY the technical description of the primary item.
-    - CRITICAL: Escape all double quotes with a backslash (e.g. \\") or replace them with single quotes to ensure valid JSON.
-- state (string | UNKNOWN): Only exactly one of these: AVAILABLE, SOLD, LISTED, RESERVED, REMOVED or UNKNOWN (in englisch). Definitions:
-    - AVAILABLE: Product is available for purchase
-    - SOLD: Product has been sold and can no longer be purchased
-    - LISTED: Product has been listed
-    - RESERVED: Product is reserved by a buyer
-    - REMOVED: Product has been removed and can no longer be tracked
-    - UNKNOWN: Product has an unknown state
-- images (array of strings, optional): Product images (must end with .jpeg .png) only if present in the markdown
-- language (string, optional): The language code of the product information (e.g., "de", "en")
-
-### OUTPUT
-Return ONLY the JSON or {{}}. No words. No markdown.
-
-CONTENT:
-{markdown}
-"""
 
 
 async def chat_completion(prompt: str) -> str:
@@ -74,7 +35,9 @@ async def chat_completion(prompt: str) -> str:
     try:
         response = await client.chat.completions.create(
             model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "user", "content": prompt}
+            ],  # Reverted to dictionary structure for compatibility
             temperature=0,
             max_tokens=2048,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
@@ -158,15 +121,34 @@ def _parse_llm_response(response_text: str) -> str:
         return "{}"
 
 
-async def extract(markdown: str) -> str:
-    """Extract product information as a JSON string from markdown.
-
-    This function sends the request directly to the vLLM server.
-    Multiple concurrent calls from different workers will all be sent
-    to the server, which handles batching automatically.
+def validate_extracted_data(data: dict) -> dict:
+    """Validate the extracted data using the Pydantic model.
 
     Args:
+        data: The parsed JSON data as a dictionary.
+
+    Returns:
+        The validated data as a dictionary, or an empty dictionary if validation fails.
+    """
+    if not data:
+        return {}
+
+    try:
+        validated_product = ExtractedProduct(**data)
+        return validated_product.model_dump()
+    except ValidationError as e:
+        logger.warning(f"Validation failed: {e}")
+        return {}
+
+
+async def extract(markdown: str, current_time: Optional[datetime] = None) -> str:
+    """Extract product information as a JSON string from markdown.
+
+    Passes CURRENT_TIME to the LLM so it can compute auctionStart/auctionEnd.
+    Args:
         markdown: The page content (markdown or HTML) to analyze.
+        current_time: Optional datetime in UTC used as reference for relative times.
+                      If None, uses current UTC time.
 
     Returns:
         A JSON string containing the extracted fields, or '{}' if parsing fails.
@@ -174,11 +156,29 @@ async def extract(markdown: str) -> str:
     if not isinstance(markdown, str):
         return "{}"
 
-    prompt = EXTRACTION_PROMPT_TEMPLATE.format(markdown=markdown)
+    if current_time is None:
+        current_time = datetime.now(timezone.utc)
+
+    # Format as ISO8601 UTC with trailing Z
+    current_time_iso = (
+        current_time.astimezone(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    logger.info(f"Current time: {current_time_iso}")
+
+    prompt = EXTRACTION_PROMPT_TEMPLATE.format(
+        markdown=markdown,
+        current_time=current_time_iso,
+        additional_info="If the product is an auction product, the current_price should be the start price or, if there are bids, the current bid.",
+    )
 
     try:
         response_text = await chat_completion(prompt)
-        return _parse_llm_response(response_text)
+        parsed_data = json.loads(_parse_llm_response(response_text))
+        validated_data = validate_extracted_data(parsed_data)
+        return json.dumps(validated_data, ensure_ascii=False)
     except Exception as e:
         logger.error(f"Error during extraction: {e}")
         return "{}"
@@ -233,8 +233,4 @@ async def main(url: str):
 
 
 if __name__ == "__main__":
-    asyncio.run(
-        main(
-            "https://morris-antikshop.de/Kleinmoebel/Antik/Antiker-Kohlekasten-aus-England-Eiche-ca.-1860"
-        )
-    )
+    asyncio.run(main("https://www.dorotheum.com/de/l/9948029/"))
