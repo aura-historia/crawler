@@ -249,4 +249,8 @@ async def main(url: str):
 
 
 if __name__ == "__main__":
-    asyncio.run(main("https://www.dorotheum.com/de/l/9948032/"))
+    asyncio.run(
+        main(
+            "https://onlineonly.christies.com/s/american-collector-including-property-mr-mrs-john-d-rockefeller-3rd/recueil-destampes-representant-lindependence-aux-etats-unis-960/286071"
+        )
+    )

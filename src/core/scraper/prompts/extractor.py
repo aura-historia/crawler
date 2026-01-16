@@ -74,13 +74,8 @@ All fields below are REQUIRED unless explicitly marked optional.
   ISO 4217 currency code
 
 * description (string)
-  CONCATENATE **ALL AVAILABLE TEXT VERBATIM** from:
-
-  * Lot Essay
-  * Details
-  * Provenance
-  * Dimensions
-  * Condition Report
+Full description only of the item. The longest technical description available.
+Do NOT include any extraneous text.
 
   Use newline characters (`\n`) between sections.
   DO NOT summarize, rewrite, translate, or omit content.
