@@ -25,7 +25,7 @@ class TestChatCompletion:
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
-            result = await chat_completion("test prompt")
+            result = await chat_completion("test prompts")
 
         assert result == '{"test": "value"}'
 
@@ -41,7 +41,7 @@ class TestChatCompletion:
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
-            result = await chat_completion("test prompt")
+            result = await chat_completion("test prompts")
 
         assert result == ""
 
@@ -53,7 +53,7 @@ class TestChatCompletion:
             new_callable=AsyncMock,
             side_effect=Exception("API Error"),
         ):
-            result = await chat_completion("test prompt")
+            result = await chat_completion("test prompts")
 
         assert result == "{}"
 
@@ -70,13 +70,13 @@ class TestChatCompletion:
             "src.core.scraper.qwen.client.chat.completions.create",
             new=mock_create,
         ):
-            await chat_completion("test prompt")
+            await chat_completion("test prompts")
 
         mock_create.assert_called_once()
         call_kwargs = mock_create.call_args[1]
         assert call_kwargs["temperature"] == 0
         assert call_kwargs["max_tokens"] == 2048
-        assert call_kwargs["messages"][0]["content"] == "test prompt"
+        assert call_kwargs["messages"][0]["content"] == "test prompts"
 
 
 class TestFindBalancedBraceObject:

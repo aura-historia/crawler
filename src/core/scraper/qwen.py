@@ -7,8 +7,9 @@ from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode, BrowserConfig
 from datetime import datetime, timezone
 from pydantic import ValidationError
 
-from core.scraper.prompt import EXTRACTION_PROMPT_TEMPLATE
 from core.scraper.schemas import ExtractedProduct
+from core.scraper.prompts.cleaner import CLEANER_PROMPT_TEMPLATE
+from core.scraper.prompts.extractor import EXTRACTION_PROMPT_TEMPLATE
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -27,7 +28,7 @@ async def chat_completion(prompt: str) -> str:
     """Send an async chat completion request to the vLLM server.
 
     Args:
-        prompt: The user prompt to send.
+        prompt: The user prompts to send.
 
     Returns:
         The completion text from the model.
@@ -142,16 +143,15 @@ def validate_extracted_data(data: dict) -> dict:
 
 
 async def extract(markdown: str, current_time: Optional[datetime] = None) -> str:
-    """Extract product information as a JSON string from markdown.
+    """Extract product information as JSON string from markdown in two steps: validation & cleaning, then extraction.
 
-    Passes CURRENT_TIME to the LLM so it can compute auctionStart/auctionEnd.
+    Pass CURRENT_TIME to the LLM so it can calculate auction dates.
     Args:
-        markdown: The page content (markdown or HTML) to analyze.
-        current_time: Optional datetime in UTC used as reference for relative times.
-                      If None, uses current UTC time.
+        markdown: Page content (Markdown or HTML) to analyze.
+        current_time: Optional UTC datetime as reference for relative times.
 
     Returns:
-        A JSON string containing the extracted fields, or '{}' if parsing fails.
+        A JSON string with extracted fields or '{}' on errors.
     """
     if not isinstance(markdown, str):
         return "{}"
@@ -159,7 +159,6 @@ async def extract(markdown: str, current_time: Optional[datetime] = None) -> str
     if current_time is None:
         current_time = datetime.now(timezone.utc)
 
-    # Format as ISO8601 UTC with trailing Z
     current_time_iso = (
         current_time.astimezone(timezone.utc)
         .replace(microsecond=0)
@@ -168,20 +167,21 @@ async def extract(markdown: str, current_time: Optional[datetime] = None) -> str
     )
     logger.info(f"Current time: {current_time_iso}")
 
-    prompt = EXTRACTION_PROMPT_TEMPLATE.format(
-        markdown=markdown,
-        current_time=current_time_iso,
-        additional_info="If the product is an auction product, the current_price should be the start price or, if there are bids, the current bid.",
+    cleaner_prompt = CLEANER_PROMPT_TEMPLATE.format(
+        current_time=current_time_iso, markdown=markdown[:30000]
     )
-
-    try:
-        response_text = await chat_completion(prompt)
-        parsed_data = json.loads(_parse_llm_response(response_text))
-        validated_data = validate_extracted_data(parsed_data)
-        return json.dumps(validated_data, ensure_ascii=False)
-    except Exception as e:
-        logger.error(f"Error during extraction: {e}")
+    raw_summary = await chat_completion(cleaner_prompt)
+    if "NOT_A_PRODUCT" in raw_summary or not raw_summary.strip():
+        logger.info("Step 1 determined this is not a product page.")
         return "{}"
+
+    extraction_prompt = EXTRACTION_PROMPT_TEMPLATE.format(
+        current_time=current_time_iso, clean_text=raw_summary
+    )
+    response_text = await chat_completion(extraction_prompt)
+    parsed_data = json.loads(_parse_llm_response(response_text))
+    validated_data = validate_extracted_data(parsed_data)
+    return json.dumps(validated_data, ensure_ascii=False)
 
 
 async def get_markdown(url: str) -> str:
@@ -233,4 +233,8 @@ async def main(url: str):
 
 
 if __name__ == "__main__":
-    asyncio.run(main("https://www.dorotheum.com/de/l/9948029/"))
+    asyncio.run(
+        main(
+            "https://onlineonly.christies.com/s/american-collector-including-property-mr-mrs-john-d-rockefeller-3rd/lots/3949"
+        )
+    )
