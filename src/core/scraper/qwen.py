@@ -122,7 +122,7 @@ def _parse_llm_response(response_text: str) -> str:
         return "{}"
 
 
-def validate_extracted_data(data: dict) -> dict:
+def validate_extracted_data(data: dict) -> tuple[dict, Optional[str]]:
     """Validate the extracted data using the Pydantic model.
 
     Args:
@@ -131,24 +131,26 @@ def validate_extracted_data(data: dict) -> dict:
     Returns:
         The validated data as a dictionary, or an empty dictionary if validation fails.
     """
-    if not data:
-        return {}
+    if not data or {}:
+        return {}, "No data to validate."
 
     try:
         validated_product = ExtractedProduct(**data)
-        return validated_product.model_dump()
+        return validated_product.model_dump(), None
     except ValidationError as e:
-        logger.warning(f"Validation failed: {e}")
-        return {}
+        return {}, e.json()
 
 
-async def extract(markdown: str, current_time: Optional[datetime] = None) -> str:
+async def extract(
+    markdown: str, current_time: Optional[datetime] = None, max_retries: int = 3
+) -> str | None:
     """Extract product information as JSON string from markdown in two steps: validation & cleaning, then extraction.
 
     Pass CURRENT_TIME to the LLM so it can calculate auction dates.
     Args:
         markdown: Page content (Markdown or HTML) to analyze.
         current_time: Optional UTC datetime as reference for relative times.
+        max_retries: Number of retries for extraction on validation failure.
 
     Returns:
         A JSON string with extracted fields or '{}' on errors.
@@ -174,14 +176,28 @@ async def extract(markdown: str, current_time: Optional[datetime] = None) -> str
     if "NOT_A_PRODUCT" in raw_summary or not raw_summary.strip():
         logger.info("Step 1 determined this is not a product page.")
         return "{}"
+    logger.info(f"Step 1 extracted data: {raw_summary}")
 
-    extraction_prompt = EXTRACTION_PROMPT_TEMPLATE.format(
+    extraction_prompt_base = EXTRACTION_PROMPT_TEMPLATE.format(
         current_time=current_time_iso, clean_text=raw_summary
     )
-    response_text = await chat_completion(extraction_prompt)
-    parsed_data = json.loads(_parse_llm_response(response_text))
-    validated_data = validate_extracted_data(parsed_data)
-    return json.dumps(validated_data, ensure_ascii=False)
+
+    last_exception = None
+    for attempt in range(max_retries):
+        prompt = extraction_prompt_base
+        if last_exception:
+            prompt += f"\n\n# VALIDATION ERROR\nThe previous extraction failed validation with error:\n{last_exception}\nPlease fix the output."
+
+        response_text = await chat_completion(prompt)
+        print(response_text)
+        parsed_data = json.loads(_parse_llm_response(response_text))
+        validated_data, last_exception = validate_extracted_data(parsed_data)
+
+        if validated_data:
+            return json.dumps(validated_data, ensure_ascii=False)
+
+        logger.warning(f"Retry {attempt + 1}/{max_retries} failed.")
+    return None
 
 
 async def get_markdown(url: str) -> str:
@@ -233,8 +249,4 @@ async def main(url: str):
 
 
 if __name__ == "__main__":
-    asyncio.run(
-        main(
-            "https://onlineonly.christies.com/s/american-collector-including-property-mr-mrs-john-d-rockefeller-3rd/lots/3949"
-        )
-    )
+    asyncio.run(main("https://www.dorotheum.com/de/l/9948032/"))
