@@ -5,11 +5,15 @@ import logging
 from openai import AsyncOpenAI
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode, BrowserConfig
 from datetime import datetime, timezone
+
 from pydantic import ValidationError
 
-from core.scraper.schemas import ExtractedProduct
 from core.scraper.prompts.cleaner import CLEANER_PROMPT_TEMPLATE
 from core.scraper.prompts.extractor import EXTRACTION_PROMPT_TEMPLATE
+from core.scraper.schemas.extracted_product import ExtractedProduct
+from core.scraper.schemas.put_products_collection_data_mapper import (
+    map_extracted_product_to_schema,
+)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -36,9 +40,7 @@ async def chat_completion(prompt: str) -> str:
     try:
         response = await client.chat.completions.create(
             model=MODEL_NAME,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],  # Reverted to dictionary structure for compatibility
+            messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=2048,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
@@ -131,7 +133,7 @@ def validate_extracted_data(data: dict) -> tuple[dict, Optional[str]]:
     Returns:
         The validated data as a dictionary, or an empty dictionary if validation fails.
     """
-    if not data or {}:
+    if not data:
         return {}, "No data to validate."
 
     try:
@@ -143,7 +145,7 @@ def validate_extracted_data(data: dict) -> tuple[dict, Optional[str]]:
 
 async def extract(
     markdown: str, current_time: Optional[datetime] = None, max_retries: int = 3
-) -> str | None:
+) -> ExtractedProduct | None:
     """Extract product information as JSON string from markdown in two steps: validation & cleaning, then extraction.
 
     Pass CURRENT_TIME to the LLM so it can calculate auction dates.
@@ -156,7 +158,7 @@ async def extract(
         A JSON string with extracted fields or '{}' on errors.
     """
     if not isinstance(markdown, str):
-        return "{}"
+        return None
 
     if current_time is None:
         current_time = datetime.now(timezone.utc)
@@ -175,7 +177,7 @@ async def extract(
     raw_summary = await chat_completion(cleaner_prompt)
     if "NOT_A_PRODUCT" in raw_summary or not raw_summary.strip():
         logger.info("Step 1 determined this is not a product page.")
-        return "{}"
+        return None
     logger.info(f"Step 1 extracted data: {raw_summary}")
 
     extraction_prompt_base = EXTRACTION_PROMPT_TEMPLATE.format(
@@ -194,7 +196,7 @@ async def extract(
         validated_data, last_exception = validate_extracted_data(parsed_data)
 
         if validated_data:
-            return json.dumps(validated_data, ensure_ascii=False)
+            return ExtractedProduct(**validated_data)
 
         logger.warning(f"Retry {attempt + 1}/{max_retries} failed.")
     return None
@@ -243,14 +245,17 @@ async def get_markdown(url: str) -> str:
 async def main(url: str):
     """Fetch a URL and run extraction on its markdown; used for manual testing."""
     markdown = await get_markdown(url)
-    logger.info(markdown)
+    print(markdown)
     result = await extract(markdown)
-    print(result)
+    data = map_extracted_product_to_schema(result, url)
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+
+    # await send_items(data)
 
 
 if __name__ == "__main__":
     asyncio.run(
         main(
-            "https://onlineonly.christies.com/s/american-collector-including-property-mr-mrs-john-d-rockefeller-3rd/recueil-destampes-representant-lindependence-aux-etats-unis-960/286071"
+            "https://bid.alexcooper.com/lots/view/1-BTG2M5/1975-baltimore-colts-hall-of-fame-signed-johnny-unitas-game-used-helmet"
         )
     )

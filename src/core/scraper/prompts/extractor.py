@@ -88,14 +88,17 @@ Do NOT include any extraneous text.
   Include ONLY image URLs that end with `.jpg`, `.jpeg`, or `.png`
 
 * language (string)
-  Always `"en"`
+    The ISO 639-1 code of the language used in the title and description (e.g., "en" for English)
 
 * auctionStart (string | null)
- UTC ISO8601 timestamp **ONLY if explicitly stated on the page**. 
+  UTC ISO8601 timestamp ONLY if explicitly stated on the page.
   Do NOT invent or infer this date from any Timeline text.
+  Date MAY be calculated from phrases like “Starting: X days” (see TIME CALCULATION RULES).
 
 * auctionEnd (string | null)
-  UTC ISO8601 timestamp
+  UTC ISO8601 timestamp ONLY if explicitly stated on the page.
+  Do NOT invent or infer this date from any Timeline text.
+  Date MAY be calculated from phrases like “Closing: X days” (see TIME CALCULATION RULES).
 
 ### PRICE RESOLUTION ALGORITHM (MANDATORY)
 Determine `priceAmount` using the following algorithm:
