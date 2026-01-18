@@ -16,7 +16,7 @@ async def send_items(items):
         return
     headers = {"Content-Type": "application/json"}
     async with ClientSession() as session:
-        await resilient_http_request(
+        response = await resilient_http_request(
             api_url,
             session,
             method="PUT",
@@ -24,4 +24,12 @@ async def send_items(items):
             headers=headers,
             timeout_seconds=10,
             retry_attempts=3,
+            return_response=True,
         )
+        logger.info(f"Response from AWS API: {response.status}")
+        try:
+            content = await response.text()
+            logger.info(f"Response body: {content}")
+        except Exception as e:
+            logger.error(f"Could not read response body: {e}")
+        return response

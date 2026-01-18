@@ -23,6 +23,9 @@ from src.core.worker.base_worker import generic_worker, run_worker_pool
 from crawl4ai import AsyncWebCrawler
 from src.core.aws.database.models import URLEntry
 from src.core.scraper.qwen import extract as qwen_extract
+from src.core.scraper.schemas.put_products_collection_data_mapper import (
+    map_extracted_product_to_schema,
+)
 
 load_dotenv()
 
@@ -47,7 +50,7 @@ shutdown_event: asyncio.Event = asyncio.Event()
 
 async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
     """
-    Async version of process_result that uses async qwen extraction.
+    Async version of process_result that uses async qwen extraction and maps to PutProductsCollectionDataSchema.
     """
     if not getattr(result, "success", False):
         return None
@@ -67,31 +70,16 @@ async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
         )
         return None
 
-    parsed = json.loads(qwen_out)
-
-    if not parsed:
+    if not qwen_out:
         return None
 
-    data: ScrapedData = {
-        "shopsProductId": parsed.get("shop_item_id") or url,
-        "title": {
-            "text": parsed.get("title") or "",
-            "language": parsed.get("language") or "UNKNOWN",
-        },
-        "description": {
-            "text": parsed.get("description") or "",
-            "language": parsed.get("language") or "UNKNOWN",
-        },
-        "price": {
-            "amount": int(parsed.get("current_price")) or 0,
-            "currency": parsed.get("currency") or "UNKNOWN",
-        },
-        "state": parsed.get("state") or "UNKNOWN",
-        "images": parsed.get("images") or [],
-        "url": result.url,
-    }
-    logger.info(data)
+    try:
+        data: ScrapedData = map_extracted_product_to_schema(qwen_out, url)
+    except Exception as e:
+        logger.exception("Failed to map extracted product: %s", e, extra={"url": url})
+        return None
 
+    logger.info(data)
     return data
 
 

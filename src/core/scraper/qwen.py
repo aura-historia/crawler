@@ -4,6 +4,17 @@ import json
 import logging
 from openai import AsyncOpenAI
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode, BrowserConfig
+from datetime import datetime, timezone
+
+from pydantic import ValidationError
+
+from src.core.scraper.prompts.cleaner import CLEANER_PROMPT_TEMPLATE
+from src.core.scraper.prompts.extractor import EXTRACTION_PROMPT_TEMPLATE
+from src.core.scraper.schemas.extracted_product import ExtractedProduct
+from src.core.scraper.schemas.put_products_collection_data_mapper import (
+    map_extracted_product_to_schema,
+)
+from src.core.utils.send_items import send_items
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -17,56 +28,12 @@ client = AsyncOpenAI(
 )
 MODEL_NAME = "unsloth/Qwen3-8B-bnb-4bit"
 
-EXTRACTION_PROMPT_TEMPLATE = """
-### TASK
-Determine if the content is a SINGLE product page or a LIST/BLOG.
-
-### STEP 1: STRUCTURE ANALYSIS (STRICT)
-Check for these 'Red Flags' of a List or Blog page:
-- Presence of multiple "WEITERLESEN" or "READ MORE" buttons.
-- Multiple different Art.Nr. (e.g., 1941, 2025, 3344) in the same text.
-- Home page indicators like "Startseite", "Home", "Willkommen".
-
-IF ANY RED FLAGS ARE FOUND:
-You MUST return ONLY {{}}. Do not extract any data.
-
-### STEP 2: PRODUCT VERIFICATION
-Only proceed if there is EXACTLY ONE main product.
-- A real product page must have a "Warenkorb" (Cart) button or a clear "In den Warenkorb" text.
-- A real product page must have a clear Price with a Currency symbol (e.g. €, EUR) that is NOT inside an image link.
-
-### STEP 3: EXTRACTION
-If Step 1 and 2 pass:
-- shop_item_id (string): The product ID, SKU, or article number (e.g., "Art.Nr", "SKU", "ID")
-- title (string): The product title or name
-- current_price (number, optional): The current selling price as a numeric value in cents (e.g., 1999 for €19.99)
-- currency (string, optional): The currency code (e.g., "EUR", "USD")
-- description (string): The longest and most detailed product description found
-    - Extract ONLY the technical description of the primary item.
-    - CRITICAL: Escape all double quotes with a backslash (e.g. \\") or replace them with single quotes to ensure valid JSON.
-- state (string | UNKNOWN): Only exactly one of these: AVAILABLE, SOLD, LISTED, RESERVED, REMOVED or UNKNOWN (in englisch). Definitions:
-    - AVAILABLE: Product is available for purchase
-    - SOLD: Product has been sold and can no longer be purchased
-    - LISTED: Product has been listed
-    - RESERVED: Product is reserved by a buyer
-    - REMOVED: Product has been removed and can no longer be tracked
-    - UNKNOWN: Product has an unknown state
-- images (array of strings, optional): Product images (must end with .jpeg .png) only if present in the markdown
-- language (string, optional): The language code of the product information (e.g., "de", "en")
-
-### OUTPUT
-Return ONLY the JSON or {{}}. No words. No markdown.
-
-CONTENT:
-{markdown}
-"""
-
 
 async def chat_completion(prompt: str) -> str:
     """Send an async chat completion request to the vLLM server.
 
     Args:
-        prompt: The user prompt to send.
+        prompt: The user prompts to send.
 
     Returns:
         The completion text from the model.
@@ -158,30 +125,82 @@ def _parse_llm_response(response_text: str) -> str:
         return "{}"
 
 
-async def extract(markdown: str) -> str:
-    """Extract product information as a JSON string from markdown.
-
-    This function sends the request directly to the vLLM server.
-    Multiple concurrent calls from different workers will all be sent
-    to the server, which handles batching automatically.
+def validate_extracted_data(data: dict) -> tuple[dict, Optional[str]]:
+    """Validate the extracted data using the Pydantic model.
 
     Args:
-        markdown: The page content (markdown or HTML) to analyze.
+        data: The parsed JSON data as a dictionary.
 
     Returns:
-        A JSON string containing the extracted fields, or '{}' if parsing fails.
+        The validated data as a dictionary, or an empty dictionary if validation fails.
     """
-    if not isinstance(markdown, str):
-        return "{}"
-
-    prompt = EXTRACTION_PROMPT_TEMPLATE.format(markdown=markdown)
+    if not data:
+        return {}, "No data to validate."
 
     try:
+        validated_product = ExtractedProduct(**data)
+        return validated_product.model_dump(), None
+    except ValidationError as e:
+        return {}, e.json()
+
+
+async def extract(
+    markdown: str, current_time: Optional[datetime] = None, max_retries: int = 3
+) -> ExtractedProduct | None:
+    """Extract product information as JSON string from markdown in two steps: validation & cleaning, then extraction.
+
+    Pass CURRENT_TIME to the LLM so it can calculate auction dates.
+    Args:
+        markdown: Page content (Markdown or HTML) to analyze.
+        current_time: Optional UTC datetime as reference for relative times.
+        max_retries: Number of retries for extraction on validation failure.
+
+    Returns:
+        A JSON string with extracted fields or '{}' on errors.
+    """
+    if not isinstance(markdown, str):
+        return None
+
+    if current_time is None:
+        current_time = datetime.now(timezone.utc)
+
+    current_time_iso = (
+        current_time.astimezone(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+    logger.info(f"Current time: {current_time_iso}")
+
+    cleaner_prompt = CLEANER_PROMPT_TEMPLATE.format(
+        current_time=current_time_iso, markdown=markdown
+    )
+    raw_summary = await chat_completion(cleaner_prompt)
+    if "NOT_A_PRODUCT" in raw_summary or not raw_summary.strip():
+        logger.info("Step 1 determined this is not a product page.")
+        return None
+    logger.info(f"Step 1 extracted data: {raw_summary}")
+
+    extraction_prompt_base = EXTRACTION_PROMPT_TEMPLATE.format(
+        current_time=current_time_iso, clean_text=raw_summary
+    )
+
+    last_exception = None
+    for attempt in range(max_retries):
+        prompt = extraction_prompt_base
+        if last_exception:
+            prompt += f"\n\n# VALIDATION ERROR\nThe previous extraction failed validation with error:\n{last_exception}\nPlease fix the output."
+
         response_text = await chat_completion(prompt)
-        return _parse_llm_response(response_text)
-    except Exception as e:
-        logger.error(f"Error during extraction: {e}")
-        return "{}"
+        print(response_text)
+        parsed_data = json.loads(_parse_llm_response(response_text))
+        validated_data, last_exception = validate_extracted_data(parsed_data)
+
+        if validated_data:
+            return ExtractedProduct(**validated_data)
+
+        logger.warning(f"Retry {attempt + 1}/{max_retries} failed.")
+    return None
 
 
 async def get_markdown(url: str) -> str:
@@ -213,6 +232,7 @@ async def get_markdown(url: str) -> str:
             "aside",
         ],
         process_iframes=True,
+        remove_overlay_elements=True,
     )
     browser_config = BrowserConfig(headless=True, verbose=False)
     async with AsyncWebCrawler(config=browser_config) as crawler:
@@ -227,14 +247,17 @@ async def get_markdown(url: str) -> str:
 async def main(url: str):
     """Fetch a URL and run extraction on its markdown; used for manual testing."""
     markdown = await get_markdown(url)
-    logger.info(markdown)
+    print(markdown)
     result = await extract(markdown)
-    print(result)
+    data = map_extracted_product_to_schema(result, url)
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+
+    await send_items(data)
 
 
 if __name__ == "__main__":
     asyncio.run(
         main(
-            "https://morris-antikshop.de/Kleinmoebel/Antik/Antiker-Kohlekasten-aus-England-Eiche-ca.-1860"
+            "https://www.antik-shop.de/produkt/louis-seize-stil-tisch-mahagoni-shabby-chic-um-1930/"
         )
     )

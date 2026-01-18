@@ -22,8 +22,9 @@ async def resilient_http_request(
     timeout_seconds: float = 30.0,
     return_json: bool = False,
     return_bytes: bool = False,
+    return_response: bool = False,
     **kwargs,
-) -> Union[str, dict, bytes]:
+) -> Union[str, dict, bytes, aiohttp.ClientResponse]:
     """
     Perform an asynchronous HTTP request with automatic retries and error handling.
 
@@ -44,10 +45,11 @@ async def resilient_http_request(
         timeout_seconds (float): Request timeout in seconds (default: 30.0).
         return_json (bool): If True, returns response as JSON (dict).
         return_bytes (bool): If True, returns response as bytes.
+        return_response (bool): If True, returns the entire aiohttp response object.
         **kwargs: Additional arguments for aiohttp request.
 
     Returns:
-        str | dict | bytes: Response content as text, JSON, or bytes.
+        str | dict | bytes | ClientResponse: Response content as text, JSON, bytes, or the entire response object.
 
     Raises:
         aiohttp.ClientError: For network or protocol errors.
@@ -83,8 +85,14 @@ async def resilient_http_request(
             timeout=timeout,
             **kwargs,
         ) as response:
-            response.raise_for_status()
-
+            if return_response:
+                return response
+            try:
+                response.raise_for_status()
+            except Exception:
+                if return_response:
+                    return response
+                raise
             if return_json:
                 try:
                     return await response.json()

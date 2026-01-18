@@ -59,20 +59,19 @@ class FakeCrawler:
 @pytest.fixture
 def mock_qwen_extract():
     """Mock qwen_extract function."""
+    from src.core.scraper.schemas.extracted_product import ExtractedProduct
 
     async def fake_qwen_extract(markdown):
         await asyncio.sleep(0)
-        return json.dumps(
-            {
-                "shop_item_id": "test-123",
-                "title": "Test Product",
-                "description": "Test description",
-                "language": "en",
-                "current_price": 1000,
-                "currency": "EUR",
-                "state": "AVAILABLE",
-                "images": ["https://example.com/image.jpg"],
-            }
+        return ExtractedProduct(
+            shop_item_id="test-123",
+            title="Test Product",
+            description="Test description",
+            language="en",
+            priceEstimateMinAmount=1000,
+            priceEstimateMinCurrency="EUR",
+            state="AVAILABLE",
+            images=["https://example.com/image.jpg"],
         )
 
     with patch(
@@ -110,14 +109,12 @@ class TestProcessResult:
         result = FakeResult(
             success=True, markdown="# Test Product", url="https://example.com/product"
         )
-
         extracted = await process_result_async(result, "example.com")
-
         assert extracted is not None
-        assert extracted["url"] == "https://example.com/product"
+        assert isinstance(extracted, dict)
         assert extracted["title"]["text"] == "Test Product"
-        assert extracted["price"]["amount"] == 1000
-        assert extracted["price"]["currency"] == "EUR"
+        assert extracted["priceEstimateMin"]["amount"] == 1000
+        assert extracted["priceEstimateMin"]["currency"] == "EUR"
         assert extracted["state"] == "AVAILABLE"
         assert extracted["shopsProductId"] == "test-123"
 
@@ -285,6 +282,9 @@ class TestProcessSingleUrl:
         assert product_scraper._metrics["processed"] == 1
         assert product_scraper._metrics["extracted"] == 1
         assert result_queue.qsize() == 1
+        item = await result_queue.get()
+        assert isinstance(item, dict)
+        assert item["title"]["text"] == "Test Product"
 
     @pytest.mark.asyncio
     async def test_process_single_url_timeout(self):
