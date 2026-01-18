@@ -7,7 +7,7 @@ import os
 import boto3
 import tldextract
 
-from src.core.aws.database.operations import STATE_NEVER
+from src.core.aws.database.constants import STATE_NEVER
 
 extract_with_cache = tldextract.TLDExtract(cache_dir="/tmp/.tld_cache")
 

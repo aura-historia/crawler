@@ -75,7 +75,7 @@ All fields below are REQUIRED unless explicitly marked optional.
 
 * description (string)
 Full description only of the item. The longest technical description available.
-Do NOT include any extraneous text.
+Do NOT include any extraneous text or media.
 
   Use newline characters (`\n`) between sections.
   DO NOT summarize, rewrite, translate, or omit content.

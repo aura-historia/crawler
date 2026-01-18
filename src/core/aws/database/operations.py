@@ -8,10 +8,7 @@ from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 from src.core.aws.database.models import ShopMetadata, URLEntry, get_dynamodb_client
-
-STATE_NEVER = "NEVER#"
-STATE_PROGRESS = "PROGRESS#"
-STATE_DONE = "DONE#"
+from src.core.aws.database.constants import STATE_NEVER, STATE_PROGRESS, STATE_DONE
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -184,8 +181,8 @@ class DynamoDBOperations:
         }
 
         if domain_to_exclude:
-            query_args["FilterExpression"] = "#d <> :domain_to_exclude"
-            query_args["ExpressionAttributeNames"] = {"#d": "domain"}
+            # Use the attribute name directly (no placeholder mapping).
+            query_args["FilterExpression"] = "domain <> :domain_to_exclude"
             query_args["ExpressionAttributeValues"][":domain_to_exclude"] = {
                 "S": domain_to_exclude
             }
