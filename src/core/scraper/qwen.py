@@ -14,6 +14,7 @@ from core.scraper.schemas.extracted_product import ExtractedProduct
 from core.scraper.schemas.put_products_collection_data_mapper import (
     map_extracted_product_to_schema,
 )
+from core.utils.send_items import send_items
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -172,7 +173,7 @@ async def extract(
     logger.info(f"Current time: {current_time_iso}")
 
     cleaner_prompt = CLEANER_PROMPT_TEMPLATE.format(
-        current_time=current_time_iso, markdown=markdown[:30000]
+        current_time=current_time_iso, markdown=markdown
     )
     raw_summary = await chat_completion(cleaner_prompt)
     if "NOT_A_PRODUCT" in raw_summary or not raw_summary.strip():
@@ -231,6 +232,7 @@ async def get_markdown(url: str) -> str:
             "aside",
         ],
         process_iframes=True,
+        remove_overlay_elements=True,
     )
     browser_config = BrowserConfig(headless=True, verbose=False)
     async with AsyncWebCrawler(config=browser_config) as crawler:
@@ -250,12 +252,12 @@ async def main(url: str):
     data = map_extracted_product_to_schema(result, url)
     print(json.dumps(data, indent=2, ensure_ascii=False))
 
-    # await send_items(data)
+    await send_items(data)
 
 
 if __name__ == "__main__":
     asyncio.run(
         main(
-            "https://bid.alexcooper.com/lots/view/1-BTG2M5/1975-baltimore-colts-hall-of-fame-signed-johnny-unitas-game-used-helmet"
+            "https://www.antik-shop.de/produkt/louis-seize-stil-tisch-mahagoni-shabby-chic-um-1930/"
         )
     )

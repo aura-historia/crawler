@@ -18,8 +18,8 @@ If VALID, remove all UI clutter, including:
 **STRICTLY PRESERVE** the following in Markdown format:
 1. **Financials:** All mentions of "Starting Bid", "Estimate", "Hammer Price", and currency symbols.
 2. **Identification:** Lot number or product ID, full title.
-3. **Context:** Lot Essay, Provenance, Dimensions, Condition Report.
-4. **Media:** All image URLs of the product in `.jpg`, `.jpeg`, or `.png` format (in valid URL).
+3. **Context:** Only the full product description as-is, with all technical details. No other informations, strictly the description.
+4. **Media:** Include image-URLs of the product that ends with `.jpg`, `.jpeg`, or `.png`.
 5. **Timeline:** Only add explicit dates about the auction start/end if clearly stated. Do not add random dates.
 6. **State*+: Any text that indicates the availability of the item.
 

@@ -23,10 +23,6 @@ def map_extracted_product_to_schema(
             "text": product.description or "",
             "language": product.language or "UNKNOWN",
         },
-        "price": {
-            "amount": product.priceAmount if product.priceAmount is not None else 0,
-            "currency": product.priceCurrency or "UNKNOWN",
-        },
         "state": product.state if product.state else "UNKNOWN",
         "url": url,
         "images": product.images or [],
@@ -51,5 +47,11 @@ def map_extracted_product_to_schema(
         result["priceEstimateMax"] = {
             "amount": product.priceEstimateMaxAmount,
             "currency": product.priceEstimateMaxCurrency,
+        }
+
+    if product.priceAmount is not None and product.priceCurrency is not None:
+        result["price"] = {
+            "amount": product.priceAmount,
+            "currency": product.priceCurrency,
         }
     return result
