@@ -20,7 +20,7 @@ async def send_items(items):
             api_url,
             session,
             method="PUT",
-            json_data={"items": [items]},
+            json_data={"items": items},
             headers=headers,
             timeout_seconds=10,
             retry_attempts=3,

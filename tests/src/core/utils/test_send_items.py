@@ -29,7 +29,7 @@ class TestSendItems:
                     args, kwargs = mock_req.call_args
                     assert args[0] == api_url
                     assert kwargs["method"] == "PUT"
-                    assert kwargs["json_data"] == {"items": items}
+                    assert kwargs["json_data"] == {"items": [{"foo": "bar"}]}
 
     @pytest.mark.asyncio
     async def test_send_items_resilient_http_request_exception(self, caplog):

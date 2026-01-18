@@ -8,13 +8,13 @@ from datetime import datetime, timezone
 
 from pydantic import ValidationError
 
-from core.scraper.prompts.cleaner import CLEANER_PROMPT_TEMPLATE
-from core.scraper.prompts.extractor import EXTRACTION_PROMPT_TEMPLATE
-from core.scraper.schemas.extracted_product import ExtractedProduct
-from core.scraper.schemas.put_products_collection_data_mapper import (
+from src.core.scraper.prompts.cleaner import CLEANER_PROMPT_TEMPLATE
+from src.core.scraper.prompts.extractor import EXTRACTION_PROMPT_TEMPLATE
+from src.core.scraper.schemas.extracted_product import ExtractedProduct
+from src.core.scraper.schemas.put_products_collection_data_mapper import (
     map_extracted_product_to_schema,
 )
-from core.utils.send_items import send_items
+from src.core.utils.send_items import send_items
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"

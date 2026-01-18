@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from core.scraper.schemas.extracted_product import ExtractedProduct
+from src.core.scraper.schemas.extracted_product import ExtractedProduct
 
 
 def map_extracted_product_to_schema(
