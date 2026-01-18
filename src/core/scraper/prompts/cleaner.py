@@ -20,7 +20,7 @@ If VALID, remove all UI clutter, including:
 2. **Identification:** Lot number or product ID, full title.
 3. **Context:** Lot Essay, Provenance, Dimensions, Condition Report.
 4. **Media:** All image URLs of the product in `.jpg`, `.jpeg`, or `.png` format (in valid URL).
-5. **Timeline:** Any text about the auction dates or times. Keep the text as it is.
+5. **Timeline:** Only add explicit dates about the auction start/end if clearly stated. Do not add random dates.
 6. **State*+: Any text that indicates the availability of the item.
 
 Maintain all headings, line breaks, and original formatting for readability.
