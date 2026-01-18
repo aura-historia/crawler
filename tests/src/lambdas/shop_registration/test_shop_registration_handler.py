@@ -2,7 +2,8 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from src.core.aws.database.models import ShopMetadata, METADATA_SK
+from src.core.aws.database.models import METADATA_SK
+from src.core.aws.database.operations import ShopMetadata
 from src.lambdas.shop_registration.shop_registration_handler import (
     find_existing_shop,
     handler,

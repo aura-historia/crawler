@@ -3,7 +3,7 @@ import socket
 from unittest.mock import Mock, patch
 from botocore.exceptions import ClientError
 
-from src.core.aws.database.models import ShopMetadata, URLEntry
+from src.core.aws.database.operations import ShopMetadata, URLEntry
 from src.core.aws.database.operations import DynamoDBOperations
 
 

@@ -9,8 +9,36 @@ from dotenv import load_dotenv
 
 from src.core.aws.database.models import ShopMetadata, URLEntry, get_dynamodb_client
 
+STATE_NEVER = "NEVER#"
+STATE_PROGRESS = "PROGRESS#"
+STATE_DONE = "DONE#"
+
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+
+def parse_gsi_sk(gsi_sk: str) -> tuple[str, Optional[str]]:
+    """Parse GSI sort key into state and timestamp.
+
+    Args:
+        gsi_sk: Prefixed sort key.
+
+    Returns:
+        Tuple of (state, timestamp). Timestamp is None for NEVER state.
+
+    Examples:
+        > parse_gsi_sk("NEVER#")
+        ('NEVER#', None)
+        > parse_gsi_sk("DONE#2026-01-15T12:00:00Z")
+        ('DONE#', '2026-01-15T12:00:00Z')
+    """
+    if gsi_sk.startswith(STATE_NEVER):
+        return STATE_NEVER, None
+    elif gsi_sk.startswith(STATE_PROGRESS):
+        return STATE_PROGRESS, gsi_sk[len(STATE_PROGRESS) :]
+    elif gsi_sk.startswith(STATE_DONE):
+        return STATE_DONE, gsi_sk[len(STATE_DONE) :]
+    raise ValueError(f"Invalid GSI SK: {gsi_sk}")
 
 
 class DynamoDBOperations:
@@ -450,7 +478,7 @@ class DynamoDBOperations:
             update_parts: List to append update expressions to
             attr_values: Dict to add attribute values to
             field_name: Name of the field to update
-            value: Timestamp value (None for NULL, ... skipped in caller)
+            value: Timestamp value (None to set NULL, ... skipped in caller)
             placeholder: Placeholder name for expression attribute value
             gsi_key: Optional GSI key to also update
         """
@@ -468,35 +496,36 @@ class DynamoDBOperations:
     def update_shop_metadata(
         self,
         domain: str,
-        last_crawled_start: Optional[str] = ...,
-        last_crawled_end: Optional[str] = ...,
-        last_scraped_start: Optional[str] = ...,
-        last_scraped_end: Optional[str] = ...,
+        last_crawled_start: Optional[str] = None,
+        last_crawled_end: Optional[str] = None,
+        last_scraped_start: Optional[str] = None,
+        last_scraped_end: Optional[str] = None,
+        shop_country: Optional[str] = None,
     ) -> dict:
         """
         Update shop metadata with new timestamp values.
 
-        Important: GSI keys (gsi2_pk, gsi2_sk, gsi3_pk, gsi3_sk) must be explicitly updated.
-        DynamoDB does NOT automatically sync them when base attributes change.
-
         Args:
             domain: Shop domain
-            last_crawled_start: ISO 8601 timestamp, None to set NULL, or ... to skip update
-            last_crawled_end: ISO 8601 timestamp, None to set NULL, or ... to skip update
-            last_scraped_start: ISO 8601 timestamp, None to set NULL, or ... to skip update
-            last_scraped_end: ISO 8601 timestamp, None to set NULL, or ... to skip update
+            last_crawled_start: ISO 8601 timestamp, None to skip update
+            last_crawled_end: ISO 8601 timestamp, None to skip update
+            last_scraped_start: ISO 8601 timestamp, None to skip update
+            last_scraped_end: ISO 8601 timestamp, None to skip update
+            shop_country: Country code, optional. Used to update GSI PKs.
 
         Returns:
             UpdateItem response
         """
-        # Fetch current shop metadata to get shop_country for GSI keys
-        current_metadata = self.get_shop_metadata(domain)
-        shop_country = current_metadata.shop_country if current_metadata else None
+
+        # Fetch current metadata only if country is needed and not provided
+        if shop_country is None:
+            current_metadata = self.get_shop_metadata(domain)
+            shop_country = current_metadata.shop_country if current_metadata else None
 
         update_expression_parts = []
         expression_attribute_values = {}
 
-        if last_crawled_start is not ...:
+        if last_crawled_start is not None:
             self._add_timestamp_update(
                 update_expression_parts,
                 expression_attribute_values,
@@ -505,7 +534,7 @@ class DynamoDBOperations:
                 "crawled_start",
             )
 
-        if last_crawled_end is not ...:
+        if last_crawled_end is not None:
             self._add_timestamp_update(
                 update_expression_parts,
                 expression_attribute_values,
@@ -514,12 +543,11 @@ class DynamoDBOperations:
                 "crawled_end",
                 "gsi2_sk",
             )
-            # Set gsi2_pk if shop_country is available and last_crawled_end is set
-            if shop_country and last_crawled_end is not None:
+            if shop_country:
                 update_expression_parts.append("gsi2_pk = :gsi2_pk")
                 expression_attribute_values[":gsi2_pk"] = {"S": shop_country}
 
-        if last_scraped_start is not ...:
+        if last_scraped_start is not None:
             self._add_timestamp_update(
                 update_expression_parts,
                 expression_attribute_values,
@@ -528,7 +556,7 @@ class DynamoDBOperations:
                 "scraped_start",
             )
 
-        if last_scraped_end is not ...:
+        if last_scraped_end is not None:
             self._add_timestamp_update(
                 update_expression_parts,
                 expression_attribute_values,
@@ -537,8 +565,7 @@ class DynamoDBOperations:
                 "scraped_end",
                 "gsi3_sk",
             )
-            # Set gsi3_pk if shop_country is available
-            if shop_country and last_scraped_end is not None:
+            if shop_country:
                 update_expression_parts.append("gsi3_pk = :gsi3_pk")
                 expression_attribute_values[":gsi3_pk"] = {"S": shop_country}
 
@@ -548,24 +575,16 @@ class DynamoDBOperations:
 
         update_expression = "SET " + ", ".join(update_expression_parts)
 
-        try:
-            response = self.client.update_item(
-                TableName=self.table_name,
-                Key={"pk": {"S": f"SHOP#{domain}"}, "sk": {"S": self.METADATA_SK}},
-                UpdateExpression=update_expression,
-                ExpressionAttributeValues=expression_attribute_values,
-                ReturnValues="UPDATED_NEW",
-            )
-            logger.info(f"Updated shop metadata for {domain}")
-            return response["Attributes"]
-        except ClientError as e:
-            logger.error(
-                "Couldn't update shop metadata for %s. Here's why: %s: %s",
-                domain,
-                e.response["Error"]["Code"],
-                e.response["Error"]["Message"],
-            )
-            raise
+        response = self.client.update_item(
+            TableName=self.table_name,
+            Key={"pk": {"S": f"SHOP#{domain}"}, "sk": {"S": self.METADATA_SK}},
+            UpdateExpression=update_expression,
+            ExpressionAttributeValues=expression_attribute_values,
+            ReturnValues="UPDATED_NEW",
+        )
+
+        logger.info(f"Updated shop metadata for {domain}")
+        return response["Attributes"]
 
     def update_url_hash(self, domain: str, url: str, new_hash: str) -> dict:
         """
@@ -709,6 +728,49 @@ class DynamoDBOperations:
             logger.error(f"Error fetching URL entry for {url} in {domain}: {e}")
             return None
 
+    def _query_gsi_for_shops(
+        self,
+        index_name: str,
+        pk_attr: str,
+        sk_attr: str,
+        country_key: str,
+        cutoff_date: str,
+    ) -> List[ShopMetadata]:
+        shops = []
+        last_evaluated_key = None
+
+        try:
+            while True:
+                query_args = {
+                    "TableName": self.table_name,
+                    "IndexName": index_name,
+                    "KeyConditionExpression": f"{pk_attr} = :country AND {sk_attr} <= :cutoff",
+                    "ExpressionAttributeValues": {
+                        ":country": {"S": country_key},
+                        ":cutoff": {"S": cutoff_date},
+                    },
+                }
+
+                if last_evaluated_key:
+                    query_args["ExclusiveStartKey"] = last_evaluated_key
+
+                response = self.client.query(**query_args)
+
+                for item in response.get("Items", []):
+                    shops.append(ShopMetadata.from_dynamodb_item(item))
+
+                last_evaluated_key = response.get("LastEvaluatedKey")
+                if not last_evaluated_key:
+                    break
+
+            return shops
+
+        except ClientError as e:
+            logger.error(
+                f"Error querying shops from {index_name} for {country_key}: {e}"
+            )
+            raise
+
     def get_shops_for_orchestration(
         self,
         operation_type: str,
@@ -783,68 +845,3 @@ class DynamoDBOperations:
                 f"Unexpected error in get_shops_for_orchestration ({operation_type}): {e}"
             )
             raise
-
-    def _query_gsi_for_shops(
-        self,
-        index_name: str,
-        pk_attr: str,
-        sk_attr: str,
-        country: str,
-        cutoff_date: str,
-    ) -> List[ShopMetadata]:
-        """Query a GSI for shops that need processing.
-
-        Returns shops with sk_attr <= cutoff_date, which includes:
-        - Shops with old timestamps
-        - New shops with marker value "1970-01-01T00:00:00Z"
-
-        Args:
-            index_name: GSI name (GSI2 or GSI3)
-            pk_attr: Partition key attribute name
-            sk_attr: Sort key attribute name
-            country: Country key with COUNTRY# prefix
-            cutoff_date: Cutoff date
-
-        Returns:
-            List of ShopMetadata objects
-        """
-        shops = []
-        last_evaluated_key = None
-
-        try:
-            while True:
-                query_args = {
-                    "TableName": self.table_name,
-                    "IndexName": index_name,
-                    "KeyConditionExpression": f"{pk_attr} = :country AND {sk_attr} <= :cutoff",
-                    "ExpressionAttributeValues": {
-                        ":country": {"S": country},
-                        ":cutoff": {"S": cutoff_date},
-                    },
-                }
-
-                if last_evaluated_key:
-                    query_args["ExclusiveStartKey"] = last_evaluated_key
-
-                response = self.client.query(**query_args)
-
-                for item in response.get("Items", []):
-                    shops.append(ShopMetadata.from_dynamodb_item(item))
-
-                last_evaluated_key = response.get("LastEvaluatedKey")
-                if not last_evaluated_key:
-                    break
-
-            logger.debug(
-                f"Found {len(shops)} shops in {country} using {index_name} "
-                f"(cutoff: {cutoff_date})"
-            )
-            return shops
-
-        except ClientError as e:
-            logger.error(f"Error querying {index_name} for shops in {country}: {e}")
-            return []
-
-
-# Global operations instance
-db_operations = DynamoDBOperations()

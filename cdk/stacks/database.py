@@ -42,7 +42,7 @@ class DatabaseStack(Stack):
                 name="gsi2_sk", type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.INCLUDE,
-            non_key_attributes=["domain", "last_crawled_start"],
+            non_key_attributes=["domain"],
         )
         # GSI3 - CountryLastScrapedIndex
         # Queries shops by country and last_scraped_end timestamp
@@ -56,11 +56,7 @@ class DatabaseStack(Stack):
                 name="gsi3_sk", type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.INCLUDE,
-            non_key_attributes=[
-                "domain",
-                "last_scraped_start",
-                "last_crawled_end",
-            ],
+            non_key_attributes=["domain"],
         )
         # GSI4 - CoreDomainNameIndex
         # Associates different domains that share the same core domain name

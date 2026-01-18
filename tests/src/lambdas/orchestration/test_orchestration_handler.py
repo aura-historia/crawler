@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.aws.database.models import ShopMetadata
+from src.core.aws.database.operations import ShopMetadata
 
 
 class TestOrchestrationHandler:
@@ -285,67 +285,118 @@ class TestGetShopsForOrchestration:
             yield mock.return_value
 
     def test_get_shops_for_orchestration_crawl(self, mock_dynamodb_client):
-        """Test querying shops for crawl operation using GSI2."""
+        """Test querying shops for crawl operation using GSI2 with state prefixes."""
         from src.core.aws.database.operations import DynamoDBOperations
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=2)
         cutoff_str = cutoff.isoformat()
 
-        mock_dynamodb_client.query.return_value = {
-            "Items": [
-                {
-                    "pk": {"S": "SHOP#example.com"},
-                    "sk": {"S": "META#"},
-                    "domain": {"S": "example.com"},
-                }
-            ],
-            "LastEvaluatedKey": None,
-        }
+        # Mock response - called twice (once for NEVER#, once for DONE#)
+        mock_dynamodb_client.query.side_effect = [
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#never.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "never.com"},
+                    }
+                ],
+                "LastEvaluatedKey": None,
+            },
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#old.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "old.com"},
+                    }
+                ],
+                "LastEvaluatedKey": None,
+            },
+        ]
 
         ops = DynamoDBOperations()
         ops.client = mock_dynamodb_client
 
         shops = ops.get_shops_for_orchestration("crawl", cutoff_str, country="DE")
 
-        assert len(shops) == 1
-        assert shops[0].domain == "example.com"
+        assert len(shops) == 2
+        assert shops[0].domain == "never.com"
+        assert shops[1].domain == "old.com"
 
-        # Verify it used GSI2
-        call_kwargs = mock_dynamodb_client.query.call_args[1]
-        assert call_kwargs["IndexName"] == "GSI2"
-        assert "gsi2_pk = :country" in call_kwargs["KeyConditionExpression"]
-        assert "gsi2_sk <= :cutoff" in call_kwargs["KeyConditionExpression"]
+        # Verify it used GSI2 with state prefixes
+        assert mock_dynamodb_client.query.call_count == 2
+
+        # First call should query NEVER# state
+        first_call_kwargs = mock_dynamodb_client.query.call_args_list[0][1]
+        assert first_call_kwargs["IndexName"] == "GSI2"
+        assert "gsi2_pk = :country" in first_call_kwargs["KeyConditionExpression"]
+        assert (
+            "begins_with(gsi2_sk, :state)"
+            in first_call_kwargs["KeyConditionExpression"]
+        )
+
+        # Second call should query DONE# state with cutoff
+        second_call_kwargs = mock_dynamodb_client.query.call_args_list[1][1]
+        assert second_call_kwargs["IndexName"] == "GSI2"
+        assert "gsi2_pk = :country" in second_call_kwargs["KeyConditionExpression"]
+        assert "BETWEEN" in second_call_kwargs["KeyConditionExpression"]
 
     def test_get_shops_for_orchestration_scrape(self, mock_dynamodb_client):
-        """Test querying shops for scrape operation using GSI3."""
+        """Test querying shops for scrape operation using GSI3 with state prefixes."""
         from src.core.aws.database.operations import DynamoDBOperations
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=2)
         cutoff_str = cutoff.isoformat()
 
-        mock_dynamodb_client.query.return_value = {
-            "Items": [
-                {
-                    "pk": {"S": "SHOP#example.com"},
-                    "sk": {"S": "META#"},
-                    "domain": {"S": "example.com"},
-                }
-            ],
-            "LastEvaluatedKey": None,
-        }
+        # Mock response - called twice (once for NEVER#, once for DONE#)
+        mock_dynamodb_client.query.side_effect = [
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#never.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "never.com"},
+                    }
+                ],
+                "LastEvaluatedKey": None,
+            },
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#old.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "old.com"},
+                    }
+                ],
+                "LastEvaluatedKey": None,
+            },
+        ]
 
         ops = DynamoDBOperations()
         ops.client = mock_dynamodb_client
 
         shops = ops.get_shops_for_orchestration("scrape", cutoff_str, country="DE")
 
-        assert len(shops) == 1
+        assert len(shops) == 2
 
-        # Verify it used GSI3
-        call_kwargs = mock_dynamodb_client.query.call_args[1]
-        assert call_kwargs["IndexName"] == "GSI3"
-        assert "gsi3_pk = :country" in call_kwargs["KeyConditionExpression"]
-        assert "gsi3_sk <= :cutoff" in call_kwargs["KeyConditionExpression"]
+        # Verify it used GSI3 with state prefixes
+        assert mock_dynamodb_client.query.call_count == 2
+
+        # First call should query NEVER# state
+        first_call_kwargs = mock_dynamodb_client.query.call_args_list[0][1]
+        assert first_call_kwargs["IndexName"] == "GSI3"
+        assert "gsi3_pk = :country" in first_call_kwargs["KeyConditionExpression"]
+        assert (
+            "begins_with(gsi3_sk, :state)"
+            in first_call_kwargs["KeyConditionExpression"]
+        )
+
+        # Second call should query DONE# state with cutoff
+        second_call_kwargs = mock_dynamodb_client.query.call_args_list[1][1]
+        assert second_call_kwargs["IndexName"] == "GSI3"
+        assert "gsi3_pk = :country" in second_call_kwargs["KeyConditionExpression"]
+        assert "BETWEEN" in second_call_kwargs["KeyConditionExpression"]
 
     def test_get_shops_for_orchestration_invalid_type(self, mock_dynamodb_client):
         """Test that invalid operation type raises ValueError."""
@@ -363,30 +414,54 @@ class TestGetShopsForOrchestration:
         assert "must be 'crawl' or 'scrape'" in str(exc_info.value)
 
     def test_get_shops_for_orchestration_pagination(self, mock_dynamodb_client):
-        """Test GSI query handles pagination."""
+        """Test GSI query handles pagination with state prefixes."""
         from src.core.aws.database.operations import DynamoDBOperations
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=2)
         cutoff_str = cutoff.isoformat()
 
-        # Mock paginated response
+        # Mock paginated responses for both NEVER# and DONE# queries
         mock_dynamodb_client.query.side_effect = [
+            # NEVER# query - page 1
             {
                 "Items": [
                     {
-                        "pk": {"S": "SHOP#shop1.com"},
+                        "pk": {"S": "SHOP#never1.com"},
                         "sk": {"S": "META#"},
-                        "domain": {"S": "shop1.com"},
+                        "domain": {"S": "never1.com"},
                     }
                 ],
-                "LastEvaluatedKey": {"pk": {"S": "SHOP#shop1.com"}},
+                "LastEvaluatedKey": {"pk": {"S": "SHOP#never1.com"}},
             },
+            # NEVER# query - page 2
             {
                 "Items": [
                     {
-                        "pk": {"S": "SHOP#shop2.com"},
+                        "pk": {"S": "SHOP#never2.com"},
                         "sk": {"S": "META#"},
-                        "domain": {"S": "shop2.com"},
+                        "domain": {"S": "never2.com"},
+                    }
+                ],
+                "LastEvaluatedKey": None,
+            },
+            # DONE# query - page 1
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#old1.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "old1.com"},
+                    }
+                ],
+                "LastEvaluatedKey": {"pk": {"S": "SHOP#old1.com"}},
+            },
+            # DONE# query - page 2
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#old2.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "old2.com"},
                     }
                 ],
                 "LastEvaluatedKey": None,
@@ -398,7 +473,12 @@ class TestGetShopsForOrchestration:
 
         shops = ops.get_shops_for_orchestration("crawl", cutoff_str, country="DE")
 
-        assert len(shops) == 2
+        # Should get 2 shops from NEVER# query and 2 from DONE# query
+        assert len(shops) == 4
+        assert shops[0].domain == "never1.com"
+        assert shops[1].domain == "never2.com"
+        assert shops[2].domain == "old1.com"
+        assert shops[3].domain == "old2.com"
         assert mock_dynamodb_client.query.call_count == 2
 
 

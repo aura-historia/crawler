@@ -93,14 +93,57 @@ Each GSI uses dedicated attributes (`gsi<n>_pk`, `gsi<n>_sk`) so items only proj
 - **Purpose:** Find shops from a specific country that were crawled within a date range, or find new shops that have never been crawled.
 - **Key Schema:**
     - **HASH Key (`gsi2_pk`):** `shop_country` (e.g., `COUNTRY#DE`). Set for all shops with a country.
-    - **RANGE Key (`gsi2_sk`):** `last_crawled_end` timestamp or marker value for new shops.
-- **Projection:** `domain`, `last_crawled_start`
-- **Special Behavior for New Shops:** 
-    - When a shop has NEVER been crawled (`last_crawled_end` is NULL), `gsi2_sk` is set to `"1970-01-01T00:00:00Z"` (epoch marker).
-    - This allows efficient queries for new shops: `gsi2_sk = "1970-01-01T00:00:00Z" AND attribute_not_exists(last_crawled_start) AND attribute_not_exists(last_crawled_end)`
-    - Orchestration can query all shops needing crawl with: `gsi2_sk <= cutoff_date` (includes both old shops and new shops with marker)
-- **Note:** Projected attribute enables in-progress detection without additional queries:
-    - `last_crawled_start` (with `gsi2_sk` as `last_crawled_end`) - Check if crawl is in progress
+    - **RANGE Key (`gsi2_sk`):** State-prefixed timestamp for lexicographic sorting.
+- **Projection:** `domain`, `last_crawled_start`, `last_crawled_end`
+
+#### State Prefixes in `gsi2_sk`:
+
+| State | Prefix | Example | Query Pattern |
+|-------|--------|---------|---------------|
+| **Never Crawled** | `NEVER#` | `NEVER#` | `begins_with(gsi2_sk, 'NEVER#')` |
+| **In Progress** | `PROGRESS#` | `PROGRESS#2026-01-15T10:00:00Z` | `gsi2_sk BETWEEN 'PROGRESS#' AND 'PROGRESS#~'` |
+| **Completed** | `DONE#` | `DONE#2026-01-15T12:00:00Z` | `gsi2_sk BETWEEN 'DONE#' AND 'DONE#2026-01-13...'` |
+
+#### Query Strategies:
+
+**Find shops needing crawl (old or never crawled):**
+```python
+# Get never-crawled shops
+begins_with(gsi2_sk, 'NEVER#')
+
+# Get shops crawled before cutoff
+gsi2_sk BETWEEN 'DONE#' AND 'DONE#2026-01-13T00:00:00Z'
+```
+
+**Exclude in-progress shops automatically:**
+- In-progress shops have `PROGRESS#` prefix
+- Queries for `NEVER#` or `DONE#` naturally exclude them
+
+**Monitor stuck crawls:**
+```python
+# Find crawls in-progress > 2 hours
+gsi2_sk BETWEEN 'PROGRESS#' AND 'PROGRESS#2026-01-15T08:00:00Z'
+```
+
+#### Lifecycle Example:
+
+```python
+# 1. New shop registered
+gsi2_sk = "NEVER#"
+
+# 2. Crawl starts
+gsi2_sk = "PROGRESS#2026-01-15T10:00:00Z"  # When started
+
+# 3. Crawl completes
+gsi2_sk = "DONE#2026-01-15T12:00:00Z"      # When finished
+```
+
+**Benefits:**
+- ✅ Shops never disappear from index
+- ✅ State is explicit and queryable
+- ✅ Easy to find stuck/orphaned crawls
+- ✅ Lexicographic sorting works naturally
+- ✅ Minimal storage - NEVER# has no timestamp
 
 
 ### GSI3 – CountryLastScrapedIndex
@@ -108,15 +151,64 @@ Each GSI uses dedicated attributes (`gsi<n>_pk`, `gsi<n>_sk`) so items only proj
 - **Purpose:** Find shops from a specific country that were scraped for product data within a date range, or find shops that have never been scraped.
 - **Key Schema:**
     - **HASH Key (`gsi3_pk`):** `shop_country` (e.g., `COUNTRY#DE`). Set for all shops with a country.
-    - **RANGE Key (`gsi3_sk`):** `last_scraped_end` timestamp or marker value for new shops.
-- **Projection:** `domain`, `last_scraped_start`, `last_crawled_end`
-- **Special Behavior for New Shops:**
-    - When a shop has NEVER been scraped (`last_scraped_end` is NULL), `gsi3_sk` is set to `"1970-01-01T00:00:00Z"` (epoch marker).
-    - This allows efficient queries for shops needing scrape: `gsi3_sk = "1970-01-01T00:00:00Z" AND attribute_not_exists(last_scraped_start) AND attribute_not_exists(last_scraped_end)`
-    - Orchestration can query all shops eligible for scraping with: `gsi3_sk <= cutoff_date` (includes both old shops and never-scraped shops with marker)
-- **Note:** Projected attributes enable eligibility checks without additional queries:
-    - `last_scraped_start` (with `gsi3_sk` as `last_scraped_end`) - Check if scrape is in progress
-    - `last_crawled_end` (with `gsi3_sk` as `last_scraped_end`) - Verify crawl is newer than last scrape
+    - **RANGE Key (`gsi3_sk`):** State-prefixed timestamp for lexicographic sorting.
+- **Projection:** `domain`, `last_scraped_start`, `last_scraped_end`, `last_crawled_end`
+
+#### State Prefixes in `gsi3_sk`:
+
+| State | Prefix | Example | Query Pattern |
+|-------|--------|---------|---------------|
+| **Never Scraped** | `NEVER#` | `NEVER#` | `begins_with(gsi3_sk, 'NEVER#')` |
+| **In Progress** | `PROGRESS#` | `PROGRESS#2026-01-15T11:00:00Z` | `gsi3_sk BETWEEN 'PROGRESS#' AND 'PROGRESS#~'` |
+| **Completed** | `DONE#` | `DONE#2026-01-15T13:00:00Z` | `gsi3_sk BETWEEN 'DONE#' AND 'DONE#2026-01-13...'` |
+
+#### Query Strategies:
+
+**Find shops needing scrape:**
+```python
+# Get never-scraped shops (after crawl completed)
+begins_with(gsi3_sk, 'NEVER#')
+# + Filter: last_crawled_end exists (crawl completed)
+
+# Get shops scraped before cutoff
+gsi3_sk BETWEEN 'DONE#' AND 'DONE#2026-01-13T00:00:00Z'
+# + Filter: last_crawled_end > last_scraped_end (new crawl data available)
+```
+
+**Exclude in-progress scrapes automatically:**
+- In-progress scrapes have `PROGRESS#` prefix
+- Queries for `NEVER#` or `DONE#` naturally exclude them
+
+**Monitor stuck scrapes:**
+```python
+# Find scrapes in-progress > 2 hours
+gsi3_sk BETWEEN 'PROGRESS#' AND 'PROGRESS#2026-01-15T09:00:00Z'
+```
+
+#### Lifecycle Example:
+
+```python
+# 1. Shop crawled, ready for scraping
+gsi3_sk = "NEVER#"
+
+# 2. Scrape starts
+gsi3_sk = "PROGRESS#2026-01-15T11:00:00Z"  # When started
+
+# 3. Scrape completes
+gsi3_sk = "DONE#2026-01-15T13:00:00Z"      # When finished
+
+# 4. New crawl happens → eligible for re-scrape
+gsi3_sk = "DONE#2026-01-15T13:00:00Z"      # Unchanged
+# But last_crawled_end is newer → eligible
+```
+
+**Benefits:**
+- ✅ Shops never disappear from index
+- ✅ State is explicit and queryable
+- ✅ Easy to find stuck/orphaned scrapes
+- ✅ Can monitor all in-progress operations
+- ✅ Eligibility check uses projected `last_crawled_end`
+- ✅ Minimal storage - NEVER# has no timestamp
 
 ### GSI4 – CoreDomainNameIndex
 

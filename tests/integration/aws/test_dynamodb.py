@@ -3,7 +3,7 @@ import os
 import random
 import string
 from unittest.mock import patch
-from src.core.aws.database.models import ShopMetadata, URLEntry
+from src.core.aws.database.operations import ShopMetadata, URLEntry
 
 
 class TestDynamoDBIntegration:

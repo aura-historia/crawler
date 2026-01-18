@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from src.core.aws.database.operations import DynamoDBOperations, db_operations
+from src.core.aws.database.operations import DynamoDBOperations, URLEntry
 from src.core.aws.sqs.message_wrapper import (
     send_message,
     delete_message,
@@ -21,7 +21,6 @@ from src.core.utils.spider_config import (
 )
 from src.core.worker.base_worker import generic_worker, run_worker_pool
 from crawl4ai import AsyncWebCrawler
-from src.core.aws.database.models import URLEntry
 from src.core.scraper.qwen import extract as qwen_extract
 from src.core.scraper.schemas.put_products_collection_data_mapper import (
     map_extracted_product_to_schema,
@@ -46,6 +45,8 @@ _metrics = {
 }
 
 shutdown_event: asyncio.Event = asyncio.Event()
+
+db_operations = DynamoDBOperations()
 
 
 async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
@@ -265,7 +266,6 @@ async def handle_domain_message(
                 db.update_shop_metadata,
                 domain=domain,
                 last_scraped_start=datetime.now().isoformat(),
-                last_scraped_end=None,
             )
 
         urls_to_crawl = product_urls[start_index:]

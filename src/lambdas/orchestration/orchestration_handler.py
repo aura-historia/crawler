@@ -11,12 +11,12 @@ import boto3
 from botocore.exceptions import ClientError
 from pythonjsonlogger import json as pythonjson
 
-from src.core.aws.database.constants import (
-    is_scrape_eligible,
-    is_scrape_in_progress,
-    is_crawl_in_progress,
+from src.core.aws.database.operations import (
+    DynamoDBOperations,
+    parse_gsi_sk,
+    STATE_NEVER,
+    STATE_DONE,
 )
-from src.core.aws.database.operations import db_operations
 
 # Configure JSON logging for CloudWatch
 logger = logging.getLogger(__name__)
@@ -30,6 +30,8 @@ if not logger.handlers:
     logger.addHandler(handler)
     log_level = os.getenv("LOG_LEVEL", "INFO")
     logger.setLevel(log_level)
+
+db_operations = DynamoDBOperations()
 
 # Global SQS client for connection reuse across warm Lambda invocations
 _GLOBAL_SQS_CLIENT: Optional[Any] = None
@@ -208,6 +210,31 @@ def _enqueue_shops_to_queue(
     }
 
 
+def _is_scrape_eligible(
+    last_crawled_end: str,
+    last_scraped_end: str,
+) -> bool:
+    """Check if a shop is eligible for scraping.
+
+    Args:
+        last_crawled_end: When the crawl ended (State: DONE#...)
+        last_scraped_end: When the scrape ended (State: DONE#...)
+    Returns:
+        True if eligible for scraping, False otherwise.
+    """
+    if last_scraped_end is None or last_crawled_end is None:
+        return False
+
+    scrape_state, scrape_timestamp = parse_gsi_sk(last_scraped_end)
+    crawl_state, crawl_timestamp = parse_gsi_sk(last_crawled_end)
+
+    if scrape_state == STATE_NEVER and crawl_state == STATE_DONE:
+        return True
+    elif scrape_state == STATE_DONE and crawl_state == STATE_DONE:
+        return scrape_timestamp < crawl_timestamp
+    return False
+
+
 def _filter_eligible_shops_for_crawl(
     shops: List[Any],
 ) -> tuple[List[Any], Dict[str, int]]:
@@ -231,7 +258,7 @@ def _filter_eligible_shops_for_crawl(
 
     for shop in shops:
         # Check if crawl already in progress
-        if is_crawl_in_progress(shop.last_crawled_start, shop.last_crawled_end):
+        if shop.last_crawled_end.startswith("PROGRESS#"):
             stats["in_progress"] += 1
             logger.debug(
                 "Skipping shop - crawl in progress",
@@ -290,7 +317,7 @@ def _filter_eligible_shops_for_scrape(
 
     for shop in shops:
         # Check if scrape already in progress
-        if is_scrape_in_progress(shop.last_scraped_start, shop.last_scraped_end):
+        if shop.last_scraped_end.startswith("PROGRESS#"):
             stats["in_progress"] += 1
             logger.debug(
                 "Skipping shop - scrape in progress",
@@ -303,9 +330,7 @@ def _filter_eligible_shops_for_scrape(
             continue
 
         # Check eligibility (crawl finished and newer than scrape)
-        if not is_scrape_eligible(
-            shop.last_crawled_end, shop.last_scraped_end, shop.last_scraped_start
-        ):
+        if not _is_scrape_eligible(shop.last_crawled_end, shop.last_scraped_end):
             # Determine reason for ineligibility
             if (
                 shop.last_crawled_end is None

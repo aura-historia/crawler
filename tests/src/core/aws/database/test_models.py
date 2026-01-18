@@ -1,6 +1,6 @@
 import pytest
 
-from src.core.aws.database.models import ShopMetadata, URLEntry
+from src.core.aws.database.operations import ShopMetadata, URLEntry
 
 
 class TestShopMetadata:
