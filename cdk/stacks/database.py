@@ -56,7 +56,7 @@ class DatabaseStack(Stack):
                 name="gsi3_sk", type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.INCLUDE,
-            non_key_attributes=["domain"],
+            non_key_attributes=["domain", "last_crawled_end"],
         )
         # GSI4 - CoreDomainNameIndex
         # Associates different domains that share the same core domain name
