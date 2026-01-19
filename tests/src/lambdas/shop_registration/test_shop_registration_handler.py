@@ -39,7 +39,7 @@ class TestFindExistingShop:
 
         assert result is None
         mock_db_ops.find_all_domains_by_core_domain_name.assert_called_once_with(
-            "newshop", domain_to_exclude="newshop.com"
+            "newshop"
         )
 
     @patch("src.lambdas.shop_registration.shop_registration_handler.db_operations")

@@ -7,11 +7,17 @@ import os
 import boto3
 import tldextract
 
-from src.core.aws.database.constants import STATE_NEVER
+from src.core.aws.database.constants import STATE_NEVER, STATE_PROGRESS, STATE_DONE
 
 extract_with_cache = tldextract.TLDExtract(cache_dir="/tmp/.tld_cache")
 
-STATE_REGEX = re.compile(rf"^({STATE_NEVER}|PROGRESS#.+|DONE#.+)$")
+# Regex to validate state prefixes:
+# - NEVER# (standalone, no timestamp)
+# - PROGRESS# followed by an ISO timestamp
+# - DONE# followed by an ISO timestamp
+STATE_REGEX = re.compile(
+    rf"^({re.escape(STATE_NEVER)}|{re.escape(STATE_PROGRESS)}.+|{re.escape(STATE_DONE)}.+)$"
+)
 
 
 def _validate_state(value: Optional[str]) -> Optional[str]:
@@ -147,9 +153,9 @@ class ShopMetadata:
             shop_country=item.get("shop_country", {}).get("S"),
             shop_name=item.get("shop_name", {}).get("S"),
             last_crawled_start=item.get("last_crawled_start", {}).get("S"),
-            last_crawled_end=_validate_state(item.get("last_crawled_end", {}).get("S")),
+            last_crawled_end=item.get("last_crawled_end", {}).get("S"),
             last_scraped_start=item.get("last_scraped_start", {}).get("S"),
-            last_scraped_end=_validate_state(item.get("last_scraped_end", {}).get("S")),
+            last_scraped_end=item.get("last_scraped_end", {}).get("S"),
         )
 
 

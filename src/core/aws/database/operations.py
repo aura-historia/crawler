@@ -45,6 +45,7 @@ class DynamoDBOperations:
     DOMAIN_ATTR = "#domain_attr"
     URL_ATTR = "#url_attr"
     COUNTRY_PREFIX = "COUNTRY#"
+    COUNTRY_KEY_PLACEHOLDER = ":country"
 
     def __init__(self):
         self.client = get_dynamodb_client()
@@ -157,7 +158,6 @@ class DynamoDBOperations:
     def _build_core_domain_query_args(
         self,
         core_domain_name: str,
-        domain_to_exclude: Optional[str],
         last_evaluated_key: Optional[dict],
     ) -> dict:
         """
@@ -165,7 +165,6 @@ class DynamoDBOperations:
 
         Args:
             core_domain_name: Core domain name to search for
-            domain_to_exclude: Optional domain to exclude
             last_evaluated_key: Pagination token
 
         Returns:
@@ -179,13 +178,6 @@ class DynamoDBOperations:
                 ":cdn": {"S": core_domain_name},
             },
         }
-
-        if domain_to_exclude:
-            # Use the attribute name directly (no placeholder mapping).
-            query_args["FilterExpression"] = "domain <> :domain_to_exclude"
-            query_args["ExpressionAttributeValues"][":domain_to_exclude"] = {
-                "S": domain_to_exclude
-            }
 
         if last_evaluated_key:
             query_args["ExclusiveStartKey"] = last_evaluated_key
@@ -211,14 +203,13 @@ class DynamoDBOperations:
             )
 
     def find_all_domains_by_core_domain_name(
-        self, core_domain_name: str, domain_to_exclude: Optional[str] = None
+        self, core_domain_name: str
     ) -> List[ShopMetadata]:
         """
         Finds ALL shops by their core domain name using GSI4.
 
         Args:
             core_domain_name: The core domain name (e.g., 'example').
-            domain_to_exclude: Optional domain to exclude from the search results.
 
         Returns:
             List of ShopMetadata objects. Empty list if no matches found.
@@ -229,7 +220,7 @@ class DynamoDBOperations:
         try:
             while True:
                 query_args = self._build_core_domain_query_args(
-                    core_domain_name, domain_to_exclude, last_evaluated_key
+                    core_domain_name, last_evaluated_key
                 )
                 response = self.client.query(**query_args)
 
@@ -246,120 +237,10 @@ class DynamoDBOperations:
             return shops
         except ClientError as e:
             self._handle_core_domain_error(e, core_domain_name)
-            return []
+            raise
         except Exception as e:
             logger.error(
                 f"Unexpected error querying shops by core domain name '{core_domain_name}': {e}"
-            )
-            return []
-
-    def get_shops_by_country_and_crawled_date(
-        self, country: str, start_date: str, end_date: str
-    ) -> List[str]:
-        """
-        Query shops by country and crawled date range using GSI2.
-
-        Args:
-            country: The country to query (will be prefixed with COUNTRY# if not already).
-            start_date: The start of the date range (ISO 8601).
-            end_date: The end of the date range (ISO 8601).
-
-        Returns:
-            A list of domains.
-        """
-        if not country.startswith(self.COUNTRY_PREFIX):
-            country = f"COUNTRY#{country}"
-
-        return self._query_shops_by_country_and_date(
-            index_name="GSI2",
-            date_attribute_name="gsi2_sk",
-            country=country,
-            start_date=start_date,
-            end_date=end_date,
-        )
-
-    def get_shops_by_country_and_scraped_date(
-        self, country: str, start_date: str, end_date: str
-    ) -> List[str]:
-        """
-        Query shops by country and scraped date range using GSI3.
-
-        Args:
-            country: The country to query (will be prefixed with COUNTRY# if not already).
-            start_date: The start of the date range (ISO 8601).
-            end_date: The end of the date range (ISO 8601).
-
-        Returns:
-            A list of domains.
-        """
-        # Ensure country has COUNTRY# prefix
-        if not country.startswith(self.COUNTRY_PREFIX):
-            country = f"COUNTRY#{country}"
-
-        return self._query_shops_by_country_and_date(
-            index_name="GSI3",
-            date_attribute_name="gsi3_sk",
-            country=country,
-            start_date=start_date,
-            end_date=end_date,
-        )
-
-    def _query_shops_by_country_and_date(
-        self,
-        index_name: str,
-        date_attribute_name: str,
-        country: str,
-        start_date: str,
-        end_date: str,
-    ) -> List[str]:
-        """
-        Generic helper to query shops by country and a date range from a GSI.
-
-        Args:
-            index_name: The name of the GSI to query (GSI2 or GSI3).
-            date_attribute_name: The name of the sort key attribute (gsi2_sk or gsi3_sk).
-            country: The country to query (with COUNTRY# prefix).
-            start_date: The start of the date range (ISO 8601).
-            end_date: The end of the date range (ISO 8601).
-
-        Returns:
-            A list of domains.
-        """
-        domains = []
-        last_evaluated_key = None
-
-        # Determine the partition key attribute based on index
-        pk_attribute = "gsi2_pk" if index_name == "GSI2" else "gsi3_pk"
-
-        try:
-            while True:
-                query_args = {
-                    "TableName": self.table_name,
-                    "IndexName": index_name,
-                    "KeyConditionExpression": f"{pk_attribute} = :country AND {date_attribute_name} BETWEEN :start AND :end",
-                    "ExpressionAttributeValues": {
-                        ":country": {"S": country},
-                        ":start": {"S": start_date},
-                        ":end": {"S": end_date},
-                    },
-                    "ProjectionExpression": self.DOMAIN_ATTR,
-                    "ExpressionAttributeNames": {self.DOMAIN_ATTR: "domain"},
-                }
-                if last_evaluated_key:
-                    query_args["ExclusiveStartKey"] = last_evaluated_key
-
-                response = self.client.query(**query_args)
-                domains.extend(
-                    [item["domain"]["S"] for item in response.get("Items", [])]
-                )
-
-                last_evaluated_key = response.get("LastEvaluatedKey")
-                if not last_evaluated_key:
-                    break
-            return domains
-        except ClientError as e:
-            logger.error(
-                f"Error querying shops by {date_attribute_name} for {country}: {e}"
             )
             raise
 
@@ -432,19 +313,6 @@ class DynamoDBOperations:
         except Exception as e:
             logger.error(f"Error in batch write {item_type}: {e}")
             raise
-
-    def batch_write_shop_metadata(self, metadata_list: List[ShopMetadata]) -> dict:
-        """
-        Batch write shop metadata entries.
-
-        Args:
-            metadata_list: List of ShopMetadata objects
-
-        Returns:
-            Response dict with UnprocessedItems
-        """
-        items = [metadata.to_dynamodb_item() for metadata in metadata_list]
-        return self._batch_write_items(items, "shop metadata entries")
 
     def batch_write_url_entries(self, url_entries: List[URLEntry]) -> dict:
         """
@@ -663,15 +531,6 @@ class DynamoDBOperations:
             metadata.to_dynamodb_item(), f"shop metadata for {metadata.domain}"
         )
 
-    def upsert_url_entry(self, entry: URLEntry) -> None:
-        """
-        Insert or update URL entry.
-
-        Args:
-            entry: URLEntry object
-        """
-        self._upsert_item(entry.to_dynamodb_item(), f"URL entry for {entry.url}")
-
     def get_shop_metadata(self, domain: str) -> Optional[ShopMetadata]:
         """
         Retrieve shop metadata for a domain.
@@ -725,48 +584,88 @@ class DynamoDBOperations:
             logger.error(f"Error fetching URL entry for {url} in {domain}: {e}")
             return None
 
-    def _query_gsi_for_shops(
-        self,
-        index_name: str,
-        pk_attr: str,
-        sk_attr: str,
-        country_key: str,
-        cutoff_date: str,
-    ) -> List[ShopMetadata]:
+    def _get_orchestration_index_params(
+        self, operation_type: str
+    ) -> Tuple[str, str, str]:
+        """Determine GSI params based on operation type."""
+        if operation_type == "crawl":
+            return "GSI2", "gsi2_pk", "gsi2_sk"
+        elif operation_type == "scrape":
+            return "GSI3", "gsi3_pk", "gsi3_sk"
+        else:
+            raise ValueError(
+                f"operation_type must be 'crawl' or 'scrape', got: {operation_type}"
+            )
+
+    def _get_target_countries(self, country: Optional[str]) -> List[str]:
+        """Resolve list of countries to query."""
+        if country:
+            return [
+                country
+                if country.startswith(self.COUNTRY_PREFIX)
+                else f"COUNTRY#{country}"
+            ]
+
+        countries = ["COUNTRY#DE"]
+        logger.info("No country specified, querying default countries: %s", countries)
+        return countries
+
+    def _query_paginated_shops(self, query_args: dict) -> List[ShopMetadata]:
+        """Execute paginated query and return shops."""
         shops = []
         last_evaluated_key = None
 
-        try:
-            while True:
-                query_args = {
-                    "TableName": self.table_name,
-                    "IndexName": index_name,
-                    "KeyConditionExpression": f"{pk_attr} = :country AND {sk_attr} <= :cutoff",
-                    "ExpressionAttributeValues": {
-                        ":country": {"S": country_key},
-                        ":cutoff": {"S": cutoff_date},
-                    },
-                }
+        while True:
+            if last_evaluated_key:
+                query_args["ExclusiveStartKey"] = last_evaluated_key
 
-                if last_evaluated_key:
-                    query_args["ExclusiveStartKey"] = last_evaluated_key
+            response = self.client.query(**query_args)
+            for item in response.get("Items", []):
+                shops.append(ShopMetadata.from_dynamodb_item(item))
 
-                response = self.client.query(**query_args)
+            last_evaluated_key = response.get("LastEvaluatedKey")
+            if not last_evaluated_key:
+                break
 
-                for item in response.get("Items", []):
-                    shops.append(ShopMetadata.from_dynamodb_item(item))
+        return shops
 
-                last_evaluated_key = response.get("LastEvaluatedKey")
-                if not last_evaluated_key:
-                    break
+    def _fetch_eligible_shops_for_country(
+        self,
+        country_key: str,
+        index_name: str,
+        pk_attr: str,
+        sk_attr: str,
+        cutoff_date: str,
+    ) -> List[ShopMetadata]:
+        """Fetch eligible shops (NEVER or DONE < cutoff) for a country."""
+        shops = []
 
-            return shops
+        # 1. Query for STATE_NEVER
+        query_args_never = {
+            "TableName": self.table_name,
+            "IndexName": index_name,
+            "KeyConditionExpression": f"{pk_attr} = {self.COUNTRY_KEY_PLACEHOLDER} AND {sk_attr} = :never",
+            "ExpressionAttributeValues": {
+                self.COUNTRY_KEY_PLACEHOLDER: {"S": country_key},
+                ":never": {"S": STATE_NEVER},
+            },
+        }
+        shops.extend(self._query_paginated_shops(query_args_never))
 
-        except ClientError as e:
-            logger.error(
-                f"Error querying shops from {index_name} for {country_key}: {e}"
-            )
-            raise
+        # 2. Query for STATE_DONE with timestamp <= cutoff
+        query_args_done = {
+            "TableName": self.table_name,
+            "IndexName": index_name,
+            "KeyConditionExpression": f"{pk_attr} = {self.COUNTRY_KEY_PLACEHOLDER} AND {sk_attr} BETWEEN :done_start AND :done_end",
+            "ExpressionAttributeValues": {
+                self.COUNTRY_KEY_PLACEHOLDER: {"S": country_key},
+                ":done_start": {"S": STATE_DONE},
+                ":done_end": {"S": f"{STATE_DONE}{cutoff_date}"},
+            },
+        }
+        shops.extend(self._query_paginated_shops(query_args_done))
+
+        return shops
 
     def get_shops_for_orchestration(
         self,
@@ -776,8 +675,8 @@ class DynamoDBOperations:
     ) -> List[ShopMetadata]:
         """Get shops that need crawling or scraping based on operation type.
 
-        Returns shops where the relevant timestamp is older than cutoff_date
-        or has the marker value "1970-01-01T00:00:00Z" (never processed).
+        Returns shops where the relevant timestamp starts with NEVER#
+        or starts with DONE# and is older than cutoff_date.
 
         Args:
             operation_type: Either "crawl" or "scrape"
@@ -790,47 +689,23 @@ class DynamoDBOperations:
         Raises:
             ValueError: If operation_type is not "crawl" or "scrape"
         """
-        if operation_type not in ("crawl", "scrape"):
-            raise ValueError(
-                f"operation_type must be 'crawl' or 'scrape', got: {operation_type}"
-            )
-
-        # Determine which GSI to use
-        index_name = "GSI2" if operation_type == "crawl" else "GSI3"
-        pk_attr = "gsi2_pk" if operation_type == "crawl" else "gsi3_pk"
-        sk_attr = "gsi2_sk" if operation_type == "crawl" else "gsi3_sk"
-
-        shops = []
-
         try:
-            # If country is specified, query that country
-            # Otherwise, query all default countries
-            if country:
-                countries = [
-                    country
-                    if country.startswith(self.COUNTRY_PREFIX)
-                    else f"COUNTRY#{country}"
-                ]
-            else:
-                # For global orchestration, query common countries
-                countries = [
-                    "COUNTRY#DE",
-                ]
-                logger.info(
-                    "No country specified, querying default countries: %s", countries
-                )
+            index_name, pk_attr, sk_attr = self._get_orchestration_index_params(
+                operation_type
+            )
+            countries = self._get_target_countries(country)
 
+            all_shops = []
             for country_key in countries:
-                shops.extend(
-                    self._query_gsi_for_shops(
-                        index_name, pk_attr, sk_attr, country_key, cutoff_date
-                    )
+                shops = self._fetch_eligible_shops_for_country(
+                    country_key, index_name, pk_attr, sk_attr, cutoff_date
                 )
+                all_shops.extend(shops)
 
             logger.info(
-                f"Found {len(shops)} shops for {operation_type} (cutoff: {cutoff_date})"
+                f"Found {len(all_shops)} shops for {operation_type} (cutoff: {cutoff_date})"
             )
-            return shops
+            return all_shops
 
         except ClientError as e:
             logger.error(
@@ -842,3 +717,6 @@ class DynamoDBOperations:
                 f"Unexpected error in get_shops_for_orchestration ({operation_type}): {e}"
             )
             raise
+
+
+db_operations = DynamoDBOperations()

@@ -180,33 +180,31 @@ def find_existing_shop(
         extra={"new_domain": new_domain, "core_domain_name": core_domain_name},
     )
 
-    # Get ALL shops with the same core domain name, excluding the new domain
-    all_shops = db_operations.find_all_domains_by_core_domain_name(
-        core_domain_name, domain_to_exclude=new_domain
-    )
+    # Get ALL shops with the same core domain name
+    all_shops = db_operations.find_all_domains_by_core_domain_name(core_domain_name)
 
-    if not all_shops:
+    # Filter out the new domain at application level
+    existing_domains = [shop.domain for shop in all_shops if shop.domain != new_domain]
+
+    if not existing_domains:
         logger.info(
             "No other shops found with same core domain name",
             extra={"core_domain_name": core_domain_name, "new_domain": new_domain},
         )
         return None
 
-    # Extract all domains from the shop metadata objects
-    all_domains = [shop.domain for shop in all_shops]
-
     logger.info(
         "Found existing shop with multiple domains",
         extra={
             "core_domain_name": core_domain_name,
-            "existing_domains": all_domains,
-            "shop_identifier": all_domains[0],
-            "total_existing_domains": len(all_domains),
+            "existing_domains": existing_domains,
+            "shop_identifier": existing_domains[0],
+            "total_existing_domains": len(existing_domains),
         },
     )
 
     # Use the first existing domain as the shopIdentifier for the PATCH request
-    return all_domains[0], all_domains
+    return existing_domains[0], existing_domains
 
 
 def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:

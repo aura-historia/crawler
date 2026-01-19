@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.core.aws.database.operations import ShopMetadata
+from src.core.aws.database.constants import STATE_NEVER, STATE_PROGRESS, STATE_DONE
 
 
 class TestOrchestrationHandler:
@@ -148,19 +149,19 @@ class TestOrchestrationHandler:
             ShopMetadata(
                 domain="example.com",
                 shop_name="Example Shop",
-                last_crawled_end="2026-01-15T12:00:00Z",
-                last_scraped_end="2026-01-14T10:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-15T12:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
             ),
             ShopMetadata(
                 domain="test-shop.de",
                 shop_name="Test Shop",
-                last_crawled_end="2026-01-15T14:00:00Z",
-                last_scraped_end="1970-01-01T00:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-15T14:00:00Z",
+                last_scraped_end=STATE_NEVER,
             ),
             ShopMetadata(
                 domain="new-shop.com",
-                last_crawled_end="2026-01-15T16:00:00Z",
-                last_scraped_end="2026-01-14T12:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-15T16:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-14T12:00:00Z",
             ),
         ]
 
@@ -331,10 +332,7 @@ class TestGetShopsForOrchestration:
         first_call_kwargs = mock_dynamodb_client.query.call_args_list[0][1]
         assert first_call_kwargs["IndexName"] == "GSI2"
         assert "gsi2_pk = :country" in first_call_kwargs["KeyConditionExpression"]
-        assert (
-            "begins_with(gsi2_sk, :state)"
-            in first_call_kwargs["KeyConditionExpression"]
-        )
+        assert "gsi2_sk = :never" in first_call_kwargs["KeyConditionExpression"]
 
         # Second call should query DONE# state with cutoff
         second_call_kwargs = mock_dynamodb_client.query.call_args_list[1][1]
@@ -387,10 +385,7 @@ class TestGetShopsForOrchestration:
         first_call_kwargs = mock_dynamodb_client.query.call_args_list[0][1]
         assert first_call_kwargs["IndexName"] == "GSI3"
         assert "gsi3_pk = :country" in first_call_kwargs["KeyConditionExpression"]
-        assert (
-            "begins_with(gsi3_sk, :state)"
-            in first_call_kwargs["KeyConditionExpression"]
-        )
+        assert "gsi3_sk = :never" in first_call_kwargs["KeyConditionExpression"]
 
         # Second call should query DONE# state with cutoff
         second_call_kwargs = mock_dynamodb_client.query.call_args_list[1][1]
@@ -479,7 +474,7 @@ class TestGetShopsForOrchestration:
         assert shops[1].domain == "never2.com"
         assert shops[2].domain == "old1.com"
         assert shops[3].domain == "old2.com"
-        assert mock_dynamodb_client.query.call_count == 2
+        assert mock_dynamodb_client.query.call_count == 4
 
 
 class TestFilterEligibleShopsForScrape:
@@ -492,13 +487,13 @@ class TestFilterEligibleShopsForScrape:
         shops = [
             ShopMetadata(
                 domain="shop1.com",
-                last_crawled_end="2026-01-15T12:00:00Z",
-                last_scraped_end="2026-01-14T10:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-15T12:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
             ),
             ShopMetadata(
                 domain="shop2.com",
-                last_crawled_end="2026-01-15T14:00:00Z",
-                last_scraped_end="1970-01-01T00:00:00Z",  # Never scraped
+                last_crawled_end=f"{STATE_DONE}2026-01-15T14:00:00Z",
+                last_scraped_end=STATE_NEVER,  # Never scraped
             ),
         ]
 
@@ -518,9 +513,9 @@ class TestFilterEligibleShopsForScrape:
         shops = [
             ShopMetadata(
                 domain="shop1.com",
-                last_crawled_end="2026-01-15T12:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-15T12:00:00Z",
                 last_scraped_start="2026-01-15T13:00:00Z",
-                last_scraped_end="2026-01-15T10:00:00Z",  # Start > End
+                last_scraped_end=f"{STATE_PROGRESS}2026-01-15T13:00:00Z",  # Scrape in progress
             ),
         ]
 
@@ -538,12 +533,12 @@ class TestFilterEligibleShopsForScrape:
             ShopMetadata(
                 domain="shop1.com",
                 last_crawled_end=None,  # Crawl in progress
-                last_scraped_end="2026-01-14T10:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
             ),
             ShopMetadata(
                 domain="shop2.com",
-                last_crawled_end="1970-01-01T00:00:00Z",  # Never crawled
-                last_scraped_end="1970-01-01T00:00:00Z",
+                last_crawled_end=STATE_NEVER,  # Never crawled
+                last_scraped_end=STATE_NEVER,
             ),
         ]
 
@@ -560,8 +555,8 @@ class TestFilterEligibleShopsForScrape:
         shops = [
             ShopMetadata(
                 domain="shop1.com",
-                last_crawled_end="2026-01-14T10:00:00Z",
-                last_scraped_end="2026-01-15T12:00:00Z",  # Scrape newer
+                last_crawled_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-15T12:00:00Z",  # Scrape newer
             ),
         ]
 
@@ -579,33 +574,33 @@ class TestFilterEligibleShopsForScrape:
             # Eligible
             ShopMetadata(
                 domain="eligible1.com",
-                last_crawled_end="2026-01-15T12:00:00Z",
-                last_scraped_end="2026-01-14T10:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-15T12:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
             ),
             # In progress
             ShopMetadata(
                 domain="in-progress.com",
-                last_crawled_end="2026-01-15T12:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-15T12:00:00Z",
                 last_scraped_start="2026-01-15T13:00:00Z",
-                last_scraped_end="2026-01-15T10:00:00Z",
+                last_scraped_end=f"{STATE_PROGRESS}2026-01-15T13:00:00Z",
             ),
             # Crawl not finished
             ShopMetadata(
                 domain="crawl-not-done.com",
                 last_crawled_end=None,
-                last_scraped_end="2026-01-14T10:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
             ),
             # Already scraped
             ShopMetadata(
                 domain="already-scraped.com",
-                last_crawled_end="2026-01-14T10:00:00Z",
-                last_scraped_end="2026-01-15T12:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-15T12:00:00Z",
             ),
             # Eligible
             ShopMetadata(
                 domain="eligible2.com",
-                last_crawled_end="2026-01-15T14:00:00Z",
-                last_scraped_end="1970-01-01T00:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-15T14:00:00Z",
+                last_scraped_end=STATE_NEVER,
             ),
         ]
 
@@ -654,13 +649,13 @@ class TestHandlerWithFiltering:
         mock_db_ops.get_shops_for_orchestration.return_value = [
             ShopMetadata(
                 domain="eligible.com",
-                last_crawled_end="2026-01-15T12:00:00Z",
-                last_scraped_end="2026-01-14T10:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-15T12:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
             ),
             ShopMetadata(
                 domain="already-scraped.com",
-                last_crawled_end="2026-01-14T10:00:00Z",
-                last_scraped_end="2026-01-15T12:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-15T12:00:00Z",
             ),
         ]
 
@@ -691,8 +686,8 @@ class TestHandlerWithFiltering:
         mock_db_ops.get_shops_for_orchestration.return_value = [
             ShopMetadata(
                 domain="already-scraped.com",
-                last_crawled_end="2026-01-14T10:00:00Z",
-                last_scraped_end="2026-01-15T12:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-14T10:00:00Z",
+                last_scraped_end=f"{STATE_DONE}2026-01-15T12:00:00Z",
             ),
         ]
 
@@ -717,12 +712,12 @@ class TestHandlerWithFiltering:
             ShopMetadata(
                 domain="shop1.com",
                 last_crawled_start=None,
-                last_crawled_end="2026-01-10T10:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-10T10:00:00Z",
             ),
             ShopMetadata(
                 domain="shop2.com",
                 last_crawled_start=None,
-                last_crawled_end="2026-01-11T10:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-11T10:00:00Z",
             ),
         ]
 
@@ -758,19 +753,19 @@ class TestHandlerWithFiltering:
             ShopMetadata(
                 domain="shop1.com",
                 last_crawled_start=None,
-                last_crawled_end="2026-01-10T10:00:00Z",
+                last_crawled_end=f"{STATE_DONE}2026-01-10T10:00:00Z",
             ),
             # Shop 2: Currently crawling (start > end)
             ShopMetadata(
                 domain="shop2.com",
                 last_crawled_start="2026-01-15T10:00:00Z",
-                last_crawled_end="2026-01-10T10:00:00Z",
+                last_crawled_end=f"{STATE_PROGRESS}2026-01-15T10:00:00Z",
             ),
-            # Shop 3: Currently crawling (end = None)
+            # Shop 3: Currently crawling (end starts with PROGRESS#)
             ShopMetadata(
                 domain="shop3.com",
                 last_crawled_start="2026-01-15T09:00:00Z",
-                last_crawled_end=None,
+                last_crawled_end=f"{STATE_PROGRESS}2026-01-15T09:00:00Z",
             ),
         ]
 
@@ -800,7 +795,7 @@ class TestHandlerWithFiltering:
             ShopMetadata(
                 domain="shop1.com",
                 last_crawled_start="2026-01-15T10:00:00Z",
-                last_crawled_end=None,
+                last_crawled_end=f"{STATE_PROGRESS}2026-01-15T10:00:00Z",
             ),
         ]
 

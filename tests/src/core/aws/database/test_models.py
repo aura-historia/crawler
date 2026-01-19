@@ -1,5 +1,6 @@
 import pytest
 
+from src.core.aws.database.constants import STATE_DONE, STATE_NEVER
 from src.core.aws.database.operations import ShopMetadata, URLEntry
 
 
@@ -78,19 +79,21 @@ class TestShopMetadata:
         assert "gsi2_pk" in item
         assert "gsi2_sk" in item
         assert item["gsi2_pk"]["S"] == "COUNTRY#DE"
-        assert item["gsi2_sk"]["S"] == "1970-01-01T00:00:00Z"
+        assert item["gsi2_sk"]["S"] == STATE_NEVER
 
     def test_gsi2_uses_actual_timestamp_when_available(self):
         """Test GSI2 uses actual last_crawled_end when available."""
+        # Must include state prefix now
+        ts = "2026-01-15T10:00:00Z"
         metadata = ShopMetadata(
             domain="example.com",
             shop_country="DE",
-            last_crawled_end="2026-01-15T10:00:00Z",
+            last_crawled_end=f"{STATE_DONE}{ts}",
         )
 
         item = metadata.to_dynamodb_item()
 
-        assert item["gsi2_sk"]["S"] == "2026-01-15T10:00:00Z"
+        assert item["gsi2_sk"]["S"] == f"{STATE_DONE}{ts}"
 
     def test_gsi3_uses_sentinel_for_never_scraped_shops(self):
         """Test GSI3 keys use sentinel timestamp for shops that were never scraped."""
@@ -101,19 +104,21 @@ class TestShopMetadata:
         assert "gsi3_pk" in item
         assert "gsi3_sk" in item
         assert item["gsi3_pk"]["S"] == "COUNTRY#DE"
-        assert item["gsi3_sk"]["S"] == "1970-01-01T00:00:00Z"
+        assert item["gsi3_sk"]["S"] == STATE_NEVER
 
     def test_gsi3_uses_actual_timestamp_when_available(self):
         """Test GSI3 uses actual last_scraped_end when available."""
+        # Must include state prefix now
+        ts = "2026-01-15T10:00:00Z"
         metadata = ShopMetadata(
             domain="example.com",
             shop_country="DE",
-            last_scraped_end="2026-01-15T10:00:00Z",
+            last_scraped_end=f"{STATE_DONE}{ts}",
         )
 
         item = metadata.to_dynamodb_item()
 
-        assert item["gsi3_sk"]["S"] == "2026-01-15T10:00:00Z"
+        assert item["gsi3_sk"]["S"] == f"{STATE_DONE}{ts}"
 
     def test_gsi3_not_added_without_country(self):
         """Test GSI3 keys are not added when shop_country is None."""

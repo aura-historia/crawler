@@ -14,9 +14,9 @@ from pythonjsonlogger import json as pythonjson
 from src.core.aws.database.operations import (
     DynamoDBOperations,
     parse_gsi_sk,
-    STATE_NEVER,
-    STATE_DONE,
 )
+
+from src.core.aws.database.constants import STATE_NEVER, STATE_PROGRESS, STATE_DONE
 
 # Configure JSON logging for CloudWatch
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def _get_sqs_client() -> Any:
 
 def _send_batch_to_sqs(
     sqs_client: Any, queue_url: str, messages: List[Dict[str, Any]]
-) -> int:
+) -> tuple[int, List[str]]:
     """Send a batch of messages to SQS queue.
 
     SQS batch send supports max 10 messages per request.
@@ -66,13 +66,13 @@ def _send_batch_to_sqs(
         messages: List of message dicts with 'Id' and 'MessageBody' keys.
 
     Returns:
-        Number of successfully sent messages.
+        Tuple of (successful_count, list_of_failed_ids).
 
     Raises:
-        ClientError: If SQS batch send fails.
+        ClientError: If SQS batch send fails completely (e.g. network/auth error).
     """
     if not messages:
-        return 0
+        return 0, []
 
     try:
         logger.info(
@@ -100,7 +100,7 @@ def _send_batch_to_sqs(
             extra={"successful": successful, "failed": len(failed)},
         )
 
-        return successful
+        return successful, [f["Id"] for f in failed]
 
     except ClientError as e:
         logger.error(
@@ -156,17 +156,17 @@ def _enqueue_shops_to_queue(
         ]
 
         try:
-            sent = _send_batch_to_sqs(sqs_client, queue_url, messages)
-            total_sent += sent
+            sent_count, failed_ids = _send_batch_to_sqs(sqs_client, queue_url, messages)
+            total_sent += sent_count
 
-            # Track failed domains if not all were sent
-            if sent < len(batch):
-                batch_failed = batch[sent:]
+            # Track failed domains correctly using returned IDs
+            if failed_ids:
+                batch_failed = [batch[int(fid)] for fid in failed_ids]
                 failed_domains.extend(batch_failed)
                 logger.warning(
                     f"Batch {batch_num}: partial failure",
                     extra={
-                        "sent": sent,
+                        "sent": sent_count,
                         "failed": len(batch_failed),
                         "failed_domains": batch_failed,
                     },
@@ -258,7 +258,7 @@ def _filter_eligible_shops_for_crawl(
 
     for shop in shops:
         # Check if crawl already in progress
-        if shop.last_crawled_end.startswith("PROGRESS#"):
+        if shop.last_crawled_end and shop.last_crawled_end.startswith(STATE_PROGRESS):
             stats["in_progress"] += 1
             logger.debug(
                 "Skipping shop - crawl in progress",
@@ -317,7 +317,7 @@ def _filter_eligible_shops_for_scrape(
 
     for shop in shops:
         # Check if scrape already in progress
-        if shop.last_scraped_end.startswith("PROGRESS#"):
+        if shop.last_scraped_end.startswith(STATE_PROGRESS):
             stats["in_progress"] += 1
             logger.debug(
                 "Skipping shop - scrape in progress",
@@ -332,10 +332,7 @@ def _filter_eligible_shops_for_scrape(
         # Check eligibility (crawl finished and newer than scrape)
         if not _is_scrape_eligible(shop.last_crawled_end, shop.last_scraped_end):
             # Determine reason for ineligibility
-            if (
-                shop.last_crawled_end is None
-                or shop.last_crawled_end == "1970-01-01T00:00:00Z"
-            ):
+            if shop.last_crawled_end is None or shop.last_crawled_end == STATE_NEVER:
                 stats["crawl_not_finished"] += 1
             else:
                 stats["already_scraped"] += 1
