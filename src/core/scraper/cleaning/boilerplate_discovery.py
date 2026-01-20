@@ -5,8 +5,7 @@ from datetime import datetime, timezone
 
 from src.core.aws.database.operations import DynamoDBOperations
 from src.core.aws.s3 import S3Operations
-from src.core.scraper.base import chat_completion, get_markdown
-from src.core.scraper.prompts.cleaner import CLEANER_PROMPT_TEMPLATE
+from src.core.scraper.base import get_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +26,6 @@ class BoilerplateDiscovery:
         )  # Get a few to try
 
         valid_markdowns = []
-        current_time_iso = (
-            datetime.now(timezone.utc)
-            .replace(microsecond=0)
-            .isoformat()
-            .replace("+00:00", "Z")
-        )
-
         for url in urls:
             if len(valid_markdowns) >= target_count:
                 break
@@ -43,16 +35,11 @@ class BoilerplateDiscovery:
                 markdown = await get_markdown(url)
 
                 # Use Qwen to validate if it's a single product page
-                prompt = CLEANER_PROMPT_TEMPLATE.format(
-                    current_time=current_time_iso,
-                    markdown=markdown[
-                        :40000
-                    ],  # Use first 10k for validation to save tokens
-                )
+                from src.core.scraper.qwen import extract
 
-                response = await chat_completion(prompt)
+                product = await extract(markdown=markdown, max_retries=1)
 
-                if "NOT_A_PRODUCT" not in response:
+                if product and product.is_product:
                     logger.info(f"Valid product page found: {url}")
                     valid_markdowns.append(markdown)
                 else:

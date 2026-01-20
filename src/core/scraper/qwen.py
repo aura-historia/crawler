@@ -7,7 +7,6 @@ from src.core.scraper.base import chat_completion, get_markdown
 
 from pydantic import ValidationError
 
-from src.core.scraper.prompts.cleaner import CLEANER_PROMPT_TEMPLATE
 from src.core.scraper.prompts.extractor import EXTRACTION_PROMPT_TEMPLATE
 from src.core.scraper.schemas.extracted_product import ExtractedProduct
 from src.core.scraper.cleaning.processor import BoilerplateRemover
@@ -142,7 +141,7 @@ async def extract(
     current_time: Optional[datetime] = None,
     max_retries: int = 3,
 ) -> ExtractedProduct | None:
-    """Extract product information as JSON string from markdown in two steps: validation & cleaning, then extraction.
+    """Extract product information as JSON string from markdown using a single LLM step.
 
     Pass CURRENT_TIME to the LLM so it can calculate auction dates.
     Args:
@@ -152,7 +151,7 @@ async def extract(
         max_retries: Number of retries for extraction on validation failure.
 
     Returns:
-        A JSON string with extracted fields or '{}' on errors.
+        An ExtractedProduct object or None if validation fails or it's not a product.
     """
     if not isinstance(markdown, str):
         return None
@@ -172,34 +171,34 @@ async def extract(
     )
     logger.info(f"Current time: {current_time_iso}")
 
-    cleaner_prompt = CLEANER_PROMPT_TEMPLATE.format(
-        current_time=current_time_iso, markdown=markdown
-    )
-    raw_summary = await chat_completion(cleaner_prompt)
-    if "NOT_A_PRODUCT" in raw_summary or not raw_summary.strip():
-        logger.info("Step 1 determined this is not a product page.")
-        return None
-    logger.info(f"Step 1 extracted data: {raw_summary}")
+    # Generate JSON schema from Pydantic model
+    schema_json = json.dumps(ExtractedProduct.model_json_schema(), indent=2)
 
-    extraction_prompt_base = EXTRACTION_PROMPT_TEMPLATE.format(
-        current_time=current_time_iso, clean_text=raw_summary
+    prompt_base = EXTRACTION_PROMPT_TEMPLATE.format(
+        current_time=current_time_iso, markdown=markdown, schema=schema_json
     )
 
     last_exception = None
     for attempt in range(max_retries):
-        prompt = extraction_prompt_base
+        prompt = prompt_base
         if last_exception:
-            prompt += f"\n\n# VALIDATION ERROR\nThe previous extraction failed validation with error:\n{last_exception}\nPlease fix the output."
+            prompt += f"\n\n# VALIDATION ERROR\nThe previous extraction failed validation with error:\n{last_exception}\nPlease fix the output and try again."
 
         response_text = await chat_completion(prompt)
-        print(response_text)
         parsed_data = json.loads(_parse_llm_response(response_text))
+
+        # Check if LLM determined it's NOT a product
+        if not parsed_data.get("is_product", True):
+            logger.info("LLM determined this is not a product page.")
+            return None
+
         validated_data, last_exception = validate_extracted_data(parsed_data)
 
         if validated_data:
             return ExtractedProduct(**validated_data)
 
-        logger.warning(f"Retry {attempt + 1}/{max_retries} failed.")
+        logger.warning(f"Retry {attempt + 1}/{max_retries} failed: {last_exception}")
+
     return None
 
 

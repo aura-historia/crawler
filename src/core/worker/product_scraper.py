@@ -23,9 +23,6 @@ from src.core.worker.base_worker import generic_worker, run_worker_pool
 from crawl4ai import AsyncWebCrawler
 from src.core.aws.database.models import URLEntry
 from src.core.scraper.qwen import extract as qwen_extract
-from src.core.scraper.schemas.put_products_collection_data_mapper import (
-    map_extracted_product_to_schema,
-)
 
 load_dotenv()
 
@@ -74,9 +71,15 @@ async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
         return None
 
     try:
-        data: ScrapedData = map_extracted_product_to_schema(qwen_out, url)
+        data: ScrapedData = qwen_out.model_dump()
+        # Ensure URL is included as it was previously handled by the mapper or worker
+        if not data.get("url"):
+            data["url"] = url
+        # Ensure shopsProductId defaults to url if missing
+        if not data.get("shopsProductId"):
+            data["shopsProductId"] = url
     except Exception as e:
-        logger.exception("Failed to map extracted product: %s", e, extra={"url": url})
+        logger.exception("Failed to dump extracted product: %s", e, extra={"url": url})
         return None
 
     logger.info(data)
