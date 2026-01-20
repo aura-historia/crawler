@@ -7,24 +7,5 @@ Determine if this page describes a single specific item (Lot/Product).
 - VALID: A page for one item with a Title, Price/Estimate, and specific Description.
 - INVALID: Lists, category grids, search results, or generic info.
 - If INVALID, respond ONLY with 'NOT_A_PRODUCT'.
-
-**TASK 2: CLEAN & PRESERVE**
-Use the original language of the page.
-If VALID, remove all UI clutter, including:
-- headers, footers, navigation menus
-- cookie banners and consent modals
-- related product grids, Pinterest/share buttons, and ads
-
-**STRICTLY PRESERVE** the following in Markdown format:
-1. **Financials:** All mentions of "Starting Bid", "Estimate", "Hammer Price", and currency symbols.
-2. **Identification:** Lot number or product ID, full title.
-3. **Context:** Only the full product description as-is, with all technical details. No other informations, strictly the description.
-4. **Media:** Include image-URLs of the product that ends with `.jpg`, `.jpeg`, or `.png`.
-5. **Timeline:** Only add explicit dates about the auction start/end if clearly stated. Do not add random dates.
-6. **State*+: Any text that indicates the availability of the item.
-
-Maintain all headings, line breaks, and original formatting for readability.
-
-Current time: {current_time}
 Page content: {markdown}
 """
