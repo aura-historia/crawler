@@ -5,7 +5,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from src.core.aws.database.operations import DynamoDBOperations, db_operations
+
+from src.core.aws.database.constants import STATE_PROGRESS, STATE_DONE
+from src.core.aws.database.operations import DynamoDBOperations, URLEntry
 from src.core.aws.sqs.message_wrapper import (
     send_message,
     delete_message,
@@ -21,7 +23,6 @@ from src.core.utils.spider_config import (
 )
 from src.core.worker.base_worker import generic_worker, run_worker_pool
 from crawl4ai import AsyncWebCrawler
-from src.core.aws.database.models import URLEntry
 from src.core.scraper.qwen import extract as qwen_extract
 
 load_dotenv()
@@ -43,6 +44,8 @@ _metrics = {
 }
 
 shutdown_event: asyncio.Event = asyncio.Event()
+
+db_operations = DynamoDBOperations()
 
 
 async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
@@ -245,7 +248,15 @@ async def handle_domain_message(
     queue: Any,
     batch_size: int = 10,
 ) -> None:
-    """Handles the full lifecycle of a single domain message."""
+    """Handles the full lifecycle of a single domain message.
+
+    Args:
+        message (Any): SQS message.
+        db (DynamoDBOperations): Database operations instance.
+        shutdown_event (asyncio.Event): Shutdown event.
+        queue (Any): SQS queue.
+        batch_size (int): Batch size for sending items.
+    """
     domain, next_url = parse_message_body(message)
 
     logger.info("Processing domain: %s", domain)
@@ -264,11 +275,12 @@ async def handle_domain_message(
             except ValueError:
                 pass
         else:
+            now = datetime.now().isoformat()
             await asyncio.to_thread(
                 db.update_shop_metadata,
                 domain=domain,
-                last_scraped_start=datetime.now().isoformat(),
-                last_scraped_end=None,
+                last_scraped_start=now,
+                last_scraped_end=f"{STATE_PROGRESS}{now}",
             )
 
         urls_to_crawl = product_urls[start_index:]
@@ -315,10 +327,11 @@ async def handle_domain_message(
                     await asyncio.to_thread(delete_message, message)
                 return
 
+            now = datetime.now().isoformat()
             await asyncio.to_thread(
                 db.update_shop_metadata,
                 domain=domain,
-                last_scraped_end=datetime.now().isoformat(),
+                last_scraped_end=f"{STATE_DONE}{now}",
             )
             await asyncio.to_thread(delete_message, message)
         except Exception as e:

@@ -4,7 +4,7 @@ import os
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
-from src.core.aws.database.models import get_dynamodb_client
+from src.core.aws.database.operations import get_dynamodb_client
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -96,7 +96,10 @@ def create_tables():
                     ],
                     "Projection": {
                         "ProjectionType": "INCLUDE",
-                        "NonKeyAttributes": ["domain"],
+                        "NonKeyAttributes": [
+                            "domain",
+                            "last_crawled_end",
+                        ],
                     },
                 },
                 {

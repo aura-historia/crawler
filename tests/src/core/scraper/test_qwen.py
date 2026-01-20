@@ -159,7 +159,7 @@ class TestGetMarkdown:
         ):
             result = await get_markdown("https://example.com")
 
-        assert len(result) == 40000
+        assert len(result) == 30000
 
     @pytest.mark.asyncio
     async def test_get_markdown_failure(self):

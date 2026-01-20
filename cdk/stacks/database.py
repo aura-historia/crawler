@@ -18,7 +18,8 @@ class DatabaseStack(Stack):
             stream=dynamodb.StreamViewType.NEW_IMAGE,
         )
 
-        # GSI1
+        # GSI1 - ProductTypeIndex
+        # Queries all URLs of a specific type (e.g., products) within a shop
         self.shop_table.add_global_secondary_index(
             index_name="GSI1",
             partition_key=dynamodb.Attribute(
@@ -29,7 +30,9 @@ class DatabaseStack(Stack):
             ),
             projection_type=dynamodb.ProjectionType.ALL,
         )
-        # GSI2
+        # GSI2 - CountryLastCrawledIndex
+        # Queries shops by country and last_crawled_end timestamp
+        # Includes shops that were never crawled (using sentinel timestamp)
         self.shop_table.add_global_secondary_index(
             index_name="GSI2",
             partition_key=dynamodb.Attribute(
@@ -41,7 +44,9 @@ class DatabaseStack(Stack):
             projection_type=dynamodb.ProjectionType.INCLUDE,
             non_key_attributes=["domain"],
         )
-        # GSI3
+        # GSI3 - CountryLastScrapedIndex
+        # Queries shops by country and last_scraped_end timestamp
+        # Includes shops that were never scraped (using sentinel timestamp)
         self.shop_table.add_global_secondary_index(
             index_name="GSI3",
             partition_key=dynamodb.Attribute(
@@ -51,9 +56,10 @@ class DatabaseStack(Stack):
                 name="gsi3_sk", type=dynamodb.AttributeType.STRING
             ),
             projection_type=dynamodb.ProjectionType.INCLUDE,
-            non_key_attributes=["domain"],
+            non_key_attributes=["domain", "last_crawled_end"],
         )
-        # GSI4
+        # GSI4 - CoreDomainNameIndex
+        # Associates different domains that share the same core domain name
         self.shop_table.add_global_secondary_index(
             index_name="GSI4",
             partition_key=dynamodb.Attribute(

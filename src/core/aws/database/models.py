@@ -1,3 +1,4 @@
+import re
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 import hashlib
@@ -6,7 +7,25 @@ import os
 import boto3
 import tldextract
 
+from src.core.aws.database.constants import STATE_NEVER, STATE_PROGRESS, STATE_DONE
+
 extract_with_cache = tldextract.TLDExtract(cache_dir="/tmp/.tld_cache")
+
+# Regex to validate state prefixes:
+# - NEVER# (standalone, no timestamp)
+# - PROGRESS# followed by an ISO timestamp
+# - DONE# followed by an ISO timestamp
+STATE_REGEX = re.compile(
+    rf"^({re.escape(STATE_NEVER)}|{re.escape(STATE_PROGRESS)}.+|{re.escape(STATE_DONE)}.+)$"
+)
+
+
+def _validate_state(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    if not STATE_REGEX.match(value):
+        raise ValueError(f"Invalid state value: {value}")
+    return value
 
 
 def _get_dynamodb_config() -> Dict[str, Any]:
@@ -49,26 +68,29 @@ class ShopMetadata:
     pk: Optional[str] = field(default=None)
     sk: str = field(default=METADATA_SK)
     last_crawled_start: Optional[str] = field(default=None)
-    last_crawled_end: Optional[str] = field(default=None)
+    last_crawled_end: Optional[str] = field(default=STATE_NEVER)
     last_scraped_start: Optional[str] = field(default=None)
-    last_scraped_end: Optional[str] = field(default=None)
+    last_scraped_end: Optional[str] = field(default=STATE_NEVER)
     core_domain_name: Optional[str] = field(default=None)
 
     def __post_init__(self):
         """Set pk to domain if not provided and normalize fields."""
         if self.pk is None:
             self.pk = f"SHOP#{self.domain}"
-        # Extract and store the core domain name (e.g., 'example' from 'example.com')
+
         self.core_domain_name = extract_with_cache(self.domain).domain
-        # Format shop_country with COUNTRY# prefix if not already formatted
+
         if self.shop_country and not self.shop_country.startswith("COUNTRY#"):
             self.shop_country = f"COUNTRY#{self.shop_country}"
+
+        self.last_crawled_end = _validate_state(self.last_crawled_end)
+        self.last_scraped_end = _validate_state(self.last_scraped_end)
 
     def _add_optional_field(
         self, item: Dict[str, Any], field_name: str, value: Optional[str]
     ) -> None:
         """Add optional string field to DynamoDB item if value is not None."""
-        if value:
+        if value is not None and value != "":
             item[field_name] = {"S": value}
 
     def _add_gsi2_keys(self, item: Dict[str, Any]) -> None:
@@ -78,14 +100,18 @@ class ShopMetadata:
 
         item["gsi2_pk"] = {"S": self.shop_country}
         # Use actual crawled end date or epoch marker for never-crawled shops
-        gsi2_sk_value = self.last_crawled_end or "1970-01-01T00:00:00Z"
+        gsi2_sk_value = self.last_crawled_end or STATE_NEVER
         item["gsi2_sk"] = {"S": gsi2_sk_value}
 
     def _add_gsi3_keys(self, item: Dict[str, Any]) -> None:
-        """Add GSI3 keys for scrape queries (country + last_scraped_end, sparse index)."""
-        if self.shop_country and self.last_scraped_end:
-            item["gsi3_pk"] = {"S": self.shop_country}
-            item["gsi3_sk"] = {"S": self.last_scraped_end}
+        """Add GSI3 keys for scrape orchestration (country + last_scraped_end)."""
+        if not self.shop_country:
+            return
+
+        item["gsi3_pk"] = {"S": self.shop_country}
+        # Use actual scraped end date or epoch marker for never-scraped shops
+        gsi3_sk_value = self.last_scraped_end or STATE_NEVER
+        item["gsi3_sk"] = {"S": gsi3_sk_value}
 
     def _add_gsi4_keys(self, item: Dict[str, Any]) -> None:
         """Add GSI4 keys for core domain discovery."""
