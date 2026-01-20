@@ -179,7 +179,6 @@ async def extract(
     if "NOT_A_PRODUCT" in raw_summary or not raw_summary.strip():
         logger.info("Step 1 determined this is not a product page.")
         return None
-    logger.info(f"Step 1 extracted data: {raw_summary}")
 
     extraction_prompt_base = EXTRACTION_PROMPT_TEMPLATE.format(
         current_time=current_time_iso, clean_text=raw_summary
@@ -192,7 +191,6 @@ async def extract(
             prompt += f"\n\n# VALIDATION ERROR\nThe previous extraction failed validation with error:\n{last_exception}\nPlease fix the output."
 
         response_text = await chat_completion(prompt)
-        print(response_text)
         parsed_data = json.loads(_parse_llm_response(response_text))
         validated_data, last_exception = validate_extracted_data(parsed_data)
 
@@ -238,7 +236,7 @@ async def get_markdown(url: str) -> str:
     async with AsyncWebCrawler(config=browser_config) as crawler:
         result = await crawler.arun(url=url, config=run_config)
         if result.success:
-            markdown = result.markdown[:40000]
+            markdown = result.markdown[:30000]
         else:
             raise result.exception
     return markdown

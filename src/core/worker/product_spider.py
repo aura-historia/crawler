@@ -6,9 +6,9 @@ from typing import Any, List, Optional
 
 from dotenv import load_dotenv
 
+from src.core.aws.database.constants import STATE_PROGRESS, STATE_DONE
 from src.core.classifier.url_classifier import URLBertClassifier
-from src.core.aws.database.operations import DynamoDBOperations
-from src.core.aws.database.models import URLEntry
+from src.core.aws.database.operations import DynamoDBOperations, URLEntry
 from src.core.aws.sqs.message_wrapper import (
     delete_message,
     visibility_heartbeat,
@@ -179,7 +179,7 @@ async def handle_shop_message(
             db.update_shop_metadata,
             domain=domain,
             last_crawled_start=crawl_start_time,
-            last_crawled_end=None,
+            last_crawled_end=f"{STATE_PROGRESS}{crawl_start_time}",
         )
 
         browser_config = BrowserConfig(headless=True)
@@ -215,7 +215,7 @@ async def handle_shop_message(
             await asyncio.to_thread(
                 db.update_shop_metadata,
                 domain=domain,
-                last_crawled_end=crawl_end_time,
+                last_crawled_end=f"{STATE_DONE}{crawl_end_time}",
             )
 
             await asyncio.to_thread(delete_message, message)
