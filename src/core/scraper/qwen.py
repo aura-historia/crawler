@@ -139,7 +139,6 @@ async def extract(
     markdown: str,
     domain: Optional[str] = None,
     current_time: Optional[datetime] = None,
-    max_retries: int = 3,
 ) -> ExtractedProduct | None:
     """Extract product information as JSON string from markdown using a single LLM step.
 
@@ -148,7 +147,6 @@ async def extract(
         markdown: Page content (Markdown or HTML) to analyze.
         domain: Optional shop domain for boilerplate removal.
         current_time: Optional UTC datetime as reference for relative times.
-        max_retries: Number of retries for extraction on validation failure.
 
     Returns:
         An ExtractedProduct object or None if validation fails or it's not a product.
@@ -178,27 +176,19 @@ async def extract(
         current_time=current_time_iso, markdown=markdown, schema=schema_json
     )
 
-    last_exception = None
-    for attempt in range(max_retries):
-        prompt = prompt_base
-        if last_exception:
-            prompt += f"\n\n# VALIDATION ERROR\nThe previous extraction failed validation with error:\n{last_exception}\nPlease fix the output and try again."
-
-        response_text = await chat_completion(prompt)
+    response_text = await chat_completion(prompt_base)
+    try:
         parsed_data = json.loads(_parse_llm_response(response_text))
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.warning(f"Failed to parse LLM response as JSON: {e}")
+        return None
 
-        # Check if LLM determined it's NOT a product
-        if not parsed_data.get("is_product", True):
-            logger.info("LLM determined this is not a product page.")
-            return None
+    validated_data, last_exception = validate_extracted_data(parsed_data)
 
-        validated_data, last_exception = validate_extracted_data(parsed_data)
+    if validated_data:
+        return ExtractedProduct(**validated_data)
 
-        if validated_data:
-            return ExtractedProduct(**validated_data)
-
-        logger.warning(f"Retry {attempt + 1}/{max_retries} failed: {last_exception}")
-
+    logger.warning(f"Extraction validation failed: {last_exception}")
     return None
 
 

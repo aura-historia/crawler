@@ -70,11 +70,13 @@ async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
         )
         return None
 
-    if not qwen_out:
+    if not qwen_out or not getattr(qwen_out, "is_product", True):
         return None
 
     try:
         data: ScrapedData = qwen_out.model_dump()
+
+        data.pop("is_product", None)
         # Ensure URL is included as it was previously handled by the mapper or worker
         if not data.get("url"):
             data["url"] = url

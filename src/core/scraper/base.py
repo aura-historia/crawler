@@ -1,6 +1,7 @@
 import logging
 from openai import AsyncOpenAI
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode, BrowserConfig
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,6 @@ async def get_markdown(url: str) -> str:
     run_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
         check_robots_txt=True,
-        wait_for_images=True,
         excluded_tags=[
             "nav",
             "footer",
@@ -49,7 +49,6 @@ async def get_markdown(url: str) -> str:
             "noscript",
             "script",
             "style",
-            "svg",
             "canvas",
             "video",
             "audio",
@@ -58,14 +57,32 @@ async def get_markdown(url: str) -> str:
             "cookie-banner",
             "popup",
             "subscribe-modal",
+            "rcb-banner",
+            "rcb-overlay",
         ],
         process_iframes=True,
         remove_overlay_elements=True,
+        simulate_user=True,
     )
-    browser_config = BrowserConfig(headless=True, verbose=False)
+    browser_config = BrowserConfig(headless=True, verbose=False, enable_stealth=True)
     async with AsyncWebCrawler(config=browser_config) as crawler:
         result = await crawler.arun(url=url, config=run_config)
+
         if result.success:
             return result.markdown
         else:
             raise result.exception
+
+
+async def main(url: str):
+    """Fetch a URL and print its markdown; used for manual testing."""
+    markdown = await get_markdown(url)
+    print(markdown[:10000])  # Print first 1000 characters for brevity
+
+
+if __name__ == "__main__":
+    asyncio.run(
+        main(
+            url="https://www.liveauctioneers.com/item/223771797_audemars-piguet-royal-oak-dania-beach-fl"
+        )
+    )

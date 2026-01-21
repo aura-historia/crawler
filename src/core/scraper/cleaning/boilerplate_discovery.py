@@ -34,18 +34,27 @@ class BoilerplateDiscovery:
                 logger.info(f"Fetching markdown for validation: {url}")
                 markdown = await get_markdown(url)
 
+                # Basic sanity check: skip very short markdowns (likely error pages)
+                if len(markdown) < 500:
+                    logger.warning(
+                        f"Markdown too short ({len(markdown)} chars) for {url}, skipping."
+                    )
+                    continue
+
                 # Use Qwen to validate if it's a single product page
+                # We slice to 40k for verification efficiency, but keep full markdown for discovery
                 from src.core.scraper.qwen import extract
 
-                product = await extract(markdown=markdown, max_retries=1)
+                verification_markdown = markdown[:40000]
+                product = await extract(markdown=verification_markdown)
 
-                if product and product.is_product:
+                if product and getattr(product, "is_product", False):
                     logger.info(f"Valid product page found: {url}")
                     valid_markdowns.append(markdown)
+                elif product:
+                    logger.warning(f"URL validated but is NOT a product: {url}")
                 else:
-                    logger.warning(
-                        f"URL is not a single product page according to LLM: {url}"
-                    )
+                    logger.warning(f"LLM failed to analyze markdown for: {url}")
 
             except Exception as e:
                 logger.error(f"Error processing {url}: {e}")
@@ -61,23 +70,43 @@ class BoilerplateDiscovery:
         self, markdowns: List[str], min_words: int = 5, min_frequency: int = 4
     ) -> List[str]:
         """Find common blocks across markdowns using SequenceMatcher."""
-        # Split into lines for comparison
-        lines_list = [m.splitlines() for m in markdowns]
+        from difflib import SequenceMatcher
 
-        # We'll count occurrence of each line across all samples
-        line_counts = {}
-        for lines in lines_list:
-            unique_lines = {self.normalize_text(line) for line in lines if line.strip()}
-            for line in unique_lines:
-                line_counts[line] = line_counts.get(line, 0) + 1
+        if not markdowns:
+            return []
 
-        # Filter blocks that appear in at least min_frequency samples and have enough words
+        # We'll use the first markdown as a reference and find matching blocks in all others
+        reference = markdowns[0]
+        potential_blocks = []
+
+        # For each subsequent markdown, find matching blocks with the reference
+        for other in markdowns[1:]:
+            matcher = SequenceMatcher(None, reference, other, autojunk=False)
+            for match in matcher.get_matching_blocks():
+                # A block must have a minimum length to be considered boilerplate
+                if match.size < 200:  # Structural sections only
+                    continue
+
+                block_text = reference[match.a : match.a + match.size].strip()
+                if len(block_text.split()) >= min_words:
+                    potential_blocks.append(block_text)
+
+        # Count occurrences of detected blocks
+        block_counts = {}
+        for block in potential_blocks:
+            # Normalize to avoid duplicates with minor whitespace diffs
+            norm_block = self.normalize_text(block)
+            block_counts[norm_block] = block_counts.get(norm_block, 0) + 1
+
+        # Return blocks that appear with high frequency
         common_blocks = []
-        for line, count in line_counts.items():
-            if count >= min_frequency:
-                # Check word count
-                if len(line.split()) >= min_words:
-                    common_blocks.append(line)
+        # Since we compare reference (1) against others (N-1),
+        # a block in all N markdowns will have count N-1.
+        required_matches = min_frequency - 1
+
+        for block, count in block_counts.items():
+            if count >= required_matches:
+                common_blocks.append(block)
 
         # Sort by length descending to help with clean removal later
         common_blocks.sort(key=len, reverse=True)
