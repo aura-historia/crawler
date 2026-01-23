@@ -49,25 +49,29 @@ class BoilerplateRemover:
 
     def clean(self, markdown: str, blocks: List[str]) -> tuple[str, float]:
         """
-        Remove blocks from markdown.
-        Returns cleaned markdown and the 'hit rate' (percentage of blocks found).
+        Remove boilerplate lines from markdown using line-based matching.
+        Returns cleaned markdown and the 'hit rate' (percentage of boilerplate lines found).
         """
         if not blocks or not markdown:
             return markdown, 1.0
 
+        # Split markdown into lines
+        md_lines = markdown.splitlines()
+        cleaned_lines = []
         matches = 0
-        cleaned_markdown = markdown
 
-        for block in blocks:
-            # We use a simple but somewhat robust replacement
-            # Normalizing both slightly might help
-            if block in cleaned_markdown:
-                cleaned_markdown = cleaned_markdown.replace(block, "")
+        # Strip boilerplate blocks for comparison
+        stripped_boilerplate = {line.strip() for line in blocks if line.strip()}
+
+        for line in md_lines:
+            stripped_line = line.strip()
+            if stripped_line and stripped_line in stripped_boilerplate:
                 matches += 1
             else:
-                # Try a slightly more relaxed match (ignoring extra whitespace)
-                # This could be expensive, so we only do it if direct match fails
-                pass
+                cleaned_lines.append(line)
+
+        # Rejoin cleaned lines
+        cleaned_markdown = "\n".join(cleaned_lines)
 
         hit_rate = matches / len(blocks) if blocks else 1.0
         return cleaned_markdown, hit_rate
@@ -81,9 +85,20 @@ class BoilerplateRemover:
             return True
 
         # Check staleness (30 days)
-        updated_at = datetime.fromisoformat(data["updated_at"])
-        if (datetime.now(timezone.utc) - updated_at).days > 30:
-            logger.info(f"Boilerplate for {domain} is stale (> 30 days).")
+        # Handle both old structure (top-level updated_at) and new structure (metadata/updated_at)
+        updated_at_str = data.get("metadata", {}).get("updated_at") or data.get(
+            "updated_at"
+        )
+
+        if updated_at_str:
+            updated_at = datetime.fromisoformat(updated_at_str)
+            if (datetime.now(timezone.utc) - updated_at).days > 30:
+                logger.info(f"Boilerplate for {domain} is stale (> 30 days).")
+                return True
+        else:
+            logger.warning(
+                f"No timestamp found for {domain} boilerplate, triggering rediscovery."
+            )
             return True
 
         # Check structural shift

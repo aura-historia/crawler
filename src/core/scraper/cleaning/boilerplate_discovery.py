@@ -1,7 +1,7 @@
 import logging
+import difflib
 import re
 from typing import List
-from datetime import datetime, timezone
 
 from src.core.aws.database.operations import DynamoDBOperations
 from src.core.aws.s3 import S3Operations
@@ -11,50 +11,55 @@ logger = logging.getLogger(__name__)
 
 
 class BoilerplateDiscovery:
-    """Discovers boilerplate blocks for a specific shop by comparing multiple product pages."""
+    """Discovers boilerplate blocks for a specific shop using pairwise difflib comparison."""
 
     def __init__(self):
         self.db = DynamoDBOperations()
         self.s3 = S3Operations()
+        # 1. Images: Identify Markdown images.
+        #    We want to keep images in the final content, even if they match (e.g. logos might match,
+        #    but it's safer to let the extractor handle them than to delete them here).
+        self.img_pattern = re.compile(r"!\[.*\]\([^)]*\)")
+        # 2. Critical Data Risk:
+        #    If "Price: $175" appears in both docs (coincidence), we do NOT want to remove it.
+        #    Regex detects: "Price/Inventory" keywords + numbers, OR currency symbols + numbers.
+        self.critical_data_pattern = re.compile(
+            r"(?i)(\b(price|inventory|sku|item|lot)\b.*\d|[\$€£]\s*\d|\d\s*[\$€£])"
+        )
 
     async def get_valid_product_markdowns(
         self, domain: str, target_count: int = 5
     ) -> List[str]:
         """Fetch and validate product markdowns until target_count is reached."""
-        urls, _ = self.db.get_product_urls_by_domain(
-            domain, max_urls=20
-        )  # Get a few to try
+        urls, _ = self.db.get_product_urls_by_domain(domain, max_urls=15)
 
         valid_markdowns = []
+        seen_content_hashes = set()
+
         for url in urls:
             if len(valid_markdowns) >= target_count:
                 break
 
             try:
-                logger.info(f"Fetching markdown for validation: {url}")
                 markdown = await get_markdown(url)
-
-                # Basic sanity check: skip very short markdowns (likely error pages)
-                if len(markdown) < 500:
-                    logger.warning(
-                        f"Markdown too short ({len(markdown)} chars) for {url}, skipping."
-                    )
+                if not markdown or len(markdown) < 500:
                     continue
 
-                # Use Qwen to validate if it's a single product page
-                # We slice to 40k for verification efficiency, but keep full markdown for discovery
+                content_hash = hash(markdown[:5000])
+                if content_hash in seen_content_hashes:
+                    continue
+                seen_content_hashes.add(content_hash)
+
                 from src.core.scraper.qwen import extract
 
-                verification_markdown = markdown[:40000]
+                verification_markdown = markdown[:10000]
                 product = await extract(markdown=verification_markdown)
 
                 if product and getattr(product, "is_product", False):
-                    logger.info(f"Valid product page found: {url}")
                     valid_markdowns.append(markdown)
-                elif product:
-                    logger.warning(f"URL validated but is NOT a product: {url}")
+                    logger.info(f"Valid product found: {url}")
                 else:
-                    logger.warning(f"LLM failed to analyze markdown for: {url}")
+                    logger.warning(f"URL is not a product: {url}")
 
             except Exception as e:
                 logger.error(f"Error processing {url}: {e}")
@@ -62,82 +67,69 @@ class BoilerplateDiscovery:
 
         return valid_markdowns
 
-    def normalize_text(self, text: str) -> str:
-        """Normalize text by collapsing whitespace."""
-        return re.sub(r"\s+", " ", text).strip()
-
-    def find_common_blocks(
-        self, markdowns: List[str], min_words: int = 5, min_frequency: int = 4
-    ) -> List[str]:
-        """Find common blocks across markdowns using SequenceMatcher."""
-        from difflib import SequenceMatcher
-
-        if not markdowns:
+    def find_common_blocks_detailed(
+        self, markdowns: List[str], progress_callback=None
+    ) -> List[dict]:
+        """
+        Identifies common text blocks (boilerplate) between documents.
+        Logic: If a line appears in both documents, it is considered boilerplate,
+        UNLESS it looks like critical data (Prices, Images) that might match by coincidence.
+        """
+        if len(markdowns) < 2:
             return []
 
-        # We'll use the first markdown as a reference and find matching blocks in all others
-        reference = markdowns[0]
-        potential_blocks = []
+        pairwise_results = []
+        total_pairs = len(markdowns) * (len(markdowns) - 1) // 2
+        processed_pairs = 0
 
-        # For each subsequent markdown, find matching blocks with the reference
-        for other in markdowns[1:]:
-            matcher = SequenceMatcher(None, reference, other, autojunk=False)
-            for match in matcher.get_matching_blocks():
-                # A block must have a minimum length to be considered boilerplate
-                if match.size < 200:  # Structural sections only
+        for i in range(len(markdowns)):
+            for j in range(i + 1, len(markdowns)):
+                # Strip whitespace to ensure solid matching even with indentation differences
+                lines_a = [line.strip() for line in markdowns[i].splitlines()]
+                lines_b = [line.strip() for line in markdowns[j].splitlines()]
+
+                match_blocks = self._find_match_blocks(lines_a, lines_b)
+
+                if match_blocks:
+                    pairwise_results.append(
+                        {
+                            "pair": (i, j),
+                            "blocks": match_blocks,
+                            "count": len(match_blocks),
+                        }
+                    )
+
+                processed_pairs += 1
+                if progress_callback:
+                    progress_callback(processed_pairs, total_pairs)
+
+        return pairwise_results
+
+    def _find_match_blocks(self, lines_a: List[str], lines_b: List[str]) -> List[str]:
+        """Find matching blocks between two lists of lines."""
+        matcher = difflib.SequenceMatcher(None, lines_a, lines_b, autojunk=False)
+        match_blocks = []
+
+        # get_matching_blocks() finds sequences that are identical in both A and B
+        for match in matcher.get_matching_blocks():
+            if match.size == 0:
+                continue
+
+            for k in range(match.size):
+                line = lines_a[match.a + k]
+
+                # 1. Safety Check: Image? -> SKIP (Do not classify as boilerplate)
+                if self.img_pattern.search(line):
                     continue
 
-                block_text = reference[match.a : match.a + match.size].strip()
-                if len(block_text.split()) >= min_words:
-                    potential_blocks.append(block_text)
+                # 2. Safety Check: Price/Inventory? -> SKIP (Do not classify as boilerplate)
+                if self.critical_data_pattern.search(line):
+                    continue
 
-        # Count occurrences of detected blocks
-        block_counts = {}
-        for block in potential_blocks:
-            # Normalize to avoid duplicates with minor whitespace diffs
-            norm_block = self.normalize_text(block)
-            block_counts[norm_block] = block_counts.get(norm_block, 0) + 1
+                # 3. Boilerplate Confirmation:
+                #    If it matches and isn't critical data/image, IT IS BOILERPLATE.
+                #    We accept it regardless of word count. This catches "Menu", "Search", "#### Refunds".
+                if line:
+                    match_blocks.append(line)
 
-        # Return blocks that appear with high frequency
-        common_blocks = []
-        # Since we compare reference (1) against others (N-1),
-        # a block in all N markdowns will have count N-1.
-        required_matches = min_frequency - 1
-
-        for block, count in block_counts.items():
-            if count >= required_matches:
-                common_blocks.append(block)
-
-        # Sort by length descending to help with clean removal later
-        common_blocks.sort(key=len, reverse=True)
-        return common_blocks
-
-    async def discover_and_save(self, domain: str) -> List[str]:
-        """Orchestrate discovery and save to S3."""
-        logger.info(f"Starting boilerplate discovery for {domain}")
-        markdowns = await self.get_valid_product_markdowns(domain)
-
-        if len(markdowns) < 4:
-            logger.warning(
-                f"Not enough valid product pages found for {domain} (found {len(markdowns)})"
-            )
-            # We still try if we have at least 2, but maybe it won't be good
-            if len(markdowns) < 2:
-                return []
-
-        common_blocks = self.find_common_blocks(markdowns)
-
-        if common_blocks:
-            logger.info(f"Found {len(common_blocks)} common blocks for {domain}")
-            self.s3.upload_json(
-                f"boilerplate/{domain}.json",
-                {
-                    "domain": domain,
-                    "blocks": common_blocks,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                },
-            )
-        else:
-            logger.warning(f"No common blocks found for {domain}")
-
-        return common_blocks
+        return match_blocks
