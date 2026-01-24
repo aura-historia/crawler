@@ -1,10 +1,14 @@
 import logging
+import os
+import re
 import time
 import asyncio
 from typing import List, Optional, Dict
 from datetime import datetime, timezone
 
+
 from src.core.aws.s3 import S3Operations
+from src.core.scraper.cleaning.boilerplate_discovery import BoilerplateDiscovery
 
 logger = logging.getLogger(__name__)
 
@@ -47,34 +51,77 @@ class BoilerplateRemover:
 
         return []
 
-    def clean(self, markdown: str, blocks: List[str]) -> tuple[str, float]:
+    def clean(
+        self, markdown: str, blocks: List[str], remove_related: bool = True
+    ) -> str:
         """
         Remove boilerplate lines from markdown using line-based matching.
-        Returns cleaned markdown and the 'hit rate' (percentage of boilerplate lines found).
+        Optionally remove related product sections first.
+        Returns cleaned markdown.
         """
+        cleaned_markdown = markdown
+
+        if remove_related:
+            cleaned_markdown = self.remove_related_sections_strict(
+                markdown_text=markdown
+            )
+
         if not blocks or not markdown:
-            return markdown, 1.0
+            return cleaned_markdown
 
         # Split markdown into lines
-        md_lines = markdown.splitlines()
+        md_lines = cleaned_markdown.splitlines()
         cleaned_lines = []
-        matches = 0
 
         # Strip boilerplate blocks for comparison
         stripped_boilerplate = {line.strip() for line in blocks if line.strip()}
 
         for line in md_lines:
             stripped_line = line.strip()
-            if stripped_line and stripped_line in stripped_boilerplate:
-                matches += 1
-            else:
+            if stripped_line not in stripped_boilerplate:
                 cleaned_lines.append(line)
 
         # Rejoin cleaned lines
         cleaned_markdown = "\n".join(cleaned_lines)
 
-        hit_rate = matches / len(blocks) if blocks else 1.0
-        return cleaned_markdown, hit_rate
+        return cleaned_markdown
+
+    def remove_related_sections_strict(self, markdown_text: str) -> str:
+        lines = markdown_text.splitlines()
+        clean_lines = []
+        skip = False
+        current_skip_level = 0
+        trigger_keywords = [
+            "related products",
+            "ähnliche produkte",
+            "lieferung anderer artikel in unserem shop",
+            "unsere bundesweiten lieferkosten",
+        ]
+
+        for line in lines:
+            stripped = line.strip()
+            header_match = re.match(r"^(#{1,6})\s*(.*)", stripped)
+
+            if header_match:
+                level = len(header_match.group(1))
+                header_text = header_match.group(2).lower().strip()
+
+                logger.info(header_match)
+
+                # If this is a trigger header, start skipping
+                if any(t in header_text for t in trigger_keywords):
+                    skip = True
+                    current_skip_level = level
+                    continue
+
+                # Stop skipping when a new header of same or higher level appears
+                if skip and level <= current_skip_level:
+                    skip = False
+
+            if not skip:
+                clean_lines.append(line)
+
+        return "\n".join(clean_lines)
 
     async def should_rediscover(self, domain: str, hit_rate: float) -> bool:
         """Decide if we should re-trigger discovery based on hit rate or staleness."""
@@ -109,3 +156,45 @@ class BoilerplateRemover:
             return True
 
         return False
+
+
+if __name__ == "__main__":
+    with open(
+        os.path.join(os.path.dirname(__file__), "../../../../data/out4.md"),
+        "r",
+        encoding="utf-8",
+    ) as f:
+        markdown1 = f.read()
+    with open(
+        os.path.join(os.path.dirname(__file__), "../../../../data/out3.md"),
+        "r",
+        encoding="utf-8",
+    ) as f:
+        markdown2 = f.read()
+    with open(
+        os.path.join(os.path.dirname(__file__), "../../../../data/out2.md"),
+        "r",
+        encoding="utf-8",
+    ) as f:
+        markdown3 = f.read()
+    dis = BoilerplateDiscovery()
+    blocks = dis.find_common_blocks_detailed(markdowns=[markdown1, markdown2])
+
+    print(len(blocks))
+
+    remover = BoilerplateRemover()
+
+    cleaned = remover.clean(markdown3, blocks)
+    print("Original Markdown length:", len(markdown3))
+    print("Cleaned Markdown length:", len(cleaned))
+    print("\nCleaned ends with:")
+    print(repr(cleaned))  # Last 500 chars
+
+    # Write cleaned markdown to out1.md
+    with open(
+        os.path.join(os.path.dirname(__file__), "../../../../data/out1.md"),
+        "w",
+        encoding="utf-8",
+    ) as f:
+        f.write(cleaned)
+    print("Cleaned markdown written to data/out1.md")

@@ -32,6 +32,16 @@ class S3Operations:
             "BOILERPLATE_S3_BUCKET", "aura-historia-boilerplate"
         )
 
+        # Ensure the bucket exists on initialization
+        try:
+            self.ensure_bucket_exists()
+        except Exception as e:
+            # We log but don't raise here to allow the app to start
+            # even if S3 is momentarily unreachable
+            logger.warning(
+                f"Initial S3 bucket check failed for {self.bucket_name}: {e}"
+            )
+
     def ensure_bucket_exists(self) -> None:
         """Create the bucket if it doesn't exist."""
         try:
@@ -91,3 +101,10 @@ class S3Operations:
         except ClientError as e:
             logger.error(f"Error listing objects in S3: {e}")
             return []
+
+
+if __name__ == "__main__":
+    # Simple test to verify S3 operations
+    s3_ops = S3Operations()
+    test_key = "test/boilerplate.json"
+    test_data = {"blocks": ["sample block 1", "sample block 2"]}

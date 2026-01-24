@@ -67,9 +67,7 @@ class BoilerplateDiscovery:
 
         return valid_markdowns
 
-    def find_common_blocks_detailed(
-        self, markdowns: List[str], progress_callback=None
-    ) -> List[dict]:
+    def find_common_blocks_detailed(self, markdowns: List[str]) -> List[str]:
         """
         Identifies common text blocks (boilerplate) between documents.
         Logic: If a line appears in both documents, it is considered boilerplate,
@@ -77,10 +75,6 @@ class BoilerplateDiscovery:
         """
         if len(markdowns) < 2:
             return []
-
-        pairwise_results = []
-        total_pairs = len(markdowns) * (len(markdowns) - 1) // 2
-        processed_pairs = 0
 
         for i in range(len(markdowns)):
             for j in range(i + 1, len(markdowns)):
@@ -91,19 +85,9 @@ class BoilerplateDiscovery:
                 match_blocks = self._find_match_blocks(lines_a, lines_b)
 
                 if match_blocks:
-                    pairwise_results.append(
-                        {
-                            "pair": (i, j),
-                            "blocks": match_blocks,
-                            "count": len(match_blocks),
-                        }
-                    )
+                    return match_blocks
 
-                processed_pairs += 1
-                if progress_callback:
-                    progress_callback(processed_pairs, total_pairs)
-
-        return pairwise_results
+        return []
 
     def _find_match_blocks(self, lines_a: List[str], lines_b: List[str]) -> List[str]:
         """Find matching blocks between two lists of lines."""
@@ -123,7 +107,7 @@ class BoilerplateDiscovery:
                     continue
 
                 # 2. Safety Check: Price/Inventory? -> SKIP (Do not classify as boilerplate)
-                if self.critical_data_pattern.search(line):
+                if self.critical_data_pattern.search(line) or line.startswith("#"):
                     continue
 
                 # 3. Boilerplate Confirmation:

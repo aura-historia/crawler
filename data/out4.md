@@ -1,77 +1,223 @@
-[Skip to content](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content)
-We do prop rentals! [Contact Us](https://ogtstore.com/contact-us/)
-![Industrial Table Legs - Pair of Finished New York Industrial Machine Cast Bench Legs](https://media.ogtstore.com/wp-content/uploads/2025/04/industrial-table-legs-pair-of-finished-new-york-industrial-machine-cast-bench-legs-m201402-300x300.jpg)
-![Industrial Table Legs - M201402](https://media.ogtstore.com/wp-content/uploads/2025/04/industrial-table-legs-m201402-300x474.jpg)
-![Industrial Table Legs for Sale - M201402](https://media.ogtstore.com/wp-content/uploads/2025/04/industrial-table-legs-for-sale-m201402-300x451.jpg)
-![m201402-04](https://media.ogtstore.com/wp-content/uploads/2025/04/m201402-04-300x453.jpg)
-![m201402-05](https://media.ogtstore.com/wp-content/uploads/2025/04/m201402-05-300x240.jpg)
-![m201402-06](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content)
-[ ](javascript:%20void\(0\);) [ ](javascript:%20void\(0\);)
-![Industrial Table Legs - Pair of Finished New York Industrial Machine Cast Bench Legs](https://media.ogtstore.com/wp-content/uploads/2025/04/industrial-table-legs-pair-of-finished-new-york-industrial-machine-cast-bench-legs-m201402-600x600.jpg)
-![Industrial Table Legs - M201402](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content)
-![Industrial Table Legs for Sale - M201402](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content)
-![m201402-04](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content)
-![m201402-05](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content)
-![m201402-06](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content)
-[ ](javascript:%20void\(0\);)
-M201402Add to WishlistRemove from Wishlist
-# Pair of Finished New York Industrial Machine Cast Bench Legs
-$175
-These cast iron bench legs were originally made to match benches with industrial style tables, however, they have such a great look that they will work well on any bench. The top plate has four mounting holes in each leg ready to go. You can make your own bench top or ask about our range of bench tops available. We blacken and lacquer them during our finishing process to create a barrier against rust. The finishing requires 1-2 weeks of processing. Available as shown and sold as a pair. 
-If you need them unfinished please see item number [M201402R](https://ogtstore.com/industrial-machine-table-legs/pair-of-raw-new-york-industrial-machine-cast-bench-legs/).
-[Learn how to install our cast iron table legs.](https://ogtstore.com/blog/installing-our-signature-industrial-cast-iron-table-legs/)
-[Share](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/)
-[ Make an Offer ](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#make-offer) [ Ask a Question ](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#ask-a-question)
-## Make an Offer
-Make an offer for this item
-"*" indicates required fields
-## Ask a Question
-Get more info about this item
-"*" indicates required fields
-## Get a Shipping Quote
-Get a shipping quote for this item
-"*" indicates required fields
-Inventory no. |  M201402  
----|---  
-Availability |  Qty. available  
-Location |  Made to order  
-Sold as |  Pair  
-Dimensions |  Each 17 in. H x 10 in. W x 3.25 in D, mounting plate 4.75 in. L x 3 in. W  
-Width (in.) |  10  
-Height (in.) |  17  
-Depth (in.) |  3.25  
-Weight |  14 lb.  
-Finish |  Black  
-Composition |  Cast iron  
-Style |  Industrial  
-#### Refunds
-You may return items for refund or exchange within **10 days** of receiving them (online orders only). Returns may be subject to a 15% restocking fee. Custom orders are not returnable. Shipping charges are not refundable. Remember though, almost everything here is olde, and is sold as is.
-#### Local Pick-Up
-Local pick-up for most orders is available in our New York City store and Scranton, PA, warehouse. A fee may apply for larger or heavier items. Processing time may take 1 to 2 weeks. We also have a location in Los Angeles that we ship a large freight container to several times a year with store pick-up available. There is an additional handling charge for this option.
-#### Shipping
-Shipping charges are not calculated in the cart except for vintage hardware orders. You will be contacted with the final ship cost by email or phone for your approval before the order is finalized and you are charged. If you would like a firm ship quote before placing your order, click the button below or click 'Estimate Shipping' on the cart page.
-[Shipping Quote](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#shipping-quote)
-Call Us Toll-Free [](tel:1-888-810-5481)
-Monday-Saturday 9:00 AM - 5:30 PM  Sunday Closed
-## Items You Might Like
-  * [N247311R ![Industrial Table Legs - Pair of Raw Industrial Counter Height New York Legs](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content) Pair of Raw Industrial Counter Height New York Legs $350 ](https://ogtstore.com/industrial-machine-table-legs/pair-of-raw-industrial-counter-height-new-york-legs/)
-  * [M201301 ![Industrial Machine Legs - Pair of Finished New York Cast Iron Industrial Table Legs](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content) Pair of Finished New York Cast Iron Industrial Table Legs $450 ](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-cast-iron-industrial-table-legs/)
-  * [Q286823 ![Farm Tables - Handcrafted 39.625 in. Live Edge Mahogany Wafer Steel Bistro Table](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content) Handcrafted 39.625 in. Live Edge Mahogany Wafer Steel Bistro Table $1,500 ](https://ogtstore.com/unique-tables/handcrafted-39-625-in-live-edge-mahogany-wafer-steel-bistro-table/)
-  * [Q286786 ![Farm Tables - Handcrafted Walnut Tapered Leg Coffee Table](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content) Handcrafted Walnut Tapered Leg Coffee Table $975 ](https://ogtstore.com/walnut-tables/handcrafted-walnut-tapered-leg-coffee-table/)
-  * [Q286770 ![Unique Tables - Handcrafted 50.625 in. Live Edge Mahogany Wafer Bistro Table](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content) Handcrafted 50.625 in. Live Edge Mahogany Wafer Bistro Table $2,500 ](https://ogtstore.com/unique-tables/handcrafted-50-625-in-live-edge-mahogany-wafer-bistro-table/)
-  * [M201301R ![Industrial Table Legs - Pair of Raw New York Cast Iron Industrial Table Legs](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/#content) Pair of Raw New York Cast Iron Industrial Table Legs $275 ](https://ogtstore.com/industrial-machine-table-legs/pair-of-raw-new-york-cast-iron-industrial-table-legs/)
 
 
-Close wishlist panel
-Your wishlist is currently empty!
-Wishlist 
-[View Wishlist](https://ogtstore.com/wishlist)
-#### Work with Us!
-Are you a dealer, designer, architect, or builder? At Olde Good Things, we love networking with others in the reclaimed trade and architectural and design industry who share a passion for architectural salvage. 
-[More Info](https://ogtstore.com/designer-wholesale/)
-#### Olde Good News
-Be the first to know about new inventory and receive exclusive offers in our weekly newsletter. 
-"*" indicates required fields
-Share
-[Facebook](https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fogtstore.com%2Findustrial-machine-table-legs%2Fpair-of-finished-new-york-industrial-machine-cast-bench-legs%2F)[Pinterest](https://pinterest.com/pin/create/button/?url=https%3A%2F%2Fogtstore.com%2Findustrial-machine-table-legs%2Fpair-of-finished-new-york-industrial-machine-cast-bench-legs%2F&media=https://ogtstore.com/wp-content/uploads/2025/04/industrial-table-legs-pair-of-finished-new-york-industrial-machine-cast-bench-legs-m201402.jpg&description=Pair%20of%20Finished%20New%20York%20Industrial%20Machine%20Cast%20Bench%20Legs)[Bluesky](https://bsky.app/intent/compose?text=Pair%20of%20Finished%20New%20York%20Industrial%20Machine%20Cast%20Bench%20Legs%20https%3A%2F%2Fogtstore.com%2Findustrial-machine-table-legs%2Fpair-of-finished-new-york-industrial-machine-cast-bench-legs%2F)[Threads](https://www.threads.net/intent/post?text=https%3A%2F%2Fogtstore.com%2Findustrial-machine-table-legs%2Fpair-of-finished-new-york-industrial-machine-cast-bench-legs%2F)[Copy](https://ogtstore.com/industrial-machine-table-legs/pair-of-finished-new-york-industrial-machine-cast-bench-legs/)[WhatsApp](https://api.whatsapp.com/send?text=Pair%20of%20Finished%20New%20York%20Industrial%20Machine%20Cast%20Bench%20Legs+https%3A%2F%2Fogtstore.com%2Findustrial-machine-table-legs%2Fpair-of-finished-new-york-industrial-machine-cast-bench-legs%2F)[SMS](sms:?&body=Pair%20of%20Finished%20New%20York%20Industrial%20Machine%20Cast%20Bench%20Legs%20https%3A%2F%2Fogtstore.com%2Findustrial-machine-table-legs%2Fpair-of-finished-new-york-industrial-machine-cast-bench-legs%2F)Email
-Notifications
+
+
+# Zwei Biedermeier-Bücherschränke süddeutsch um 1820 Art. 6926
+  * [Schränke](https://www.antiquitaeten-tuebingen.de/schraenke/), [Bücherschränke](https://www.antiquitaeten-tuebingen.de/buecherschraenke/), [Antike Möbel](https://www.antiquitaeten-tuebingen.de/antike-moebel/), [Biedermeier Möbel](https://www.antiquitaeten-tuebingen.de/biedermeier-moebel/), [Biedermeier Schrank](https://www.antiquitaeten-tuebingen.de/biedermeier-schrank/), [Highlights](https://www.antiquitaeten-tuebingen.de/highlights/)
+  * Zwei Biedermeier-Bücherschränke süddeutsch um 1820 Art. 6926
+
+
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-o-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-h-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-a-600x450.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-j-600x399.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-b-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-e-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-f-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-c-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-d-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-k-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-l-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-n-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-i-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-o-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-h-600x800.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-a-600x450.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-j-600x399.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-a-400x300.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-j-400x266.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-b-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-e-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-f-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-c-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-d-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-k-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-l-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-n-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-i-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-o-400x533.jpg)
+![Paar Biedermeier-Bücherschränke süddeutsch um 1820 Art.Nr. 6926](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Paar-Biedermeier-Buecherschraenke-sueddeutsch-um-1820-Art.Nr_.-6926-h-400x533.jpg)
+##  Zwei Biedermeier-Bücherschränke süddeutsch um 1820 Art. 6926 
+[ ![Art-Deco Tisch in Mahagoni, Frankreich, um 1920 Art. Nr. 8220](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Art-Deco-Tisch-in-Mahagoni-Frankreich-um-1920-Art.-Nr.-8220-3-150x150.jpg) Art-Deco Tisch Mahagoni Frankreich um 1920 Art.Nr. 8220 ](https://www.antiquitaeten-tuebingen.de/art-deco-tisch-mahagoni-frankreich-um-1920-art-nr-8220/)
+[ ![Biedermeier-Vitrinenschrank Nussbaum süddeutsch 1830 Art.Nr. 6912](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2025/12/Biedermeier-Vitrinenschrank-Nussbaum-sueddeutsch-1830-Art.Nr_.-6912-e-150x150.jpg) Biedermeier Vitrinenschrank Nussbaum süddeutsch 1830 Art. 6912 ](https://www.antiquitaeten-tuebingen.de/biedermeier-vitrinenschrank-nussbaum-sueddeutsch-1830-art-6912/)
+13.600,00 €
+Paar **Biedermeier-Bücherschränke** , **Nussbaum** Massivholz, **Nussbaum** auf Weichholz furniert. **Ahorn** , **Linde** geschnitzt, originale **Vergoldung**. Rechteckiger, zweitüriger Korpus auf leicht vorgesetztem Sockel.
+Availability: 1 vorrätig Artikelnummer: 6926 Kategorien: [Highlights](https://www.antiquitaeten-tuebingen.de/highlights/), [Schränke](https://www.antiquitaeten-tuebingen.de/schraenke/), [Bücherschränke](https://www.antiquitaeten-tuebingen.de/buecherschraenke/), [Antike Möbel](https://www.antiquitaeten-tuebingen.de/antike-moebel/), [Biedermeier Möbel](https://www.antiquitaeten-tuebingen.de/biedermeier-moebel/), [Biedermeier Schrank](https://www.antiquitaeten-tuebingen.de/biedermeier-schrank/) Schlagwörter: [antikes Paar Bücherschränke Nussbaum](https://www.antiquitaeten-tuebingen.de/antike/antikes-paar-buecherschraenke-nussbaum/), [antikes Paar Bücherschränke](https://www.antiquitaeten-tuebingen.de/antike/antikes-paar-buecherschraenke/)
+[ALLGEMEINE ANFRAGE](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209 "Zwei Biedermeier-Bücherschränke süddeutsch um 1820 Art. 6926")
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=65601&_wpnonce=e137dac8d9)
+
+
+## Beschreibung
+Zwei **Biedermeier** –**Bücherschränke** süddeutsch um 1820 Art.Nr. 6926
+Paar **Biedermeier-Bücherschränke** , **Nussbaum** Massivholz, **Nussbaum** auf Weichholz furniert. **Ahorn** , **Linde** geschnitzt, originale **Vergoldung**. Rechteckiger, zweitüriger Korpus auf leicht vorgesetztem Sockel. Der Sockel ruht auf **Klotzfüßen**. Die Türen sind in **Rahmenbauweise** gefertigt, mit zurückgesetzten Füllungen, die unteren mit gespiegeltem **Nussbaumfurnier** belegt sind. Die oberen sind teils mit originaler Verglasung mit aufgesetzter Versprossung aus Pfeilen. Die Ecken des**Bücherschrankes** haben im oberen Bereich abgeschrägte Ecken, die mit ebonisierten (dunkel polierten) konischen Säulen dekoriert sind.
+Die korinthischen **Kapitelle** sowie die Base sind jeweils vergoldet. In der Mitte übernimmt die vorgesetzte Schlagleiste diese Ornamentik. Das Gesims wird am unteren Ansatz von einem dunkel abgesetzten Profil begrenzt. Das Gesimsprofil ist breit ausgestellt und mit einem vergoldeten**Eierstabfries** dekoriert.
+Ein Schrank mit originaler Schubstangenschloss, einer mit Kastenschloss. Seitliche **Messing** schlüssellochschilder, eventuell später ersetzt.
+Die Inneneinteilung besteht aus**Zahnstangenleisten** sowie vier variablen Fachböden.
+**Restaurierte** , **Schellack** polierte Oberfläche, guter Erhaltungszustand, unter Erhalt der originalen **Patina** , altersbedingte Gebrauchsspuren, kleinere Kratzer, Druckstellen werden gereinigt überpoliert. Kleinere Furnierergänzungen, die jedoch kaum auffällig sind. An einem Schrank am rechten Kapitell wurde eine kleinere Fehlstelle retuschiert. An der linken Seite wurde ein Spannungsriss ausgespänt und retuschiert. Fehstellen in der Rückwand wurden fachgerecht geschlossen.
+Süddeutsch, um 1820.
+Höhe: 194 cm  
+Breite: 133 cm  
+Tiefe: 55 cm, lichte Tiefe: 45,5 cm
+Literaturvergleich: **Biedermeiermöbel** , Sammlerträume Wolfgang L. Eller
+## Zusätzliche Informationen
+Material |  Ahorn, Lindenholz, Nussbaum  
+Stil-Epoche |  Biedermeier  
+## Lieferung von Möbeln
+![Lieferung antiker Möbel](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/08/Lieferung-antiker-moebel.jpg)
+## Unsere bundesweiten Lieferkosten
+###  **Baden-Württemberg** _Lieferkosten_ €0,00
+###  **Bayern, Hessen, Rheinland-Pfalz, Saarland, Thüringen** _Lieferkosten_ €190
+###  **Nordrhein-Westfalen, Sachsen, Sachsen-Anhalt** _Lieferkosten_ €240
+###  **Niedersachsen, Bremen, Hamburg, Brandenburg, Berlin, Schleswig-Holstein, Mecklenburg-Vorpommern** _Lieferkosten_ €290
+## Lieferkosten nach Österreich, Luxemburg, Belgien & Niederlande
+###  **Österreich** _Lieferkosten_ €250,00
+###  **Luxemburg** _Lieferkosten_ €240
+###  **Niederlande** _Lieferkosten_ €265
+###  **Belgien** _Lieferkosten_ €265
+Ab einem Warenwert von **5.000 €** liefern wir **versandkostenfrei**.
+## Lieferung anderer Artikel in unserem Shop
+## Ähnliche Produkte
+  * [ -11% ![Bodenseeschrank, Mitte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/14799212123885sk-400x533.jpg)![Bodenseeschrank, Mitte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/14799212123885skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/artnr-3885-bodenseeschrank-mitte-18-jh/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=10327)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=10327&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=10327&_wpnonce=e137dac8d9)
+### [Bodenseeschrank, Mitte 18. Jh. Art.Nr. 3885 ](https://www.antiquitaeten-tuebingen.de/artnr-3885-bodenseeschrank-mitte-18-jh/)
+Restaurierte, Schellack mattierte, gewachste Oberfläche, guter Erhaltungszustand mit altersbedingten Gebrauchsspuren, kleineren Kratzern, Druckstellen. Teil mit stärkeren Spuren altem Holzwurmbefalls, in der Mitte der linken Türe, an beiden abgeschrägten Ecken, die…
+~~3.600,00 €~~ Ursprünglicher Preis war: 3.600,00 €3.200,00 €Aktueller Preis ist: 3.200,00 €.
+  * [ ![Art.Nr. 945 Bodenseeschrank, Kirschbaum, datiert 1793](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/SchrankKirschProfilbeschnitzt-sk-400x533.jpg)![Art.Nr. 945 Bodenseeschrank, Kirschbaum, datiert 1793](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/SchrankKirschProfilbeschnitzt-skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/art-nr-945-barocker-kirschbaumschrank-bodenseeraum-datiert-1793/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=34384)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34384&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34384&_wpnonce=e137dac8d9)
+### [Bodenseeschrank, Kirschbaum, datiert 1793 ](https://www.antiquitaeten-tuebingen.de/art-nr-945-barocker-kirschbaumschrank-bodenseeraum-datiert-1793/)
+Bodenseeschrank Kirschbaum, Kirschbaum Massivholz, Rückwand, Boden in Weichholz. Zweitüriger Barockschrank als Spaltschrank konstruiert, bestehend aus zwei Hälften, die ineinandergeschoben und mit Keilen verbunden werden. Die Front hat breite, abgeschrägte Ecken,…
+4.800,00 €
+  * [ ![Art.Nr. 3759 Eichenschrank mit Kissenfüllungen, Westfalen, um 1780/1800](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1464193307EichenSchrank-sk-400x533.jpg)![Art.Nr. 3759 Eichenschrank mit Kissenfüllungen, Westfalen, um 1780/1800](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1464193307EichenSchrank-skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/artnr-3759-eichenschrank-mit-kissenfuellungen-westfalen-um-17801800/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=9684)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=9684&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=9684&_wpnonce=e137dac8d9)
+### [Eichenschrank mit Kissenfüllungen, Westfalen, um 1780/1800 ](https://www.antiquitaeten-tuebingen.de/artnr-3759-eichenschrank-mit-kissenfuellungen-westfalen-um-17801800/)
+Eichenschrank, Eiche massiv, Rückwand, Böden in Weichholz. Rechteckiger Korpus mit abgeschrägten Ecken, sogenannter Spaltschrank, bestehend aus zwei Hälften, die ineinander geschoben werden und verkeilt sind. Vorgesetztes, stark profiliertes Sockelprofil mit…
+2.480,00 €
+  * [ ![Art.Nr. 3242 Biedermeiereckschrank, Esche, um 1830](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/14145098023242sk-400x533.jpg)![Art.Nr. 3242 Biedermeiereckschrank, Esche, um 1830](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/14145098023242skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/eckschraenke-artnr-3242-biedermeiereckschrank-esche-um-1830/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=7723)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=7723&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=7723&_wpnonce=e137dac8d9)
+### [Biedermeiereckschrank, Esche, um 1830 ](https://www.antiquitaeten-tuebingen.de/eckschraenke-artnr-3242-biedermeiereckschrank-esche-um-1830/)
+Biedermeiereckschrank, Esche massiv, Rückwand, Boden in Weichholz. Dreipassiger Korpus mit seitlich wulstig vorgesetzten Halbsäulen. Die Front ist unterteilt in einen eintürigen Unterbau, der durch zwei breite, rechteckige Profile nach oben…
+2.100,00 €
+  * [ ![Art. Nr. 2122 Spätbiedermeierschrank, Nussbaum, Mitte 19. Jahrhundert](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/12814462862122sk-400x533.jpg)![Art. Nr. 2122 Spätbiedermeierschrank, Nussbaum, Mitte 19. Jahrhundert](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/12814462862122skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-spaetbiedermeierschrank-nussbaum-mitte-19-jahrhundert/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=33755)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=33755&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=33755&_wpnonce=e137dac8d9)
+### [Spätbiedermeierschrank, Nussbaum, Mitte 19. Jahrhundert ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-spaetbiedermeierschrank-nussbaum-mitte-19-jahrhundert/)
+Spätbiedermeierschrank, Nussbaum, teils Nussbaum auf Weichholz furniert, zweitürige Front mit vorgesetzten gedrechselten Säulen, mit geschnitzten Kapitellen. Abgestuftes Gesims mit umlaufender profilierter Leiste, Front in Eierstabfries, seitlich Perlstableisten.
+1.450,00 €
+  * [ ![Art. Nr. 781 Schrank, Nussbaum, Schweiz, 1806](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1339503040781sk-400x533.jpg)![Art. Nr. 781 Schrank, Nussbaum, Schweiz, 1806](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1339503040781skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/barockschrank-nussbaum-schweiz-1806/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=34153)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34153&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34153&_wpnonce=e137dac8d9)
+### [Schrank Nussbaum, Schweiz, 1806 Art. Nr. 781 ](https://www.antiquitaeten-tuebingen.de/barockschrank-nussbaum-schweiz-1806/)
+Schrank, Nussbaum, Weichholz massiv, zweigeteilter Korpus, der mittig durch Metallschrauben verbunden wird, sogenannter Spaltschrank. Zweitüriger, rechteckiger Korpus, die Ecken beschnitzt, leicht gerundet. Hohes Sockelgeschoss mit geschnitzten rechteckigen Füllungen, die Schubladenfronten…
+2.200,00 €
+  * [ ![Art.Nr. 10046 Barockschrank, Schweiz, Mitte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/SchrankBeschnitztIntarsiert-sk-400x533.jpg)![Art.Nr. 10046 Barockschrank, Schweiz, Mitte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/SchrankBeschnitztIntarsiert-skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-art-nr-10046-barockschrank-schweiz-mitte-18-jh/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=23431)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=23431&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=23431&_wpnonce=e137dac8d9)
+### [Barockschrank, Schweiz, Mitte 18. Jh. ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-art-nr-10046-barockschrank-schweiz-mitte-18-jh/)
+Barockschrank, Nussbaum, Eiche Massivholz mit Ahorneinlagen. Rückwand, Böden in Weichholz. Rechteckiger, zweitüriger Korpus auf gedrückten Kugelfüßen. Die Front ist aus Nussbaumholz, Seitenteile, seitliche Füllungen sind Eiche nussbaumfarben gebeizt.
+3.800,00 €
+  * [ ![Art. Nr. 2368 Barocker Kabinettschrank, Nussbaum, süddeutsch 1730](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/13111865252368sk-400x300.jpg)![Art. Nr. 2368 Barocker Kabinettschrank, Nussbaum, süddeutsch 1730](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/13111865252368skC-400x300.jpg) ](https://www.antiquitaeten-tuebingen.de/barocker-kabinettschrank-nussbaum-sueddeutsch-1730/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=33942)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=33942&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=33942&_wpnonce=e137dac8d9)
+### [Barocker Kabinettschrank, Nussbaum, süddeutsch 1730 ](https://www.antiquitaeten-tuebingen.de/barocker-kabinettschrank-nussbaum-sueddeutsch-1730/)
+Barocker Kabinettschrank, Nussbaum massiv, teils Nussbaum, Nussbaumwurzelmaser auf Weichholz furniert. Rechteckiger Korpus auf zwei Kufenfüßen. Front aufwändig untergliedert in zwei Rundbogenfüllungen, die von abgetreppten sowie geometrisch angeordneten Profilen umzäumt sind.
+3.200,00 €
+  * [ ![Art.Nr. 956 Barockschrank, Schweiz, 2. Hälfte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/956sk-400x533.jpg)![Art.Nr. 956 Barockschrank, Schweiz, 2. Hälfte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/956skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/art-nr-956-barockschrank-schweiz-2-haelfte-18-jh/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=34553)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34553&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34553&_wpnonce=e137dac8d9)
+### [Barockschrank, Schweiz, 2. Hälfte 18. Jh. ](https://www.antiquitaeten-tuebingen.de/art-nr-956-barockschrank-schweiz-2-haelfte-18-jh/)
+Barockschrank, Nussbaum Massivholz, Rückwand, Böden in Weichholz, teils Ahorn, Zwetschge, Nussbaumhirnholzeinlagen. Rechteckiger, zweitüriger Korpus, das Möbel ist in Stollenbauweise gefertigt. Der Sockel ist nach unten hin geschweift, mehrfach eingeschnürt. Das…
+2.880,00 €
+  * [ ![Art.Nr. 3910 Louis-Seize Bodenseeschrank, um 1800](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1476895653SchrankIntarsiert-sk-400x533.jpg)![Art.Nr. 3910 Louis-Seize Bodenseeschrank, um 1800](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1476895653SchrankIntarsiert-skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-artnr-3910-louis-seize-bodenseeschrank-um-1800/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=10222)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=10222&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=10222&_wpnonce=e137dac8d9)
+### [Louis-Seize Bodenseeschrank, um 1800 ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-artnr-3910-louis-seize-bodenseeschrank-um-1800/)
+Louis Seize Bodenseeschrank, Kirschbaum massiv, Einlagen in Ahorn, teils geflammt in Nussbaum, Rückwand, Böden in Weichholz. Sogenannter Spaltschrank bestehend aus zwei Hälften, die zusammengeschoben und verkeilt werden. Zweitüriger Korpus mit…
+7.800,00 €
+  * [ -11% ![Bodenseeschrank, Mitte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/14799212123885sk-400x533.jpg)![Bodenseeschrank, Mitte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/14799212123885skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/artnr-3885-bodenseeschrank-mitte-18-jh/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=10327)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=10327&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=10327&_wpnonce=e137dac8d9)
+### [Bodenseeschrank, Mitte 18. Jh. Art.Nr. 3885 ](https://www.antiquitaeten-tuebingen.de/artnr-3885-bodenseeschrank-mitte-18-jh/)
+Restaurierte, Schellack mattierte, gewachste Oberfläche, guter Erhaltungszustand mit altersbedingten Gebrauchsspuren, kleineren Kratzern, Druckstellen. Teil mit stärkeren Spuren altem Holzwurmbefalls, in der Mitte der linken Türe, an beiden abgeschrägten Ecken, die…
+~~3.600,00 €~~ Ursprünglicher Preis war: 3.600,00 €3.200,00 €Aktueller Preis ist: 3.200,00 €.
+  * [ ![Art.Nr. 945 Bodenseeschrank, Kirschbaum, datiert 1793](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/SchrankKirschProfilbeschnitzt-sk-400x533.jpg)![Art.Nr. 945 Bodenseeschrank, Kirschbaum, datiert 1793](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/SchrankKirschProfilbeschnitzt-skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/art-nr-945-barocker-kirschbaumschrank-bodenseeraum-datiert-1793/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=34384)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34384&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34384&_wpnonce=e137dac8d9)
+### [Bodenseeschrank, Kirschbaum, datiert 1793 ](https://www.antiquitaeten-tuebingen.de/art-nr-945-barocker-kirschbaumschrank-bodenseeraum-datiert-1793/)
+Bodenseeschrank Kirschbaum, Kirschbaum Massivholz, Rückwand, Boden in Weichholz. Zweitüriger Barockschrank als Spaltschrank konstruiert, bestehend aus zwei Hälften, die ineinandergeschoben und mit Keilen verbunden werden. Die Front hat breite, abgeschrägte Ecken,…
+4.800,00 €
+  * [ ![Art.Nr. 3759 Eichenschrank mit Kissenfüllungen, Westfalen, um 1780/1800](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1464193307EichenSchrank-sk-400x533.jpg)![Art.Nr. 3759 Eichenschrank mit Kissenfüllungen, Westfalen, um 1780/1800](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1464193307EichenSchrank-skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/artnr-3759-eichenschrank-mit-kissenfuellungen-westfalen-um-17801800/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=9684)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=9684&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=9684&_wpnonce=e137dac8d9)
+### [Eichenschrank mit Kissenfüllungen, Westfalen, um 1780/1800 ](https://www.antiquitaeten-tuebingen.de/artnr-3759-eichenschrank-mit-kissenfuellungen-westfalen-um-17801800/)
+Eichenschrank, Eiche massiv, Rückwand, Böden in Weichholz. Rechteckiger Korpus mit abgeschrägten Ecken, sogenannter Spaltschrank, bestehend aus zwei Hälften, die ineinander geschoben werden und verkeilt sind. Vorgesetztes, stark profiliertes Sockelprofil mit…
+2.480,00 €
+  * [ ![Art.Nr. 3242 Biedermeiereckschrank, Esche, um 1830](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/14145098023242sk-400x533.jpg)![Art.Nr. 3242 Biedermeiereckschrank, Esche, um 1830](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/14145098023242skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/eckschraenke-artnr-3242-biedermeiereckschrank-esche-um-1830/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=7723)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=7723&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=7723&_wpnonce=e137dac8d9)
+### [Biedermeiereckschrank, Esche, um 1830 ](https://www.antiquitaeten-tuebingen.de/eckschraenke-artnr-3242-biedermeiereckschrank-esche-um-1830/)
+Biedermeiereckschrank, Esche massiv, Rückwand, Boden in Weichholz. Dreipassiger Korpus mit seitlich wulstig vorgesetzten Halbsäulen. Die Front ist unterteilt in einen eintürigen Unterbau, der durch zwei breite, rechteckige Profile nach oben…
+2.100,00 €
+  * [ ![Art. Nr. 2122 Spätbiedermeierschrank, Nussbaum, Mitte 19. Jahrhundert](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/12814462862122sk-400x533.jpg)![Art. Nr. 2122 Spätbiedermeierschrank, Nussbaum, Mitte 19. Jahrhundert](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/12814462862122skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-spaetbiedermeierschrank-nussbaum-mitte-19-jahrhundert/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=33755)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=33755&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=33755&_wpnonce=e137dac8d9)
+### [Spätbiedermeierschrank, Nussbaum, Mitte 19. Jahrhundert ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-spaetbiedermeierschrank-nussbaum-mitte-19-jahrhundert/)
+Spätbiedermeierschrank, Nussbaum, teils Nussbaum auf Weichholz furniert, zweitürige Front mit vorgesetzten gedrechselten Säulen, mit geschnitzten Kapitellen. Abgestuftes Gesims mit umlaufender profilierter Leiste, Front in Eierstabfries, seitlich Perlstableisten.
+1.450,00 €
+  * [ ![Art. Nr. 781 Schrank, Nussbaum, Schweiz, 1806](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1339503040781sk-400x533.jpg)![Art. Nr. 781 Schrank, Nussbaum, Schweiz, 1806](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1339503040781skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/barockschrank-nussbaum-schweiz-1806/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=34153)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34153&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34153&_wpnonce=e137dac8d9)
+### [Schrank Nussbaum, Schweiz, 1806 Art. Nr. 781 ](https://www.antiquitaeten-tuebingen.de/barockschrank-nussbaum-schweiz-1806/)
+Schrank, Nussbaum, Weichholz massiv, zweigeteilter Korpus, der mittig durch Metallschrauben verbunden wird, sogenannter Spaltschrank. Zweitüriger, rechteckiger Korpus, die Ecken beschnitzt, leicht gerundet. Hohes Sockelgeschoss mit geschnitzten rechteckigen Füllungen, die Schubladenfronten…
+2.200,00 €
+  * [ ![Art.Nr. 10046 Barockschrank, Schweiz, Mitte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/SchrankBeschnitztIntarsiert-sk-400x533.jpg)![Art.Nr. 10046 Barockschrank, Schweiz, Mitte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/SchrankBeschnitztIntarsiert-skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-art-nr-10046-barockschrank-schweiz-mitte-18-jh/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=23431)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=23431&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=23431&_wpnonce=e137dac8d9)
+### [Barockschrank, Schweiz, Mitte 18. Jh. ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-art-nr-10046-barockschrank-schweiz-mitte-18-jh/)
+Barockschrank, Nussbaum, Eiche Massivholz mit Ahorneinlagen. Rückwand, Böden in Weichholz. Rechteckiger, zweitüriger Korpus auf gedrückten Kugelfüßen. Die Front ist aus Nussbaumholz, Seitenteile, seitliche Füllungen sind Eiche nussbaumfarben gebeizt.
+3.800,00 €
+  * [ ![Art. Nr. 2368 Barocker Kabinettschrank, Nussbaum, süddeutsch 1730](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/13111865252368sk-400x300.jpg)![Art. Nr. 2368 Barocker Kabinettschrank, Nussbaum, süddeutsch 1730](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/13111865252368skC-400x300.jpg) ](https://www.antiquitaeten-tuebingen.de/barocker-kabinettschrank-nussbaum-sueddeutsch-1730/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=33942)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=33942&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=33942&_wpnonce=e137dac8d9)
+### [Barocker Kabinettschrank, Nussbaum, süddeutsch 1730 ](https://www.antiquitaeten-tuebingen.de/barocker-kabinettschrank-nussbaum-sueddeutsch-1730/)
+Barocker Kabinettschrank, Nussbaum massiv, teils Nussbaum, Nussbaumwurzelmaser auf Weichholz furniert. Rechteckiger Korpus auf zwei Kufenfüßen. Front aufwändig untergliedert in zwei Rundbogenfüllungen, die von abgetreppten sowie geometrisch angeordneten Profilen umzäumt sind.
+3.200,00 €
+  * [ ![Art.Nr. 956 Barockschrank, Schweiz, 2. Hälfte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/956sk-400x533.jpg)![Art.Nr. 956 Barockschrank, Schweiz, 2. Hälfte 18. Jh.](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/956skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/art-nr-956-barockschrank-schweiz-2-haelfte-18-jh/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=34553)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34553&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=34553&_wpnonce=e137dac8d9)
+### [Barockschrank, Schweiz, 2. Hälfte 18. Jh. ](https://www.antiquitaeten-tuebingen.de/art-nr-956-barockschrank-schweiz-2-haelfte-18-jh/)
+Barockschrank, Nussbaum Massivholz, Rückwand, Böden in Weichholz, teils Ahorn, Zwetschge, Nussbaumhirnholzeinlagen. Rechteckiger, zweitüriger Korpus, das Möbel ist in Stollenbauweise gefertigt. Der Sockel ist nach unten hin geschweift, mehrfach eingeschnürt. Das…
+2.880,00 €
+  * [ ![Art.Nr. 3910 Louis-Seize Bodenseeschrank, um 1800](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1476895653SchrankIntarsiert-sk-400x533.jpg)![Art.Nr. 3910 Louis-Seize Bodenseeschrank, um 1800](https://www.antiquitaeten-tuebingen.de/wp-content/uploads/2023/07/1476895653SchrankIntarsiert-skA-400x533.jpg) ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-artnr-3910-louis-seize-bodenseeschrank-um-1800/)
+[In den Warenkorb](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209&add-to-cart=10222)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=10222&_wpnonce=e137dac8d9)
+[ Add to wishlist ](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?add_to_wishlist=10222&_wpnonce=e137dac8d9)
+### [Louis-Seize Bodenseeschrank, um 1800 ](https://www.antiquitaeten-tuebingen.de/https-www-antiquitaeten-tuebingen-de-schraenke-artnr-3910-louis-seize-bodenseeschrank-um-1800/)
+Louis Seize Bodenseeschrank, Kirschbaum massiv, Einlagen in Ahorn, teils geflammt in Nussbaum, Rückwand, Böden in Weichholz. Sogenannter Spaltschrank bestehend aus zwei Hälften, die zusammengeschoben und verkeilt werden. Zweitüriger Korpus mit…
+7.800,00 €
+
+
+[![](https://www.antiquitaeten-tuebingen.de/wp-content/plugins/gm-woocommerce-quote-popup-pro/assents/img/close_btn.png)](https://www.antiquitaeten-tuebingen.de/zwei-biedermeier-buecherschraenke-sueddeutsch-um-1820-art-6926/?t=1769272209)
+### Allgemeine Anfrage
