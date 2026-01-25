@@ -67,11 +67,11 @@ class BoilerplateDiscovery:
 
         return valid_markdowns
 
-    def find_common_blocks_detailed(self, markdowns: List[str]) -> List[str]:
+    def find_common_blocks_detailed(self, markdowns: List[str]) -> List[List[str]]:
         """
         Identifies common text blocks (boilerplate) between documents.
-        Logic: If a line appears in both documents, it is considered boilerplate,
-        UNLESS it looks like critical data (Prices, Images) that might match by coincidence.
+        Logic: If a block appears in both documents, it is considered boilerplate,
+        UNLESS it contains critical data (Prices, Images) or headers.
         """
         if len(markdowns) < 2:
             return []
@@ -89,31 +89,32 @@ class BoilerplateDiscovery:
 
         return []
 
-    def _find_match_blocks(self, lines_a: List[str], lines_b: List[str]) -> List[str]:
+    def _find_match_blocks(
+        self, lines_a: List[str], lines_b: List[str]
+    ) -> List[List[str]]:
         """Find matching blocks between two lists of lines."""
         matcher = difflib.SequenceMatcher(None, lines_a, lines_b, autojunk=False)
         match_blocks = []
 
         # get_matching_blocks() finds sequences that are identical in both A and B
         for match in matcher.get_matching_blocks():
-            if match.size == 0:
-                continue
+            if match.size > 0:
+                block = lines_a[match.a : match.a + match.size]
 
-            for k in range(match.size):
-                line = lines_a[match.a + k]
+                # Filter out unsafe lines
+                safe_block = []
+                for line in block:
+                    # Skip images, critical data, and headers
+                    if (
+                        self.img_pattern.search(line)
+                        or self.critical_data_pattern.search(line)
+                        or line.startswith("#")
+                    ):
+                        continue
+                    safe_block.append(line)
 
-                # 1. Safety Check: Image? -> SKIP (Do not classify as boilerplate)
-                if self.img_pattern.search(line):
-                    continue
-
-                # 2. Safety Check: Price/Inventory? -> SKIP (Do not classify as boilerplate)
-                if self.critical_data_pattern.search(line) or line.startswith("#"):
-                    continue
-
-                # 3. Boilerplate Confirmation:
-                #    If it matches and isn't critical data/image, IT IS BOILERPLATE.
-                #    We accept it regardless of word count. This catches "Menu", "Search", "#### Refunds".
-                if line:
-                    match_blocks.append(line)
+                # Only add if the block has content after filtering and more than 2 words
+                if safe_block and sum(len(line.split()) for line in safe_block) > 2:
+                    match_blocks.append(safe_block)
 
         return match_blocks

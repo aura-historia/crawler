@@ -21,7 +21,7 @@ class BoilerplateRemover:
         self.cache: Dict[str, dict] = {}
         self.cache_ttl = cache_ttl
 
-    def _get_from_cache(self, domain: str) -> Optional[List[str]]:
+    def _get_from_cache(self, domain: str) -> Optional[List[List[str]]]:
         """Get blocks from cache if not expired."""
         if domain in self.cache:
             entry = self.cache[domain]
@@ -29,13 +29,13 @@ class BoilerplateRemover:
                 return entry["blocks"]
         return None
 
-    def _save_to_cache(self, domain: str, blocks: List[str]):
+    def _save_to_cache(self, domain: str, blocks: List[List[str]]):
         """Save blocks to cache."""
         self.cache[domain] = {"blocks": blocks, "timestamp": time.time()}
 
     async def load_for_shop(
         self, domain: str, force_refresh: bool = False
-    ) -> List[str]:
+    ) -> List[List[str]]:
         """Load boilerplate blocks from S3 with local caching."""
         if not force_refresh:
             cached = self._get_from_cache(domain)
@@ -52,10 +52,10 @@ class BoilerplateRemover:
         return []
 
     def clean(
-        self, markdown: str, blocks: List[str], remove_related: bool = True
+        self, markdown: str, blocks: List[List[str]], remove_related: bool = True
     ) -> str:
         """
-        Remove boilerplate lines from markdown using line-based matching.
+        Remove boilerplate blocks from markdown using block-based matching.
         Optionally remove related product sections first.
         Returns cleaned markdown.
         """
@@ -66,25 +66,47 @@ class BoilerplateRemover:
                 markdown_text=markdown
             )
 
-        if not blocks or not markdown:
+        if not blocks or not cleaned_markdown:
             return cleaned_markdown
 
         # Split markdown into lines
         md_lines = cleaned_markdown.splitlines()
-        cleaned_lines = []
+        stripped_lines = [line.strip() for line in md_lines]
 
-        # Strip boilerplate blocks for comparison
-        stripped_boilerplate = {line.strip() for line in blocks if line.strip()}
+        # Collect positions to remove, in reverse order
+        positions = []
+        for block in blocks:
+            if not block:
+                continue
+            start = 0
+            while True:
+                idx = self.find_subsequence(stripped_lines[start:], block)
+                if idx == -1:
+                    break
+                actual_start = start + idx
+                positions.append((actual_start, len(block)))
+                start = actual_start + 1  # Move past this occurrence
 
-        for line in md_lines:
-            stripped_line = line.strip()
-            if stripped_line not in stripped_boilerplate:
-                cleaned_lines.append(line)
+        # Sort positions by start index descending
+        positions.sort(reverse=True)
+
+        # Remove the blocks
+        for start, length in positions:
+            del md_lines[start : start + length]
 
         # Rejoin cleaned lines
-        cleaned_markdown = "\n".join(cleaned_lines)
+        cleaned_markdown = "\n".join(md_lines)
 
         return cleaned_markdown
+
+    def find_subsequence(self, lines: List[str], sub: List[str]) -> int:
+        """Find the start index of sub in lines, or -1 if not found."""
+        if len(sub) == 0:
+            return -1
+        for i in range(len(lines) - len(sub) + 1):
+            if lines[i : i + len(sub)] == sub:
+                return i
+        return -1
 
     def remove_related_sections_strict(self, markdown_text: str) -> str:
         lines = markdown_text.splitlines()
@@ -96,6 +118,11 @@ class BoilerplateRemover:
             "ähnliche produkte",
             "lieferung anderer artikel in unserem shop",
             "unsere bundesweiten lieferkosten",
+            "other items",
+            "search",
+            "similar products",
+            "recommended products",
+            "empfohlene produkte",
         ]
 
         for line in lines:
