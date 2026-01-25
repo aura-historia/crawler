@@ -123,6 +123,10 @@ class BoilerplateRemover:
             "similar products",
             "recommended products",
             "empfohlene produkte",
+            "angebote",
+            "weitere ausgewählte angebote des anbieters",
+            "similar items",
+            "agb",
         ]
 
         for line in lines:

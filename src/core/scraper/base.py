@@ -73,12 +73,12 @@ async def get_markdowns(urls: List[str], progress_callback=None) -> List[str]:
         check_robots_txt=True,
         page_timeout=60000,
         excluded_tags=excluded_tags,
-        remove_overlay_elements=False,  # Don't remove overlays for discovery
+        remove_overlay_elements=True,
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/",
     )
     browser_config = BrowserConfig(
         headless=True,
         verbose=False,
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     )
 
     markdowns = []
