@@ -4,11 +4,15 @@ from src.core.scraper.cleaning.boilerplate_discovery import BoilerplateDiscovery
 from src.core.scraper.cleaning.boilerplate_remover import BoilerplateRemover
 
 
+@patch("src.core.scraper.cleaning.boilerplate_discovery.DynamoDBOperations")
+@patch("src.core.scraper.cleaning.boilerplate_discovery.S3Operations")
 class TestBoilerplateDiscovery:
     @pytest.mark.asyncio
     @patch("src.core.scraper.cleaning.boilerplate_discovery.get_markdown")
     @patch("src.core.scraper.qwen.extract")
-    async def test_get_valid_product_markdowns(self, mock_extract, mock_markdown):
+    async def test_get_valid_product_markdowns(
+        self, mock_extract, mock_markdown, mock_s3, mock_db
+    ):
         discovery = BoilerplateDiscovery()
         discovery.db.get_product_urls_by_domain = MagicMock(
             return_value=(["http://a.com", "http://b.com"], None)
@@ -31,7 +35,7 @@ class TestBoilerplateDiscovery:
     @patch("src.core.scraper.cleaning.boilerplate_discovery.get_markdown")
     @patch("src.core.scraper.qwen.extract")
     async def test_get_valid_product_markdowns_skips_short_content(
-        self, mock_extract, mock_markdown
+        self, mock_extract, mock_markdown, mock_s3, mock_db
     ):
         discovery = BoilerplateDiscovery()
         discovery.db.get_product_urls_by_domain = MagicMock(
@@ -54,7 +58,7 @@ class TestBoilerplateDiscovery:
     @patch("src.core.scraper.cleaning.boilerplate_discovery.get_markdown")
     @patch("src.core.scraper.qwen.extract")
     async def test_get_valid_product_markdowns_deduplicates(
-        self, mock_extract, mock_markdown
+        self, mock_extract, mock_markdown, mock_s3, mock_db
     ):
         discovery = BoilerplateDiscovery()
         discovery.db.get_product_urls_by_domain = MagicMock(
@@ -74,9 +78,8 @@ class TestBoilerplateDiscovery:
         # Should only have 1 result despite 2 URLs due to deduplication
         assert len(valid) == 1
 
-    def test_is_safe_line_filters_critical_keywords(self):
-        with patch("src.core.scraper.cleaning.boilerplate_discovery.S3Operations"):
-            discovery = BoilerplateDiscovery()
+    def test_is_safe_line_filters_critical_keywords(self, mock_s3, mock_db):
+        discovery = BoilerplateDiscovery()
 
         # Should filter lines with critical keywords
         assert not discovery._is_safe_line("Price: $100")
@@ -97,9 +100,8 @@ class TestBoilerplateDiscovery:
         assert discovery._is_safe_line("This is a normal line of text")
         assert discovery._is_safe_line("Contact us for more information")
 
-    def test_is_valid_block_checks_word_count(self):
-        with patch("src.core.scraper.cleaning.boilerplate_discovery.S3Operations"):
-            discovery = BoilerplateDiscovery()
+    def test_is_valid_block_checks_word_count(self, mock_s3, mock_db):
+        discovery = BoilerplateDiscovery()
 
         # Not enough words
         assert not discovery._is_valid_block([])
@@ -110,9 +112,8 @@ class TestBoilerplateDiscovery:
         assert discovery._is_valid_block(["one two three four"])
         assert discovery._is_valid_block(["one two", "three four"])
 
-    def test_find_match_blocks(self):
-        with patch("src.core.scraper.cleaning.boilerplate_discovery.S3Operations"):
-            discovery = BoilerplateDiscovery()
+    def test_find_match_blocks(self, mock_s3, mock_db):
+        discovery = BoilerplateDiscovery()
 
         lines_a = [
             "Header text here",
@@ -133,9 +134,8 @@ class TestBoilerplateDiscovery:
         # Should find the matching blocks
         assert len(blocks) > 0
 
-    def test_find_match_blocks_filters_unsafe_lines(self):
-        with patch("src.core.scraper.cleaning.boilerplate_discovery.S3Operations"):
-            discovery = BoilerplateDiscovery()
+    def test_find_match_blocks_filters_unsafe_lines(self, mock_s3, mock_db):
+        discovery = BoilerplateDiscovery()
 
         lines_a = [
             "Common header text information",
@@ -156,17 +156,15 @@ class TestBoilerplateDiscovery:
             for line in block:
                 assert "Price:" not in line
 
-    def test_find_common_blocks_detailed_requires_two_docs(self):
-        with patch("src.core.scraper.cleaning.boilerplate_discovery.S3Operations"):
-            discovery = BoilerplateDiscovery()
+    def test_find_common_blocks_detailed_requires_two_docs(self, mock_s3, mock_db):
+        discovery = BoilerplateDiscovery()
 
         # Should return empty for single document
         assert discovery.find_common_blocks_detailed(["single doc"]) == []
         assert discovery.find_common_blocks_detailed([]) == []
 
-    def test_find_common_blocks_detailed_finds_matches(self):
-        with patch("src.core.scraper.cleaning.boilerplate_discovery.S3Operations"):
-            discovery = BoilerplateDiscovery()
+    def test_find_common_blocks_detailed_finds_matches(self, mock_s3, mock_db):
+        discovery = BoilerplateDiscovery()
 
         markdowns = [
             "Header line text\nProduct specific A\nFooter with text information\nContact us today",
@@ -179,11 +177,11 @@ class TestBoilerplateDiscovery:
         assert len(blocks) > 0
 
 
+@patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations")
 class TestBoilerplateRemover:
     @pytest.mark.asyncio
     @patch("src.core.scraper.cleaning.boilerplate_remover.asyncio.to_thread")
-    @patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations")
-    async def test_load_for_shop_cache(self, mock_s3, mock_thread):
+    async def test_load_for_shop_cache(self, mock_thread, mock_s3):
         remover = BoilerplateRemover(cache_ttl=10)
         remover._save_to_cache("test.com", [["block1"]])
 
@@ -193,8 +191,7 @@ class TestBoilerplateRemover:
 
     @pytest.mark.asyncio
     @patch("src.core.scraper.cleaning.boilerplate_remover.asyncio.to_thread")
-    @patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations")
-    async def test_load_for_shop_from_s3(self, mock_s3, mock_thread):
+    async def test_load_for_shop_from_s3(self, mock_thread, mock_s3):
         remover = BoilerplateRemover(cache_ttl=10)
 
         mock_thread.return_value = {"blocks": [["s3block"]]}
@@ -206,8 +203,7 @@ class TestBoilerplateRemover:
 
     @pytest.mark.asyncio
     @patch("src.core.scraper.cleaning.boilerplate_remover.asyncio.to_thread")
-    @patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations")
-    async def test_load_for_shop_force_refresh(self, mock_s3, mock_thread):
+    async def test_load_for_shop_force_refresh(self, mock_thread, mock_s3):
         remover = BoilerplateRemover(cache_ttl=10)
         remover._save_to_cache("test.com", [["cached"]])
 
@@ -218,11 +214,10 @@ class TestBoilerplateRemover:
         assert blocks == [["fresh"]]
         assert mock_thread.called
 
-    def test_get_from_cache_returns_none_when_expired(self):
+    def test_get_from_cache_returns_none_when_expired(self, mock_s3):
         import time
 
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover(cache_ttl=0.1)
+        remover = BoilerplateRemover(cache_ttl=0.1)
 
         remover._save_to_cache("test.com", [["block"]])
         time.sleep(0.2)
@@ -230,7 +225,7 @@ class TestBoilerplateRemover:
         cached = remover._get_from_cache("test.com")
         assert cached is None
 
-    def test_get_from_cache_returns_data_when_valid(self):
+    def test_get_from_cache_returns_data_when_valid(self, mock_s3):
         remover = BoilerplateRemover(cache_ttl=10)
 
         remover._save_to_cache("test.com", [["block"]])
@@ -238,9 +233,8 @@ class TestBoilerplateRemover:
 
         assert cached == [["block"]]
 
-    def test_find_subsequence_finds_match(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_find_subsequence_finds_match(self, mock_s3):
+        remover = BoilerplateRemover()
 
         lines = ["line1", "line2", "line3", "line4", "line5"]
         sub = ["line2", "line3"]
@@ -248,9 +242,8 @@ class TestBoilerplateRemover:
         idx = remover.find_subsequence(lines, sub)
         assert idx == 1
 
-    def test_find_subsequence_returns_minus_one_when_not_found(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_find_subsequence_returns_minus_one_when_not_found(self, mock_s3):
+        remover = BoilerplateRemover()
 
         lines = ["line1", "line2", "line3"]
         sub = ["line4", "line5"]
@@ -258,9 +251,8 @@ class TestBoilerplateRemover:
         idx = remover.find_subsequence(lines, sub)
         assert idx == -1
 
-    def test_find_subsequence_empty_sub(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_find_subsequence_empty_sub(self, mock_s3):
+        remover = BoilerplateRemover()
 
         lines = ["line1", "line2"]
         sub = []
@@ -268,9 +260,8 @@ class TestBoilerplateRemover:
         idx = remover.find_subsequence(lines, sub)
         assert idx == -1
 
-    def test_clean_removes_blocks(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_clean_removes_blocks(self, mock_s3):
+        remover = BoilerplateRemover()
 
         markdown = "line1\nblock1\nblock2\nline2\nline3"
         blocks = [["block1", "block2"]]
@@ -282,9 +273,8 @@ class TestBoilerplateRemover:
         assert "line1" in cleaned
         assert "line2" in cleaned
 
-    def test_clean_handles_multiple_occurrences(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_clean_handles_multiple_occurrences(self, mock_s3):
+        remover = BoilerplateRemover()
 
         markdown = "start\nfooter\nend\nmiddle\nfooter\nlast"
         blocks = [["footer"]]
@@ -296,9 +286,8 @@ class TestBoilerplateRemover:
         assert "start" in cleaned
         assert "middle" in cleaned
 
-    def test_clean_empty_blocks(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_clean_empty_blocks(self, mock_s3):
+        remover = BoilerplateRemover()
 
         markdown = "line1\nline2"
         blocks = []
@@ -307,9 +296,8 @@ class TestBoilerplateRemover:
 
         assert cleaned == markdown
 
-    def test_remove_related_sections_strict_removes_related_products(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_remove_noise_sections_removes_related_products(self, mock_s3):
+        remover = BoilerplateRemover()
 
         markdown = """# Main Content
             Some product info
@@ -319,36 +307,34 @@ class TestBoilerplateRemover:
             ## More Info
             Additional content"""
 
-        cleaned = remover.remove_related_sections_strict(markdown)
+        cleaned = remover.remove_noise_sections(markdown)
 
         assert "Related Products" not in cleaned
         assert "Product 1" not in cleaned
         assert "Main Content" in cleaned
         assert "More Info" in cleaned
 
-    def test_remove_related_sections_strict_handles_german_keywords(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_remove_noise_sections_handles_german_keywords(self, mock_s3):
+        remover = BoilerplateRemover()
 
         markdown = """# Hauptinhalt
-Produktinfo
-## Ähnliche Produkte
-Produkt 1
-## Versand
-Versandinfo
-## Weitere Infos
-Mehr Inhalt"""
+            Produktinfo
+            ## Ähnliche Produkte
+            Produkt 1
+            ## Versand
+            Versandinfo
+            ## Weitere Infos
+            Mehr Inhalt"""
 
-        cleaned = remover.remove_related_sections_strict(markdown)
+        cleaned = remover.remove_noise_sections(markdown)
 
         assert "Ähnliche Produkte" not in cleaned
         assert "Versand" not in cleaned
         assert "Hauptinhalt" in cleaned
         assert "Weitere Infos" in cleaned
 
-    def test_remove_related_sections_strict_stops_at_same_level_header(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_remove_noise_sections_stops_at_same_level_header(self, mock_s3):
+        remover = BoilerplateRemover()
 
         markdown = """## Section 1
             Content 1
@@ -357,28 +343,27 @@ Mehr Inhalt"""
             ## Section 2
             Should be kept"""
 
-        cleaned = remover.remove_related_sections_strict(markdown)
+        cleaned = remover.remove_noise_sections(markdown)
 
         assert "Related Products" not in cleaned
         assert "Should be removed" not in cleaned
         assert "Section 2" in cleaned
         assert "Should be kept" in cleaned
 
-    def test_remove_related_sections_strict_social_media(self):
-        with patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations"):
-            remover = BoilerplateRemover()
+    def test_remove_noise_sections_social_media(self, mock_s3):
+        remover = BoilerplateRemover()
 
         markdown = """# Product
-Great product
-## Follow us
-### Facebook
-Link here
-### Instagram
-Link here
-## Description
-Product description"""
+            Great product
+            ## Follow us
+            ### Facebook
+            Link here
+            ### Instagram
+            Link here
+            ## Description
+            Product description"""
 
-        cleaned = remover.remove_related_sections_strict(markdown)
+        cleaned = remover.remove_noise_sections(markdown)
 
         assert "Follow us" not in cleaned
         assert "Facebook" not in cleaned

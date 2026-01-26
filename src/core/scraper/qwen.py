@@ -108,31 +108,35 @@ def validate_extracted_data(data: dict) -> tuple[dict, Optional[str]]:
 async def _apply_boilerplate_removal(markdown: str, domain: str) -> str:
     """Helper to handle boilerplate removal logic."""
     try:
+        # 1. Remove noise sections first
+        clean_markdown = boilerplate_remover.remove_noise_sections(markdown)
+
+        # 2. Check length safety
+        if len(clean_markdown) > 20000:
+            logger.warning(
+                f"Markdown length {len(clean_markdown)} exceeds limit of 20000 after noise removal."
+            )
+
         blocks = await boilerplate_remover.load_for_shop(domain)
 
-        # Check if we need to rediscover (missing, stale, or structural shift)
-        if not blocks or await boilerplate_remover.should_rediscover(domain, 1.0):
+        # Check if we need to discover (blocks missing)
+        if not blocks:
             logger.info(f"Triggering boilerplate discovery for {domain}")
             blocks = await boilerplate_discovery.discover_and_save(domain)
 
         if blocks:
             original_len = len(markdown)
-            markdown, hit_rate = boilerplate_remover.clean(markdown, blocks)
+            clean_markdown = boilerplate_remover.clean(clean_markdown, blocks)
             logger.info(
-                f"Boilerplate removed for {domain}. Hit rate: {hit_rate:.2f}. "
-                f"Length reduced from {original_len} to {len(markdown)}"
+                f"Boilerplate removed for {domain}. "
+                f"Length reduced from {original_len} to {len(clean_markdown)}"
             )
-
-            # Check for structural shift AFTER cleaning
-            if await boilerplate_remover.should_rediscover(domain, hit_rate):
-                logger.info(
-                    f"Structural shift detected for {domain}, re-triggering discovery in background"
-                )
-                _ = asyncio.create_task(boilerplate_discovery.discover_and_save(domain))
+        else:
+            logger.info(f"No boilerplate blocks found for {domain}")
     except Exception as e:
         logger.error(f"Error during boilerplate removal for {domain}: {e}")
 
-    return markdown
+    return clean_markdown
 
 
 async def extract(
