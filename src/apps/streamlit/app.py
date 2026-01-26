@@ -13,7 +13,7 @@ sys.path.append(
 
 import src.core.scraper.base as scrap_base
 import src.core.scraper.cleaning.boilerplate_discovery as discovery_mod
-from src.core.scraper.cleaning.processor import BoilerplateRemover
+from src.core.scraper.cleaning.boilerplate_remover import BoilerplateRemover
 
 # Set ProactorEventLoopPolicy on Windows for subprocess support (needed by Playwright)
 if sys.platform == "win32":

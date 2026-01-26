@@ -59,17 +59,20 @@ class FakeCrawler:
 @pytest.fixture
 def mock_qwen_extract():
     """Mock qwen_extract function."""
-    from src.core.scraper.schemas.extracted_product import ExtractedProduct
+    from src.core.scraper.schemas.extracted_product import (
+        ExtractedProduct,
+        LocalizedText,
+        MonetaryValue,
+    )
 
     async def fake_qwen_extract(markdown):
         await asyncio.sleep(0)
         return ExtractedProduct(
-            shop_item_id="test-123",
-            title="Test Product",
-            description="Test description",
-            language="en",
-            priceEstimateMinAmount=1000,
-            priceEstimateMinCurrency="EUR",
+            is_product=True,
+            shopsProductId="test-123",
+            title=LocalizedText(text="Test Product", language="en"),
+            description=LocalizedText(text="Test description", language="en"),
+            priceEstimateMin=MonetaryValue(amount=1000, currency="EUR"),
             state="AVAILABLE",
             images=["https://example.com/image.jpg"],
         )

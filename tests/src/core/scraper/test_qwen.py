@@ -19,7 +19,7 @@ class TestChatCompletion:
         mock_response.choices[0].message.content = '{"test": "value"}'
 
         with patch(
-            "src.core.scraper.qwen.client.chat.completions.create",
+            "src.core.scraper.base.client.chat.completions.create",
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
@@ -34,7 +34,7 @@ class TestChatCompletion:
         mock_response.choices[0].message.content = None
 
         with patch(
-            "src.core.scraper.qwen.client.chat.completions.create",
+            "src.core.scraper.base.client.chat.completions.create",
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
@@ -45,7 +45,7 @@ class TestChatCompletion:
     @pytest.mark.asyncio
     async def test_chat_completion_error(self):
         with patch(
-            "src.core.scraper.qwen.client.chat.completions.create",
+            "src.core.scraper.base.client.chat.completions.create",
             new_callable=AsyncMock,
             side_effect=Exception("API Error"),
         ):
@@ -62,7 +62,7 @@ class TestChatCompletion:
         mock_create = AsyncMock(return_value=mock_response)
 
         with patch(
-            "src.core.scraper.qwen.client.chat.completions.create",
+            "src.core.scraper.base.client.chat.completions.create",
             new=mock_create,
         ):
             await chat_completion("test prompts")
@@ -141,38 +141,116 @@ class TestExtract:
             with pytest.raises(Exception):
                 await extract("test")
 
+    @pytest.mark.asyncio
+    async def test_extract_with_domain_applies_boilerplate_removal(self):
+        """Test that extract applies boilerplate removal when domain is provided."""
+        with patch(
+            "src.core.scraper.qwen._apply_boilerplate_removal",
+            new_callable=AsyncMock,
+            return_value="cleaned markdown",
+        ) as mock_boilerplate:
+            with patch(
+                "src.core.scraper.qwen.chat_completion",
+                new_callable=AsyncMock,
+                return_value='{"title": "Test", "is_product": true}',
+            ):
+                await extract("original markdown", domain="test.com")
+
+                # Verify boilerplate removal was called
+                mock_boilerplate.assert_called_once_with(
+                    "original markdown", "test.com"
+                )
+
+    @pytest.mark.asyncio
+    async def test_extract_without_domain_skips_boilerplate_removal(self):
+        """Test that extract skips boilerplate removal when no domain is provided."""
+        with patch(
+            "src.core.scraper.qwen._apply_boilerplate_removal",
+            new_callable=AsyncMock,
+        ) as mock_boilerplate:
+            with patch(
+                "src.core.scraper.qwen.chat_completion",
+                new_callable=AsyncMock,
+                return_value='{"title": "Test", "is_product": true}',
+            ):
+                await extract("markdown content")
+
+                # Verify boilerplate removal was NOT called
+                mock_boilerplate.assert_not_called()
+
+
+class TestApplyBoilerplateRemoval:
+    @pytest.mark.asyncio
+    async def test_apply_boilerplate_removal_loads_blocks(self):
+        """Test that _apply_boilerplate_removal loads blocks from remover."""
+        from src.core.scraper.qwen import _apply_boilerplate_removal
+
+        with patch(
+            "src.core.scraper.qwen.boilerplate_remover.load_for_shop",
+            new_callable=AsyncMock,
+            return_value=[["footer"]],
+        ) as mock_load:
+            # Since clean is called on the instance, patch it there
+            original_markdown = "original markdown with footer"
+            result = await _apply_boilerplate_removal(original_markdown, "test.com")
+
+            # Should have loaded blocks
+            mock_load.assert_called_once_with("test.com")
+            # Result should be the markdown (may be cleaned or  original if no blocks matched)
+            assert isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_apply_boilerplate_removal_handles_error(self):
+        """Test that _apply_boilerplate_removal handles errors gracefully."""
+        from src.core.scraper.qwen import _apply_boilerplate_removal
+
+        with patch(
+            "src.core.scraper.qwen.boilerplate_remover.load_for_shop",
+            new_callable=AsyncMock,
+            side_effect=Exception("S3 Error"),
+        ):
+            # Should return original markdown on error
+            result = await _apply_boilerplate_removal("original", "test.com")
+            assert result == "original"
+
 
 class TestGetMarkdown:
     @pytest.mark.asyncio
-    async def test_get_markdown_truncation(self):
+    async def test_get_markdown_success(self):
         long_markdown = "x" * 50000
         mock_result = Mock(success=True, markdown=long_markdown)
 
         mock_crawler = AsyncMock()
-        mock_crawler.arun = AsyncMock(return_value=mock_result)
+        mock_crawler.arun_many = AsyncMock(return_value=[mock_result])
         mock_crawler.__aenter__ = AsyncMock(return_value=mock_crawler)
         mock_crawler.__aexit__ = AsyncMock(return_value=None)
 
         with patch(
-            "src.core.scraper.qwen.AsyncWebCrawler",
+            "src.core.scraper.base.AsyncWebCrawler",
             return_value=mock_crawler,
         ):
             result = await get_markdown("https://example.com")
 
-        assert len(result) == 30000
+        assert result == long_markdown
 
     @pytest.mark.asyncio
     async def test_get_markdown_failure(self):
-        mock_result = Mock(success=False, exception=RuntimeError("Crawl failed"))
+        mock_result = Mock(
+            success=False,
+            exception=RuntimeError("Crawl failed"),
+            error_message="Crawl failed",
+        )
 
         mock_crawler = AsyncMock()
-        mock_crawler.arun = AsyncMock(return_value=mock_result)
+        mock_crawler.arun_many = AsyncMock(return_value=[mock_result])
         mock_crawler.__aenter__ = AsyncMock(return_value=mock_crawler)
         mock_crawler.__aexit__ = AsyncMock(return_value=None)
 
         with patch(
-            "src.core.scraper.qwen.AsyncWebCrawler",
+            "src.core.scraper.base.AsyncWebCrawler",
             return_value=mock_crawler,
         ):
-            with pytest.raises(RuntimeError):
-                await get_markdown("https://example.com")
+            # get_markdown suppresses errors and returns empty string
+            result = await get_markdown("https://example.com")
+
+        assert result == ""

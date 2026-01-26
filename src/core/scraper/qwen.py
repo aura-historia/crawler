@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from src.core.scraper.prompts.extractor import EXTRACTION_PROMPT_TEMPLATE
 from src.core.scraper.schemas.extracted_product import ExtractedProduct
-from src.core.scraper.cleaning.processor import BoilerplateRemover
+from src.core.scraper.cleaning.boilerplate_remover import BoilerplateRemover
 from src.core.scraper.cleaning.boilerplate_discovery import BoilerplateDiscovery
 
 # Logger is already initialized in base or can be kept here
