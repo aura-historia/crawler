@@ -102,9 +102,7 @@ with col1:
                 # Add timestamp to URLs to force fresh fetch and bypass any caching
                 discovery_urls = [u + f"?t={int(time.time())}" for u in discovery_urls]
 
-                markdowns = asyncio.run(
-                    get_markdowns(discovery_urls, progress_callback=on_fetch_progress)
-                )
+                markdowns = asyncio.run(get_markdowns(discovery_urls))
                 fetch_time = time.perf_counter() - fetch_start
 
                 fetch_progress.progress(

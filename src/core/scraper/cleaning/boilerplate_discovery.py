@@ -16,16 +16,13 @@ class BoilerplateDiscovery:
     def __init__(self):
         self.db = DynamoDBOperations()
         self.s3 = S3Operations()
-        # 1. Images: Identify Markdown images.
-        #    We want to keep images in the final content, even if they match (e.g. logos might match,
-        #    but it's safer to let the extractor handle them than to delete them here).
-        self.img_pattern = re.compile(r"!\[.*\]\([^)]*\)")
-        # 2. Critical Data Risk:
-        #    If "Price: $175" appears in both docs (coincidence), we do NOT want to remove it.
-        #    Regex detects: "Price/Inventory" keywords + numbers, OR currency symbols + numbers.
-        self.critical_data_pattern = re.compile(
-            r"(?i)(\b(price|inventory|sku|item|lot)\b.*\d|[\$€£]\s*\d|\d\s*[\$€£])"
+        self.critical_keywords_pattern_1 = re.compile(
+            r"(?i)\b(price|inventory|sku|item|lot)\b"
         )
+        self.critical_keywords_pattern_2 = re.compile(
+            r"(?i)\b(verfügbarkeit|vorrätig|availability|stock|zustand)\b"
+        )
+        self.currency_pattern = re.compile(r"[\$€£]\s*\d|\d\s*[\$€£]")
 
     async def get_valid_product_markdowns(
         self, domain: str, target_count: int = 5
@@ -89,32 +86,49 @@ class BoilerplateDiscovery:
 
         return []
 
+    def _is_safe_line(self, line: str) -> bool:
+        """Check if a line is safe to include in boilerplate (no images, prices, or headers)."""
+        if self.critical_keywords_pattern_1.search(line):
+            return False
+        if self.critical_keywords_pattern_2.search(line):
+            return False
+        if self.currency_pattern.search(line):
+            return False
+        if line.startswith("#"):
+            return False
+        return True
+
+    def _is_valid_block(self, block: List[str]) -> bool:
+        """Check if a block has enough content to be considered valid boilerplate."""
+        if not block:
+            return False
+        total_words = sum(len(line.split()) for line in block)
+        return total_words > 3
+
     def _find_match_blocks(
         self, lines_a: List[str], lines_b: List[str]
     ) -> List[List[str]]:
         """Find matching blocks between two lists of lines."""
         matcher = difflib.SequenceMatcher(None, lines_a, lines_b, autojunk=False)
         match_blocks = []
+        seen_blocks = set()
 
         # get_matching_blocks() finds sequences that are identical in both A and B
         for match in matcher.get_matching_blocks():
-            if match.size > 0:
-                block = lines_a[match.a : match.a + match.size]
+            if match.size == 0:
+                continue
 
-                # Filter out unsafe lines
-                safe_block = []
-                for line in block:
-                    # Skip images, critical data, and headers
-                    if (
-                        self.img_pattern.search(line)
-                        or self.critical_data_pattern.search(line)
-                        or line.startswith("#")
-                    ):
-                        continue
-                    safe_block.append(line)
+            block = lines_a[match.a : match.a + match.size]
+            safe_block = [line for line in block if self._is_safe_line(line)]
 
-                # Only add if the block has content after filtering and more than 2 words
-                if safe_block and sum(len(line.split()) for line in safe_block) > 2:
-                    match_blocks.append(safe_block)
+            if not self._is_valid_block(safe_block):
+                continue
+
+            block_tuple = tuple(safe_block)
+            if block_tuple in seen_blocks:
+                continue
+
+            seen_blocks.add(block_tuple)
+            match_blocks.append(safe_block)
 
         return match_blocks
