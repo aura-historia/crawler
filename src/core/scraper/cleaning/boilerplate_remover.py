@@ -49,16 +49,18 @@ class BoilerplateRemover:
         return []
 
     def clean(
-        self, markdown: str, blocks: List[List[str]], remove_related: bool = True
+        self, markdown: str, blocks: List[List[str]], remove_noise: bool = True
     ) -> str:
         """
         Remove boilerplate blocks from markdown using block-based matching.
-        Optionally remove related product sections first.
-        Returns cleaned markdown.
+        Args:
+            markdown: The original markdown text.
+            blocks: List of boilerplate blocks (each block is a list of lines).
+            remove_noise: Whether to remove noise sections before boilerplate removal.
         """
         cleaned_markdown = markdown
 
-        if remove_related:
+        if remove_noise:
             cleaned_markdown = self.remove_noise_sections(markdown_text=markdown)
 
         if not blocks or not cleaned_markdown:
@@ -150,8 +152,6 @@ class BoilerplateRemover:
             if header_match:
                 level = len(header_match.group(1))
                 header_text = header_match.group(2).lower().strip()
-
-                logger.info(header_match)
 
                 # If this is a trigger header, start skipping
                 if any(t in header_text for t in trigger_keywords):

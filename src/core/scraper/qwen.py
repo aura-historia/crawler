@@ -3,6 +3,8 @@ import json
 import logging
 from typing import Optional
 from datetime import datetime, timezone
+
+from core.scraper.prompts.system import SYSTEM_PROMPT_TEMPLATE
 from src.core.scraper.base import chat_completion, get_markdown
 
 from pydantic import ValidationError
@@ -107,6 +109,7 @@ def validate_extracted_data(data: dict) -> tuple[dict, Optional[str]]:
 
 async def _apply_boilerplate_removal(markdown: str, domain: str) -> str:
     """Helper to handle boilerplate removal logic."""
+    clean_markdown = ""
     try:
         # 1. Remove noise sections first
         clean_markdown = boilerplate_remover.remove_noise_sections(markdown)
@@ -126,7 +129,9 @@ async def _apply_boilerplate_removal(markdown: str, domain: str) -> str:
 
         if blocks:
             original_len = len(markdown)
-            clean_markdown = boilerplate_remover.clean(clean_markdown, blocks)
+            clean_markdown = boilerplate_remover.clean(
+                clean_markdown, blocks, remove_noise=False
+            )
             logger.info(
                 f"Boilerplate removed for {domain}. "
                 f"Length reduced from {original_len} to {len(clean_markdown)}"
@@ -171,16 +176,19 @@ async def extract(
         .isoformat()
         .replace("+00:00", "Z")
     )
-    logger.info(f"Current time: {current_time_iso}")
 
     # Generate JSON schema from Pydantic model
     schema_json = json.dumps(ExtractedProduct.model_json_schema(), indent=2)
 
+    print(len(markdown))
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+        schema=schema_json,
+    )
     prompt_base = EXTRACTION_PROMPT_TEMPLATE.format(
-        current_time=current_time_iso, markdown=markdown, schema=schema_json
+        current_time=current_time_iso, markdown=markdown
     )
 
-    response_text = await chat_completion(prompt_base)
+    response_text = await chat_completion(system_prompt, prompt_base)
     try:
         parsed_data = json.loads(_parse_llm_response(response_text))
     except (json.JSONDecodeError, TypeError) as e:

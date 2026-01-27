@@ -15,7 +15,7 @@ from src.core.aws.sqs.message_wrapper import (
 )
 from src.core.aws.sqs.queue_wrapper import get_queue
 from src.core.utils.logger import logger
-from src.core.utils.spider_config import crawl_config, crawl_dispatcher
+from src.core.utils.configs import crawl_config, crawl_dispatcher
 from crawl4ai import AsyncWebCrawler, BrowserConfig
 
 from src.core.worker.base_worker import generic_worker, run_worker_pool

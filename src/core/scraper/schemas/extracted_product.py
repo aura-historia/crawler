@@ -27,7 +27,8 @@ class ExtractedProduct(BaseModel):
         description="True if the page describes a SINGLE specific item (Lot/Product). False if it is a list, category grid, or generic page.",
     )
     shopsProductId: Optional[str] = Field(
-        None, description="The Shop or Lot ID exactly as shown (e.g., '970')."
+        None,
+        description="The product's identifier EXACTLY as shown on the page (e.g. Art.Nr., Lot-Nr., SKU). Do NOT invent.",
     )
     title: Optional[LocalizedText] = Field(
         None, description="The full title of the item."

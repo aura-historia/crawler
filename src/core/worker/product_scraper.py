@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -17,7 +18,7 @@ from src.core.aws.sqs.message_wrapper import (
 from src.core.aws.sqs.queue_wrapper import get_queue
 from src.core.utils.logger import logger
 from src.core.utils.send_items import send_items
-from src.core.utils.spider_config import (
+from src.core.utils.configs import (
     build_product_scraper_components,
     crawl_dispatcher,
 )
@@ -55,22 +56,30 @@ async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
     if not getattr(result, "success", False):
         return None
 
-    markdown = result.markdown[:40000]
+    html = result.html
+    markdown = result.markdown
     url = result.url
-    hash_changed = await update_hash(markdown, domain, url)
+    hash_changed = await update_hash(html, domain, url)
 
     if not hash_changed:
         return None
 
     try:
-        qwen_out = await qwen_extract(markdown)
+        start_ts = time.perf_counter()
+
+        qwen_out = await qwen_extract(markdown, domain)
+
+        end_ts = time.perf_counter()
+        elapsed_s = end_ts - start_ts
+        logger.info(
+            "qwen.extract took %.2f s for URL: %s",
+            elapsed_s,
+            url,
+        )
     except Exception as e:
         logger.exception(
             "qwen.extract failed: %s", e, extra={"url": getattr(result, "url", None)}
         )
-        return None
-
-    if not qwen_out or not getattr(qwen_out, "is_product", True):
         return None
 
     try:

@@ -78,21 +78,42 @@ def build_product_scraper_components() -> Tuple[BrowserConfig, CrawlerRunConfig]
     """
     Build and return the crawler configuration objects for the product scraper.
     """
-    browser_config = BrowserConfig(headless=True, verbose=False)
+    excluded_tags = [
+        "nav",
+        "footer",
+        "header",
+        "navbar",
+        "navigation",
+        "site-header",
+        "site-footer",
+        "aside",
+        "form",
+        "button",
+        "input",
+        "noscript",
+        "script",
+        "style",
+        "canvas",
+        "video",
+        "audio",
+        "advertisement",
+        "ads",
+        "cookie-banner",
+        "popup",
+        "subscribe-modal",
+        "rcb-banner",
+        "rcb-overlay",
+    ]
+
     run_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
         check_robots_txt=True,
-        excluded_tags=[
-            "nav",
-            "footer",
-            "header",
-            "navbar",
-            "navigation",
-            "site-header",
-            "site-footer",
-            "aside",
-        ],
-        process_iframes=True,
+        page_timeout=60000,
+        excluded_tags=excluded_tags,
+        verbose=False,
+    )
+    browser_config = BrowserConfig(
+        headless=True,
     )
 
     return browser_config, run_config

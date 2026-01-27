@@ -6,13 +6,13 @@
 set -e
 
 # Configuration
-MODEL_NAME="unsloth/Qwen3-8B-bnb-4bit"
+MODEL_NAME="unsloth/Qwen2.5-7B-Instruct-bnb-4bit"
 HOST="${VLLM_HOST:-localhost}"
 PORT="${VLLM_PORT:-8003}"
-MAX_MODEL_LEN="${VLLM_MAX_MODEL_LEN:-20000}"
+MAX_MODEL_LEN="${VLLM_MAX_MODEL_LEN:-8000}"
 GPU_MEMORY_UTIL="${VLLM_GPU_MEMORY_UTIL:-0.85}"
 MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-8}"
-DTYPE="${VLLM_DTYPE:-bfloat16}"
+DTYPE="${VLLM_DTYPE:-auto}"
 
 echo "════════════════════════════════════════════════════════════════"
 echo "  Starting vLLM OpenAI-Compatible Server"
@@ -48,5 +48,9 @@ exec vllm serve "$MODEL_NAME" \
     --gpu-memory-utilization "$GPU_MEMORY_UTIL" \
     --max-num-seqs "$MAX_NUM_SEQS" \
     --dtype "$DTYPE" \
-    --trust-remote-code
+    --trust-remote-code\
+    --enable-prefix-caching\
+    --enable-chunked-prefill\
+    --structured-outputs-config.backend xgrammar \
+
 
