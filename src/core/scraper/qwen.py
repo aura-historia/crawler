@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 from datetime import datetime, timezone
 
-from core.scraper.prompts.system import SYSTEM_PROMPT_TEMPLATE
+from src.core.scraper.prompts.system import SYSTEM_PROMPT_TEMPLATE
 from src.core.scraper.base import chat_completion, get_markdown
 
 from pydantic import ValidationError

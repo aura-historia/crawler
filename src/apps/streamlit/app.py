@@ -55,7 +55,9 @@ This tool uses a **block-based structural analysis** to learn a site's boilerpla
 
 # Sidebar settings
 st.sidebar.header("Discovery Settings")
-remove_related = st.sidebar.checkbox("Remove Related Products", value=True)
+remove_noise = st.sidebar.checkbox(
+    "Remove Noise Sections (Related Products, Social Media, etc.)", value=True
+)
 
 if st.sidebar.button("🗑️ Clear Session Data"):
     for key in st.session_state.keys():
@@ -200,7 +202,7 @@ with col2:
                     clean_md = remover.clean(
                         raw_md,
                         st.session_state.discovered_blocks,
-                        remove_related=remove_related,
+                        remove_noise=remove_noise,
                     )
                     clean_time = time.perf_counter() - clean_start
 

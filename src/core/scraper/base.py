@@ -3,7 +3,7 @@ from typing import List
 from openai import AsyncOpenAI
 from crawl4ai import AsyncWebCrawler
 
-from core.utils.configs import build_product_scraper_components
+from src.core.utils.configs import build_product_scraper_components
 
 logger = logging.getLogger(__name__)
 
