@@ -23,7 +23,7 @@ class TestChatCompletion:
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
-            result = await chat_completion("test prompts")
+            result = await chat_completion("system", "test prompts")
 
         assert result == '{"test": "value"}'
 
@@ -38,7 +38,7 @@ class TestChatCompletion:
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
-            result = await chat_completion("test prompts")
+            result = await chat_completion("system", "test prompts")
 
         assert result == ""
 
@@ -49,7 +49,7 @@ class TestChatCompletion:
             new_callable=AsyncMock,
             side_effect=Exception("API Error"),
         ):
-            result = await chat_completion("test prompts")
+            result = await chat_completion("system", "test prompts")
 
         assert result == "{}"
 
@@ -65,13 +65,16 @@ class TestChatCompletion:
             "src.core.scraper.base.client.chat.completions.create",
             new=mock_create,
         ):
-            await chat_completion("test prompts")
+            await chat_completion("system", "test prompts")
 
         call_args = mock_create.call_args
         call_kwargs = call_args[1] if call_args else {}
         assert call_kwargs.get("temperature") == 0
         assert call_kwargs.get("max_tokens") == 2048
-        assert call_kwargs.get("messages")[0]["content"] == "test prompts"
+        # messages[0] is system, messages[1] is user
+        assert call_kwargs.get("messages")[0]["content"] == "system"
+        assert call_kwargs.get("messages")[0]["content"] == "system"
+        assert call_kwargs.get("messages")[1]["content"] == "test prompts"
 
 
 class TestFindBalancedBraceObject:

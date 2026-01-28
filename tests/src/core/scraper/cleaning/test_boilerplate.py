@@ -266,7 +266,7 @@ class TestBoilerplateRemover:
         markdown = "line1\nblock1\nblock2\nline2\nline3"
         blocks = [["block1", "block2"]]
 
-        cleaned = remover.clean(markdown, blocks, remove_related=False)
+        cleaned = remover.clean(markdown, blocks, remove_noise=False)
 
         assert "block1" not in cleaned
         assert "block2" not in cleaned
@@ -279,7 +279,7 @@ class TestBoilerplateRemover:
         markdown = "start\nfooter\nend\nmiddle\nfooter\nlast"
         blocks = [["footer"]]
 
-        cleaned = remover.clean(markdown, blocks, remove_related=False)
+        cleaned = remover.clean(markdown, blocks, remove_noise=False)
 
         # Both occurrences should be removed
         assert cleaned.count("footer") == 0
@@ -292,7 +292,7 @@ class TestBoilerplateRemover:
         markdown = "line1\nline2"
         blocks = []
 
-        cleaned = remover.clean(markdown, blocks, remove_related=False)
+        cleaned = remover.clean(markdown, blocks, remove_noise=False)
 
         assert cleaned == markdown
 

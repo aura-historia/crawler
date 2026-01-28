@@ -25,11 +25,13 @@ class FakeResult:
         self,
         success=True,
         markdown="# Test Page",
+        html="<html><body><h1>Test Page</h1></body></html>",
         url="https://example.com",
         error_message=None,
     ):
         self.success = success
         self.markdown = markdown
+        self.html = html
         self.url = url
         self.error_message = error_message
 
@@ -65,7 +67,7 @@ def mock_qwen_extract():
         MonetaryValue,
     )
 
-    async def fake_qwen_extract(markdown):
+    async def fake_qwen_extract(markdown, *args, **kwargs):
         await asyncio.sleep(0)
         return ExtractedProduct(
             is_product=True,
@@ -148,7 +150,7 @@ class TestProcessResult:
         """Test processing when qwen_extract returns empty data."""
         result = FakeResult(success=True, markdown="# Test", url="https://example.com")
 
-        def fake_qwen_extract(_markdown):
+        def fake_qwen_extract(_markdown, *args, **kwargs):
             return json.dumps({})
 
         with patch(
