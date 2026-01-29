@@ -142,6 +142,8 @@ class BoilerplateRemover:
             "privacy policy",
             "terms and conditions",
             "follow us",
+            "social",
+            "social media",
             "links",
         ]
 

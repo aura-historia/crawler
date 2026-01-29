@@ -180,7 +180,6 @@ async def extract(
     # Generate JSON schema from Pydantic model
     schema_json = json.dumps(ExtractedProduct.model_json_schema(), indent=2)
 
-    print(len(markdown))
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         schema=schema_json,
     )
