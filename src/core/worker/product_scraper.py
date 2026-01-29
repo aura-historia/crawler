@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -17,16 +18,13 @@ from src.core.aws.sqs.message_wrapper import (
 from src.core.aws.sqs.queue_wrapper import get_queue
 from src.core.utils.logger import logger
 from src.core.utils.send_items import send_items
-from src.core.utils.spider_config import (
+from src.core.utils.configs import (
     build_product_scraper_components,
     crawl_dispatcher,
 )
 from src.core.worker.base_worker import generic_worker, run_worker_pool
 from crawl4ai import AsyncWebCrawler
 from src.core.scraper.qwen import extract as qwen_extract
-from src.core.scraper.schemas.put_products_collection_data_mapper import (
-    map_extracted_product_to_schema,
-)
 
 load_dotenv()
 
@@ -58,28 +56,44 @@ async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
     if not getattr(result, "success", False):
         return None
 
-    markdown = result.markdown[:40000]
+    html = result.html
+    markdown = result.markdown
     url = result.url
-    hash_changed = await update_hash(markdown, domain, url)
+    hash_changed = await update_hash(html, domain, url)
 
     if not hash_changed:
         return None
 
     try:
-        qwen_out = await qwen_extract(markdown)
+        start_ts = time.perf_counter()
+
+        qwen_out = await qwen_extract(markdown, domain)
+
+        end_ts = time.perf_counter()
+        elapsed_s = end_ts - start_ts
+        logger.info(
+            "qwen.extract took %.2f s for URL: %s",
+            elapsed_s,
+            url,
+        )
     except Exception as e:
         logger.exception(
             "qwen.extract failed: %s", e, extra={"url": getattr(result, "url", None)}
         )
         return None
 
-    if not qwen_out:
-        return None
-
     try:
-        data: ScrapedData = map_extracted_product_to_schema(qwen_out, url)
+        data: ScrapedData = qwen_out.model_dump()
+
+        data.pop("is_product", None)
+        # Ensure URL is included as it was previously handled by the mapper or worker
+        if not data.get("url"):
+            data["url"] = url
+        # Ensure shopsProductId defaults to url if missing
+        if not data.get("shopsProductId"):
+            data["shopsProductId"] = url
     except Exception as e:
-        logger.exception("Failed to map extracted product: %s", e, extra={"url": url})
+        logger.exception("Failed to dump extracted product: %s", e, extra={"url": url})
         return None
 
     logger.info(data)

@@ -25,11 +25,13 @@ class FakeResult:
         self,
         success=True,
         markdown="# Test Page",
+        html="<html><body><h1>Test Page</h1></body></html>",
         url="https://example.com",
         error_message=None,
     ):
         self.success = success
         self.markdown = markdown
+        self.html = html
         self.url = url
         self.error_message = error_message
 
@@ -59,17 +61,20 @@ class FakeCrawler:
 @pytest.fixture
 def mock_qwen_extract():
     """Mock qwen_extract function."""
-    from src.core.scraper.schemas.extracted_product import ExtractedProduct
+    from src.core.scraper.schemas.extracted_product import (
+        ExtractedProduct,
+        LocalizedText,
+        MonetaryValue,
+    )
 
-    async def fake_qwen_extract(markdown):
+    async def fake_qwen_extract(markdown, *args, **kwargs):
         await asyncio.sleep(0)
         return ExtractedProduct(
-            shop_item_id="test-123",
-            title="Test Product",
-            description="Test description",
-            language="en",
-            priceEstimateMinAmount=1000,
-            priceEstimateMinCurrency="EUR",
+            is_product=True,
+            shopsProductId="test-123",
+            title=LocalizedText(text="Test Product", language="en"),
+            description=LocalizedText(text="Test description", language="en"),
+            priceEstimateMin=MonetaryValue(amount=1000, currency="EUR"),
             state="AVAILABLE",
             images=["https://example.com/image.jpg"],
         )
@@ -145,7 +150,7 @@ class TestProcessResult:
         """Test processing when qwen_extract returns empty data."""
         result = FakeResult(success=True, markdown="# Test", url="https://example.com")
 
-        def fake_qwen_extract(_markdown):
+        def fake_qwen_extract(_markdown, *args, **kwargs):
             return json.dumps({})
 
         with patch(
