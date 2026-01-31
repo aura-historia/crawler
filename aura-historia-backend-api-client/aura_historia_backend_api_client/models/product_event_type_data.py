@@ -1,0 +1,18 @@
+from enum import Enum
+
+
+class ProductEventTypeData(str, Enum):
+    CREATED = "CREATED"
+    PRICE_DISCOVERED = "PRICE_DISCOVERED"
+    PRICE_DROPPED = "PRICE_DROPPED"
+    PRICE_INCREASED = "PRICE_INCREASED"
+    PRICE_REMOVED = "PRICE_REMOVED"
+    STATE_AVAILABLE = "STATE_AVAILABLE"
+    STATE_LISTED = "STATE_LISTED"
+    STATE_REMOVED = "STATE_REMOVED"
+    STATE_RESERVED = "STATE_RESERVED"
+    STATE_SOLD = "STATE_SOLD"
+    STATE_UNKNOWN = "STATE_UNKNOWN"
+
+    def __str__(self) -> str:
+        return str(self.value)

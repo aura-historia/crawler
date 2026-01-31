@@ -1,0 +1,243 @@
+from http import HTTPStatus
+from typing import Any
+from urllib.parse import quote
+
+import httpx
+
+from ... import errors
+from ...client import AuthenticatedClient, Client
+from ...models.api_error import ApiError
+from ...models.get_shop_data import GetShopData
+from ...models.patch_shop_data import PatchShopData
+from ...types import Response
+
+
+def _get_kwargs(
+    shop_domain: str,
+    *,
+    body: PatchShopData,
+) -> dict[str, Any]:
+    headers: dict[str, Any] = {}
+
+    _kwargs: dict[str, Any] = {
+        "method": "patch",
+        "url": "/api/v1/by-domain/shops/{shop_domain}".format(
+            shop_domain=quote(str(shop_domain), safe=""),
+        ),
+    }
+
+    _kwargs["json"] = body.to_dict()
+
+    headers["Content-Type"] = "application/json"
+
+    _kwargs["headers"] = headers
+    return _kwargs
+
+
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> ApiError | GetShopData | None:
+    if response.status_code == 200:
+        response_200 = GetShopData.from_dict(response.json())
+
+        return response_200
+
+    if response.status_code == 400:
+        response_400 = ApiError.from_dict(response.json())
+
+        return response_400
+
+    if response.status_code == 404:
+        response_404 = ApiError.from_dict(response.json())
+
+        return response_404
+
+    if response.status_code == 500:
+        response_500 = ApiError.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 503:
+        response_503 = ApiError.from_dict(response.json())
+
+        return response_503
+
+    if client.raise_on_unexpected_status:
+        raise errors.UnexpectedStatus(response.status_code, response.content)
+    else:
+        return None
+
+
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[ApiError | GetShopData]:
+    return Response(
+        status_code=HTTPStatus(response.status_code),
+        content=response.content,
+        headers=response.headers,
+        parsed=_parse_response(client=client, response=response),
+    )
+
+
+def sync_detailed(
+    shop_domain: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: PatchShopData,
+) -> Response[ApiError | GetShopData]:
+    """Update shop details by domain
+
+     Updates an existing shop's information by its domain.
+    All fields in the request body are optional - only provided fields will be updated.
+    If the request body is empty or only contains null values, the shop is returned unchanged.
+    When updating domains, the complete new set of domains must be provided.
+
+    **Note**: The shop name cannot be updated as it determines the shop's slug identifier.
+
+    Args:
+        shop_domain (str):  Example: tech-store-premium.com.
+        body (PatchShopData): Partial update data for a shop.
+            All fields are optional - only provided fields will be updated.
+            If the request body is empty or all fields are null, the shop is returned unchanged.
+
+            **Note**: The shop name cannot be updated after creation as it determines the shop slug
+            identifier.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[ApiError | GetShopData]
+    """
+
+    kwargs = _get_kwargs(
+        shop_domain=shop_domain,
+        body=body,
+    )
+
+    response = client.get_httpx_client().request(
+        **kwargs,
+    )
+
+    return _build_response(client=client, response=response)
+
+
+def sync(
+    shop_domain: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: PatchShopData,
+) -> ApiError | GetShopData | None:
+    """Update shop details by domain
+
+     Updates an existing shop's information by its domain.
+    All fields in the request body are optional - only provided fields will be updated.
+    If the request body is empty or only contains null values, the shop is returned unchanged.
+    When updating domains, the complete new set of domains must be provided.
+
+    **Note**: The shop name cannot be updated as it determines the shop's slug identifier.
+
+    Args:
+        shop_domain (str):  Example: tech-store-premium.com.
+        body (PatchShopData): Partial update data for a shop.
+            All fields are optional - only provided fields will be updated.
+            If the request body is empty or all fields are null, the shop is returned unchanged.
+
+            **Note**: The shop name cannot be updated after creation as it determines the shop slug
+            identifier.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        ApiError | GetShopData
+    """
+
+    return sync_detailed(
+        shop_domain=shop_domain,
+        client=client,
+        body=body,
+    ).parsed
+
+
+async def asyncio_detailed(
+    shop_domain: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: PatchShopData,
+) -> Response[ApiError | GetShopData]:
+    """Update shop details by domain
+
+     Updates an existing shop's information by its domain.
+    All fields in the request body are optional - only provided fields will be updated.
+    If the request body is empty or only contains null values, the shop is returned unchanged.
+    When updating domains, the complete new set of domains must be provided.
+
+    **Note**: The shop name cannot be updated as it determines the shop's slug identifier.
+
+    Args:
+        shop_domain (str):  Example: tech-store-premium.com.
+        body (PatchShopData): Partial update data for a shop.
+            All fields are optional - only provided fields will be updated.
+            If the request body is empty or all fields are null, the shop is returned unchanged.
+
+            **Note**: The shop name cannot be updated after creation as it determines the shop slug
+            identifier.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[ApiError | GetShopData]
+    """
+
+    kwargs = _get_kwargs(
+        shop_domain=shop_domain,
+        body=body,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    shop_domain: str,
+    *,
+    client: AuthenticatedClient | Client,
+    body: PatchShopData,
+) -> ApiError | GetShopData | None:
+    """Update shop details by domain
+
+     Updates an existing shop's information by its domain.
+    All fields in the request body are optional - only provided fields will be updated.
+    If the request body is empty or only contains null values, the shop is returned unchanged.
+    When updating domains, the complete new set of domains must be provided.
+
+    **Note**: The shop name cannot be updated as it determines the shop's slug identifier.
+
+    Args:
+        shop_domain (str):  Example: tech-store-premium.com.
+        body (PatchShopData): Partial update data for a shop.
+            All fields are optional - only provided fields will be updated.
+            If the request body is empty or all fields are null, the shop is returned unchanged.
+
+            **Note**: The shop name cannot be updated after creation as it determines the shop slug
+            identifier.
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        ApiError | GetShopData
+    """
+
+    return (
+        await asyncio_detailed(
+            shop_domain=shop_domain,
+            client=client,
+            body=body,
+        )
+    ).parsed
