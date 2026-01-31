@@ -173,6 +173,7 @@ class OrchestrationLambdaConstruct(Construct):
                     "src/lambdas/orchestration_scraper",
                     "local_development",
                     "scripts",
+                    "src/apps",
                 ],
             ),
             role=role,

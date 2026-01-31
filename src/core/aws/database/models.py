@@ -149,13 +149,15 @@ class ShopMetadata:
         return cls(
             pk=item["pk"]["S"],
             sk=item["sk"]["S"],
-            domain=item["domain"]["S"],
+            domain=item.get("domain", {}).get("S"),
             shop_country=item.get("shop_country", {}).get("S"),
-            shop_name=item.get("shop_name", {}).get("S"),
             last_crawled_start=item.get("last_crawled_start", {}).get("S"),
-            last_crawled_end=item.get("last_crawled_end", {}).get("S"),
+            last_crawled_end=item.get("last_crawled_end", {}).get("S")
+            or item.get("gsi2_sk", {}).get("S"),
             last_scraped_start=item.get("last_scraped_start", {}).get("S"),
-            last_scraped_end=item.get("last_scraped_end", {}).get("S"),
+            last_scraped_end=item.get("last_scraped_end", {}).get("S")
+            or item.get("gsi3_sk", {}).get("S"),
+            core_domain_name=item.get("core_domain_name", {}).get("S"),
         )
 
 
