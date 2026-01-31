@@ -1,38 +1,48 @@
-from typing import List, Optional, Literal
-from pydantic import BaseModel, Field
+from typing import List, Optional, Literal, Annotated
+from pydantic import BaseModel, Field, HttpUrl
 
 # Define the allowed states
 AllowedStates = Literal["AVAILABLE", "SOLD", "LISTED", "RESERVED", "REMOVED", "UNKNOWN"]
+
+# Backend-supported languages (ISO 639-1)
+AllowedLanguages = Literal["de", "en", "fr", "es"]
+
+# Backend-supported currencies (ISO 4217)
+AllowedCurrencies = Literal["EUR", "GBP", "USD", "AUD", "CAD", "NZD"]
 
 
 class LocalizedText(BaseModel):
     text: str = Field(
         ..., description="The full text content. Do NOT summarize or translate."
     )
-    language: str = Field(..., description="ISO 639-1 code (e.g., 'en', 'de', 'fr').")
+    language: AllowedLanguages = Field(
+        "en",
+        description="ISO 639-1 code (e.g., 'en', 'de', 'fr').",
+    )
 
 
 class MonetaryValue(BaseModel):
-    amount: int = Field(
-        ..., description="The amount converted to integer CENTS (e.g., $10.50 -> 1050)."
+    amount: Annotated[int, Field(ge=0)] = Field(
+        ...,
+        description="The amount converted to integer CENTS (e.g., $10.50 -> 1050).",
     )
-    currency: str = Field(
-        ..., description="ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP')."
+    currency: AllowedCurrencies = Field(
+        "EUR",
+        description="ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP').",
     )
 
 
 class ExtractedProduct(BaseModel):
+    # Flag used by tests and extraction flow to mark whether LLM determined product
     is_product: bool = Field(
-        ...,
-        description="True if the page describes a SINGLE specific item (Lot/Product). False if it is a list, category grid, or generic page.",
+        False, description="True if the extracted object is a product"
     )
-    shopsProductId: Optional[str] = Field(
-        None,
+
+    shopsProductId: str = Field(
+        ...,
         description="The product's identifier EXACTLY as shown on the page (e.g. Art.Nr., Lot-Nr., SKU). Do NOT invent.",
     )
-    title: Optional[LocalizedText] = Field(
-        None, description="The full title of the item."
-    )
+    title: LocalizedText = Field(..., description="The full title of the item.")
     description: Optional[LocalizedText] = Field(
         None,
         description="The longest technical description available. Use newline characters (\\n) between sections.",
@@ -49,10 +59,10 @@ class ExtractedProduct(BaseModel):
     )
 
     state: AllowedStates = Field(
-        "UNKNOWN",
+        ...,
         description="EXACTLY ONE OF: AVAILABLE | SOLD | LISTED | RESERVED | REMOVED | UNKNOWN",
     )
-    images: List[str] = Field(
+    images: List[HttpUrl] = Field(
         default_factory=list,
         description="List of absolute URLs to images ending in .jpg, .jpeg, or .png.",
     )
@@ -64,6 +74,6 @@ class ExtractedProduct(BaseModel):
         None,
         description="UTC ISO8601 timestamp. Calculate from phrases like 'Closing: X days' using CURRENT_TIME + X days.",
     )
-    url: Optional[str] = Field(None, description="The URL of the item page.")
+    url: Optional[HttpUrl] = Field(None, description="The URL of the item page.")
 
     model_config = {"extra": "forbid"}
