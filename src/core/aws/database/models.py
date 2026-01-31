@@ -146,11 +146,18 @@ class ShopMetadata:
     @classmethod
     def from_dynamodb_item(cls, item: Dict[str, Any]) -> "ShopMetadata":
         """Create instance from DynamoDB item."""
+        shop_country = (
+            item.get("shop_country", {}).get("S")
+            or item.get("gsi2_pk", {}).get("S")
+            or item.get("gsi3_pk", {}).get("S")
+        )
+
         return cls(
             pk=item["pk"]["S"],
             sk=item["sk"]["S"],
             domain=item.get("domain", {}).get("S"),
-            shop_country=item.get("shop_country", {}).get("S"),
+            shop_country=shop_country,
+            shop_name=item.get("shop_name", {}).get("S"),
             last_crawled_start=item.get("last_crawled_start", {}).get("S"),
             last_crawled_end=item.get("last_crawled_end", {}).get("S")
             or item.get("gsi2_sk", {}).get("S"),
