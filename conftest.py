@@ -27,6 +27,12 @@ if not os.getenv("AWS_ACCESS_KEY_ID"):
 if not os.getenv("AWS_SECRET_ACCESS_KEY"):
     os.environ["AWS_SECRET_ACCESS_KEY"] = "fakeSecretAccessKey"
 
+if not os.getenv("API_KEY"):
+    os.environ["API_KEY"] = "test-key"
+
+if not os.getenv("API_BASE_URL"):
+    os.environ["API_BASE_URL"] = "http://localhost:8080"
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_environment():
