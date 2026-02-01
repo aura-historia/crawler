@@ -128,13 +128,8 @@ async def _apply_boilerplate_removal(markdown: str, domain: str) -> str:
             blocks = await boilerplate_discovery.discover_and_save(domain)
 
         if blocks:
-            original_len = len(markdown)
             clean_markdown = boilerplate_remover.clean(
                 clean_markdown, blocks, remove_noise=False
-            )
-            logger.info(
-                f"Boilerplate removed for {domain}. "
-                f"Length reduced from {original_len} to {len(clean_markdown)}"
             )
         else:
             logger.info(f"No boilerplate blocks found for {domain}")

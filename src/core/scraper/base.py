@@ -12,7 +12,7 @@ client = AsyncOpenAI(
     base_url="http://localhost:8003/v1",
     api_key="dummy",
 )
-MODEL_NAME = "unsloth/Qwen2.5-7B-Instruct-bnb-4bit"
+MODEL_NAME = "Qwen/Qwen3-8B-AWQ"
 
 
 async def chat_completion(task: str, prompt: str) -> str:

@@ -11,13 +11,8 @@ from src.core.scraper.schemas.extracted_product import ExtractedProduct
 
 def map_extracted_product_to_api(
     extracted: ExtractedProduct,
+    url: str,
 ) -> PutProductData:
-    if not extracted.is_product:
-        raise ValueError("Cannot send non-product pages to backend")
-
-    if not extracted.url:
-        raise ValueError("Product must have a URL to be sent to backend")
-
     title = None
     if extracted.title:
         title = LocalizedTextData(
@@ -46,6 +41,7 @@ def map_extracted_product_to_api(
     state = ProductStateData(extracted.state) if extracted.state is not None else None
 
     return PutProductData(
+        url=url,
         shops_product_id=extracted.shopsProductId,
         title=title,
         description=description,
@@ -54,5 +50,4 @@ def map_extracted_product_to_api(
         images=images,
         auction_start=extracted.auctionStart,
         auction_end=extracted.auctionEnd,
-        url=str(extracted.url),
     )

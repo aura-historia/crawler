@@ -74,6 +74,5 @@ class ExtractedProduct(BaseModel):
         None,
         description="UTC ISO8601 timestamp. Calculate from phrases like 'Closing: X days' using CURRENT_TIME + X days.",
     )
-    url: Optional[HttpUrl] = Field(None, description="The URL of the item page.")
 
     model_config = {"extra": "forbid"}

@@ -55,7 +55,7 @@ shutdown_event: asyncio.Event = asyncio.Event()
 db_operations = DynamoDBOperations()
 
 
-async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
+async def process_result_async(result: Any, domain) -> Optional[PutProductData]:
     """
     Async version of process_result that uses async qwen extraction and maps to PutProductsCollectionDataSchema.
     """
@@ -88,14 +88,12 @@ async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
         )
         return None
 
-    # Ensure URL is set before mapping
-    if not qwen_out.url:
-        qwen_out.url = url
-
     try:
-        # Map to API model and convert to dict
-        api_model = map_extracted_product_to_api(qwen_out)
-        return api_model
+        return (
+            None
+            if qwen_out is None or qwen_out.is_product is False
+            else map_extracted_product_to_api(qwen_out, url)
+        )
 
     except ValueError as e:
         logger.info("Skipping product: %s", e, extra={"url": url})
