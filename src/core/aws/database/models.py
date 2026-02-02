@@ -65,6 +65,8 @@ class ShopMetadata:
     domain: str
     shop_country: Optional[str] = field(default=None)
     shop_name: Optional[str] = field(default=None)
+    shop_image: Optional[str] = field(default=None)
+    shop_type: str = field(default="COMMERCIAL_DEALER")
     pk: Optional[str] = field(default=None)
     sk: str = field(default=METADATA_SK)
     last_crawled_start: Optional[str] = field(default=None)
@@ -130,7 +132,9 @@ class ShopMetadata:
 
         # Add optional base fields
         self._add_optional_field(item, "shop_name", self.shop_name)
+        self._add_optional_field(item, "shop_image", self.shop_image)
         self._add_optional_field(item, "shop_country", self.shop_country)
+        self._add_optional_field(item, "shop_type", self.shop_type)
         self._add_optional_field(item, "last_crawled_start", self.last_crawled_start)
         self._add_optional_field(item, "last_crawled_end", self.last_crawled_end)
         self._add_optional_field(item, "last_scraped_start", self.last_scraped_start)
@@ -158,6 +162,8 @@ class ShopMetadata:
             domain=item.get("domain", {}).get("S"),
             shop_country=shop_country,
             shop_name=item.get("shop_name", {}).get("S"),
+            shop_image=item.get("shop_image", {}).get("S"),
+            shop_type=item.get("shop_type", {}).get("S"),
             last_crawled_start=item.get("last_crawled_start", {}).get("S"),
             last_crawled_end=item.get("last_crawled_end", {}).get("S")
             or item.get("gsi2_sk", {}).get("S"),

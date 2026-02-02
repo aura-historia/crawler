@@ -720,18 +720,3 @@ class DynamoDBOperations:
 
 
 db_operations = DynamoDBOperations()
-
-if __name__ == "__main__":
-    db = DynamoDBOperations()
-    shop = ShopMetadata(
-        domain="example.com",
-        shop_country="DE",
-        last_scraped_end="DONE#2024-01-01T00:00:00Z",
-        last_crawled_end="DONE#2024-01-01T00:00:00Z",
-    )
-
-    shops = db.get_shops_for_orchestration(
-        operation_type="scrape", cutoff_date="2024-02-01T00:00:00Z"
-    )
-
-    print(shops)
