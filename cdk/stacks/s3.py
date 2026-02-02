@@ -24,7 +24,9 @@ class S3Stack(Stack):
             self,
             "BoilerplateBucket",
             bucket_name="aura-historia-boilerplate",
-            versioned=False,
+            versioned=True,
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             removal_policy=RemovalPolicy.RETAIN,
             auto_delete_objects=False,
         )
