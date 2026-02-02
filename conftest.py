@@ -7,9 +7,17 @@ This must be in the root directory to load before tests are collected.
 import os
 import pytest
 from dotenv import load_dotenv
+import sys
+from pathlib import Path
 
 # Load environment variables IMMEDIATELY before any other imports
 load_dotenv()
+
+# Ensure local packages like `aura_historia_backend_api_client` are importable
+PROJECT_ROOT = Path(__file__).resolve().parent
+CLIENT_PACKAGE = PROJECT_ROOT / "aura-historia-backend-api-client"
+if CLIENT_PACKAGE.exists() and str(CLIENT_PACKAGE) not in sys.path:
+    sys.path.insert(0, str(CLIENT_PACKAGE))
 
 # Set default values for required environment variables if not present
 if not os.getenv("AWS_REGION"):
@@ -26,6 +34,12 @@ if not os.getenv("AWS_ACCESS_KEY_ID"):
 
 if not os.getenv("AWS_SECRET_ACCESS_KEY"):
     os.environ["AWS_SECRET_ACCESS_KEY"] = "fakeSecretAccessKey"
+
+if not os.getenv("API_KEY"):
+    os.environ["API_KEY"] = "test-key"
+
+if not os.getenv("API_BASE_URL"):
+    os.environ["API_BASE_URL"] = "http://localhost:8080"
 
 
 @pytest.fixture(scope="session", autouse=True)

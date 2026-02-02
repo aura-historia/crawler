@@ -64,7 +64,7 @@ def mock_qwen_extract():
     from src.core.scraper.schemas.extracted_product import (
         ExtractedProduct,
         LocalizedText,
-        MonetaryValue,
+        MonetaryValue as Price,
     )
 
     async def fake_qwen_extract(markdown, *args, **kwargs):
@@ -74,7 +74,7 @@ def mock_qwen_extract():
             shopsProductId="test-123",
             title=LocalizedText(text="Test Product", language="en"),
             description=LocalizedText(text="Test description", language="en"),
-            priceEstimateMin=MonetaryValue(amount=1000, currency="EUR"),
+            price=Price(amount=1000, currency="EUR"),
             state="AVAILABLE",
             images=["https://example.com/image.jpg"],
         )
@@ -86,10 +86,17 @@ def mock_qwen_extract():
 
 
 @pytest.fixture
-def mock_send_items():
-    """Mock send_items function."""
+def mock_put_products():
+    """Mock put_products.asyncio function."""
+
+    async def mock_side_effect(client, body):
+        await asyncio.sleep(0)
+        return body
+
     with patch(
-        "src.core.worker.product_scraper.send_items", new_callable=AsyncMock
+        "src.core.worker.product_scraper.put_products.asyncio",
+        new_callable=AsyncMock,
+        side_effect=mock_side_effect,
     ) as mock:
         yield mock
 
@@ -116,12 +123,17 @@ class TestProcessResult:
         )
         extracted = await process_result_async(result, "example.com")
         assert extracted is not None
-        assert isinstance(extracted, dict)
-        assert extracted["title"]["text"] == "Test Product"
-        assert extracted["priceEstimateMin"]["amount"] == 1000
-        assert extracted["priceEstimateMin"]["currency"] == "EUR"
-        assert extracted["state"] == "AVAILABLE"
-        assert extracted["shopsProductId"] == "test-123"
+        from aura_historia_backend_api_client.models import (
+            LocalizedTextData,
+            LanguageData,
+            ProductStateData,
+        )
+
+        assert extracted.title == LocalizedTextData(
+            text="Test Product", language=LanguageData("en")
+        )
+        assert extracted.state == ProductStateData("AVAILABLE")
+        assert extracted.shops_product_id == "test-123"
 
     @pytest.mark.asyncio
     async def test_process_result_failure(self):
@@ -179,53 +191,51 @@ class TestBatchSender:
     """Tests for batch_sender function."""
 
     @pytest.mark.asyncio
-    async def test_batch_sender_single_batch(self, mock_send_items):
+    async def test_batch_sender_single_batch(self, mock_put_products):
         """Test batch sender with items filling exactly one batch."""
         q = asyncio.Queue()
 
-        sent_batches = []
-        mock_send_items.side_effect = lambda batch: sent_batches.append(list(batch))
-
-        await q.put({"url": "https://example.com/1"})
-        await q.put({"url": "https://example.com/2"})
+        await q.put(Mock(spec=product_scraper.ScrapedData))
+        await q.put(Mock(spec=product_scraper.ScrapedData))
         await q.put(None)
 
         await batch_sender(q, batch_size=2)
 
-        assert mock_send_items.call_count == 1
-        assert len(sent_batches) == 1
-        assert len(sent_batches[0]) == 2
+        mock_put_products.assert_called_once()
+        call_args = mock_put_products.call_args[1]
+        assert "body" in call_args
+        collection = call_args["body"]
+        assert len(collection.items) == 2
 
     @pytest.mark.asyncio
-    async def test_batch_sender_multiple_batches(self, mock_send_items):
+    async def test_batch_sender_multiple_batches(self, mock_put_products):
         """Test batch sender with items requiring multiple batches."""
         q = asyncio.Queue()
 
-        sent_batches = []
-        mock_send_items.side_effect = lambda batch: sent_batches.append(list(batch))
-
-        for i in range(5):
-            await q.put({"url": f"https://example.com/{i}"})
+        for _ in range(5):
+            await q.put(Mock(spec=product_scraper.ScrapedData))
         await q.put(None)
 
         await batch_sender(q, batch_size=2)
 
         # With 5 items and batch_size=2, we expect 3 sends: [2, 2, 1]
-        assert mock_send_items.call_count == 3
-        assert len(sent_batches) == 3
-        assert len(sent_batches[0]) == 2
-        assert len(sent_batches[1]) == 2
-        assert len(sent_batches[2]) == 1
+        assert mock_put_products.call_count == 3
+        first_call = mock_put_products.call_args_list[0][1]["body"]
+        second_call = mock_put_products.call_args_list[1][1]["body"]
+        third_call = mock_put_products.call_args_list[2][1]["body"]
+        assert len(first_call.items) == 2
+        assert len(second_call.items) == 2
+        assert len(third_call.items) == 1
 
     @pytest.mark.asyncio
-    async def test_batch_sender_empty_queue(self, mock_send_items):
+    async def test_batch_sender_empty_queue(self, mock_put_products):
         """Test batch sender with empty queue."""
         q = asyncio.Queue()
         await q.put(None)
 
         await batch_sender(q, batch_size=2)
 
-        assert mock_send_items.call_count == 0
+        assert mock_put_products.call_count == 0
 
 
 class TestLogMetricsIfNeeded:
@@ -264,7 +274,7 @@ class TestProcessSingleUrl:
 
     @pytest.mark.asyncio
     async def test_process_single_url_success(
-        self, mock_qwen_extract, mock_send_items, mock_update_hash
+        self, mock_qwen_extract, mock_put_products, mock_update_hash
     ):
         """Test successful processing of a single URL."""
         from src.core.worker import product_scraper
@@ -288,8 +298,14 @@ class TestProcessSingleUrl:
         assert product_scraper._metrics["extracted"] == 1
         assert result_queue.qsize() == 1
         item = await result_queue.get()
-        assert isinstance(item, dict)
-        assert item["title"]["text"] == "Test Product"
+        from aura_historia_backend_api_client.models import (
+            LocalizedTextData,
+            LanguageData,
+        )
+
+        assert item.title == LocalizedTextData(
+            text="Test Product", language=LanguageData("en")
+        )
 
     @pytest.mark.asyncio
     async def test_process_single_url_timeout(self):
@@ -350,7 +366,7 @@ class TestScrape:
 
     @pytest.mark.asyncio
     async def test_scrape_success(
-        self, mock_qwen_extract, mock_send_items, mock_update_hash
+        self, mock_qwen_extract, mock_put_products, mock_update_hash
     ):
         """Test successful scraping of URLs."""
         from typing import cast
@@ -376,11 +392,11 @@ class TestScrape:
         )
 
         assert count == 2
-        assert mock_send_items.call_count >= 1
+        assert mock_put_products.call_count >= 1
 
     @pytest.mark.asyncio
     async def test_scrape_with_crawl_errors(
-        self, mock_qwen_extract, mock_send_items, mock_update_hash
+        self, mock_qwen_extract, mock_put_products, mock_update_hash
     ):
         """Test scraping with some URLs failing to crawl."""
 
@@ -405,7 +421,7 @@ class TestScrape:
 
     @pytest.mark.asyncio
     async def test_scrape_with_shutdown(
-        self, mock_qwen_extract, mock_send_items, mock_update_hash
+        self, mock_qwen_extract, mock_put_products, mock_update_hash
     ):
         """Test scraping interrupted by shutdown event."""
 
@@ -441,7 +457,7 @@ class TestHandleDomainMessage:
 
     @pytest.mark.asyncio
     async def test_handle_domain_message_success(
-        self, mock_qwen_extract, mock_send_items, mock_update_hash
+        self, mock_qwen_extract, mock_put_products, mock_update_hash
     ):
         """Test successful handling of a domain message."""
         message = Mock()

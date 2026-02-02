@@ -6,13 +6,13 @@
 set -e
 
 # Configuration
-MODEL_NAME="unsloth/Qwen2.5-7B-Instruct-bnb-4bit"
+MODEL_NAME="Qwen/Qwen3-8B-AWQ"
 HOST="${VLLM_HOST:-localhost}"
 PORT="${VLLM_PORT:-8003}"
-MAX_MODEL_LEN="${VLLM_MAX_MODEL_LEN:-8000}"
-GPU_MEMORY_UTIL="${VLLM_GPU_MEMORY_UTIL:-0.85}"
-MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-8}"
-DTYPE="${VLLM_DTYPE:-auto}"
+MAX_MODEL_LEN="${VLLM_MAX_MODEL_LEN:-10000}"
+GPU_MEMORY_UTIL="${VLLM_GPU_MEMORY_UTIL:-0.95}"
+MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-16}"
+DTYPE="${VLLM_DTYPE:-float16}"
 
 echo "════════════════════════════════════════════════════════════════"
 echo "  Starting vLLM OpenAI-Compatible Server"
@@ -40,17 +40,15 @@ if ! command -v vllm &> /dev/null; then
     exit 1
 fi
 
-# Start the server
+# Start server
 exec vllm serve "$MODEL_NAME" \
     --host "$HOST" \
     --port "$PORT" \
     --max-model-len "$MAX_MODEL_LEN" \
     --gpu-memory-utilization "$GPU_MEMORY_UTIL" \
     --max-num-seqs "$MAX_NUM_SEQS" \
+    --max-num-batched-tokens 32768 \
+    --trust-remote-code \
     --dtype "$DTYPE" \
-    --trust-remote-code\
-    --enable-prefix-caching\
-    --enable-chunked-prefill\
-    --structured-outputs-config.backend xgrammar \
-
-
+    --enable-prefix-caching \
+    --enable-chunked-prefill

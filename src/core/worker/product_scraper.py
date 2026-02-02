@@ -3,7 +3,7 @@ import json
 import os
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from dotenv import load_dotenv
 
@@ -16,8 +16,14 @@ from src.core.aws.sqs.message_wrapper import (
     visibility_heartbeat,
 )
 from src.core.aws.sqs.queue_wrapper import get_queue
+from src.core.scraper.schemas.mapper import map_extracted_product_to_api
+from src.core.utils.api_client import api_client
+from aura_historia_backend_api_client.api.products import put_products
+from aura_historia_backend_api_client.models import (
+    PutProductsCollectionData,
+    PutProductData,
+)
 from src.core.utils.logger import logger
-from src.core.utils.send_items import send_items
 from src.core.utils.configs import (
     build_product_scraper_components,
     crawl_dispatcher,
@@ -28,7 +34,7 @@ from src.core.scraper.qwen import extract as qwen_extract
 
 load_dotenv()
 
-ScrapedData = Dict[str, Any]
+ScrapedData = PutProductData
 
 QUEUE_NAME = os.getenv("SQS_QUEUE_NAME")
 
@@ -49,7 +55,7 @@ shutdown_event: asyncio.Event = asyncio.Event()
 db_operations = DynamoDBOperations()
 
 
-async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
+async def process_result_async(result: Any, domain) -> Optional[PutProductData]:
     """
     Async version of process_result that uses async qwen extraction and maps to PutProductsCollectionDataSchema.
     """
@@ -83,21 +89,18 @@ async def process_result_async(result: Any, domain) -> Optional[ScrapedData]:
         return None
 
     try:
-        data: ScrapedData = qwen_out.model_dump()
+        return (
+            None
+            if qwen_out is None or qwen_out.is_product is False
+            else map_extracted_product_to_api(qwen_out, url)
+        )
 
-        data.pop("is_product", None)
-        # Ensure URL is included as it was previously handled by the mapper or worker
-        if not data.get("url"):
-            data["url"] = url
-        # Ensure shopsProductId defaults to url if missing
-        if not data.get("shopsProductId"):
-            data["shopsProductId"] = url
-    except Exception as e:
-        logger.exception("Failed to dump extracted product: %s", e, extra={"url": url})
+    except ValueError as e:
+        logger.info("Skipping product: %s", e, extra={"url": url})
         return None
-
-    logger.info(data)
-    return data
+    except Exception as e:
+        logger.exception("Mapping failed: %s", e, extra={"url": url})
+        return None
 
 
 async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
@@ -108,7 +111,8 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
         if item is None:
             if batch:
                 try:
-                    await send_items(batch)
+                    collection = PutProductsCollectionData(items=batch)
+                    await put_products.asyncio(client=api_client, body=collection)
                     _metrics["sent_batches"] += 1
                 except Exception as e:
                     logger.exception("Failed to send final batch: %s", e)
@@ -117,11 +121,12 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
         batch.append(item)
         if len(batch) >= batch_size:
             try:
-                await send_items(batch)
+                collection = PutProductsCollectionData(items=batch)
+                await put_products.asyncio(client=api_client, body=collection)
                 _metrics["sent_batches"] += 1
+                batch = []
             except Exception as e:
                 logger.exception("Failed to send batch: %s", e)
-            batch.clear()
 
 
 def log_metrics_if_needed(domain: str) -> None:
