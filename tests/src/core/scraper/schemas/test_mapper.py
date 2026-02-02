@@ -1,5 +1,3 @@
-import pytest
-
 from src.core.scraper.schemas.extracted_product import (
     ExtractedProduct,
     LocalizedText,
@@ -21,38 +19,22 @@ def make_extracted_product(**overrides: object) -> ExtractedProduct:
         "images": ["https://shop.test/images/main.jpg"],
         "auctionStart": None,
         "auctionEnd": None,
-        "url": "https://shop.test/product/sku-123",
     }
     data.update(overrides)
     return ExtractedProduct(**data)
 
 
-def test_raises_for_non_product_page() -> None:
-    product = make_extracted_product(is_product=False)
-
-    with pytest.raises(ValueError, match="Cannot send non-product pages to backend"):
-        map_extracted_product_to_api(product)
-
-
-def test_raises_when_url_missing() -> None:
-    product = make_extracted_product(url=None)
-
-    with pytest.raises(
-        ValueError, match="Product must have a URL to be sent to backend"
-    ):
-        map_extracted_product_to_api(product)
-
-
 def test_maps_minimal_product_payload() -> None:
     product = make_extracted_product(images=[])
+    url = "https://shop.test/product/sku-123"
 
-    result = map_extracted_product_to_api(product)
+    result = map_extracted_product_to_api(product, url=url)
 
     assert result.shops_product_id == "SKU-123"
-    assert result.url == "https://shop.test/product/sku-123"
     assert result.state.value == "AVAILABLE"
     assert result.title.text == "Vintage Clock"
     assert result.title.language.value == "en"
+    assert result.url == "https://shop.test/product/sku-123"
     assert result.description is None
     assert result.price is None
     assert result.images == []
@@ -72,8 +54,9 @@ def test_maps_full_product_payload() -> None:
         auctionEnd="2025-01-20T18:00:00Z",
         state="SOLD",
     )
+    url = "https://shop.test/product/sku-123"
 
-    result = map_extracted_product_to_api(product)
+    result = map_extracted_product_to_api(product, url=url)
 
     assert result.description and result.description.text == "Originalbeschreibung"
     assert result.description.language.value == "de"
