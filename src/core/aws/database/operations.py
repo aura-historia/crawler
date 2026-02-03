@@ -244,12 +244,60 @@ class DynamoDBOperations:
             )
             raise
 
+    def _batch_write_with_backoff(
+        self, request_items: dict, max_retries: int = 5
+    ) -> list:
+        """
+        Execute batch_write_item with exponential backoff for unprocessed items.
+
+        Args:
+            request_items: Dict with table name as key and list of write requests
+            max_retries: Maximum number of retry attempts (default: 5)
+
+        Returns:
+            List of items that could not be processed after all retries
+        """
+        import time
+        import random
+
+        unprocessed = request_items
+        retry_count = 0
+
+        while unprocessed and retry_count <= max_retries:
+            if retry_count > 0:
+                # Exponential backoff with jitter: 2^retry * 50ms + random jitter
+                base_delay = (
+                    2**retry_count
+                ) * 0.05  # 100ms, 200ms, 400ms, 800ms, 1600ms
+                jitter = random.uniform(0, 0.1)  # Up to 100ms jitter
+                sleep_time = min(base_delay + jitter, 5.0)  # Cap at 5 seconds
+                logger.debug(
+                    f"Retrying unprocessed items (attempt {retry_count}/{max_retries}), "
+                    f"sleeping {sleep_time:.2f}s"
+                )
+                time.sleep(sleep_time)
+
+            response = self.client.batch_write_item(RequestItems=unprocessed)
+            unprocessed = response.get("UnprocessedItems", {})
+
+            if unprocessed:
+                unprocessed_count = sum(len(v) for v in unprocessed.values())
+                logger.warning(
+                    f"Batch write has {unprocessed_count} unprocessed items "
+                    f"(retry {retry_count}/{max_retries})"
+                )
+                retry_count += 1
+
+        # Return any remaining unprocessed items
+        return unprocessed.get(self.table_name, []) if unprocessed else []
+
     def _batch_write_items(
         self, items: list, item_type: str, max_items: int = 1000
     ) -> dict:
         """
         Generic batch write operation for DynamoDB items.
 
+        Uses exponential backoff to retry unprocessed items, as recommended by AWS.
         Args:
             items: List of item dicts (already in DynamoDB format)
             item_type: Description of item type for logging
@@ -283,7 +331,7 @@ class DynamoDBOperations:
 
         try:
             # DynamoDB batch_write_item supports max 25 items per request
-            unprocessed_items = []
+            all_unprocessed_items = []
 
             for i in range(0, len(unique_items), 25):
                 batch = unique_items[i : i + 25]
@@ -291,19 +339,25 @@ class DynamoDBOperations:
                     self.table_name: [{"PutRequest": {"Item": item}} for item in batch]
                 }
 
-                response = self.client.batch_write_item(RequestItems=request_items)
+                # Use exponential backoff for each batch
+                unprocessed = self._batch_write_with_backoff(request_items)
+                if unprocessed:
+                    all_unprocessed_items.extend(unprocessed)
 
-                # Handle unprocessed items
-                if response.get("UnprocessedItems"):
-                    unprocessed_items.extend(
-                        response["UnprocessedItems"].get(self.table_name, [])
-                    )
+            successfully_written = len(unique_items) - len(all_unprocessed_items)
+            logger.info(
+                f"Batch wrote {successfully_written}/{len(unique_items)} {item_type}"
+            )
 
-            logger.info(f"Batch wrote {len(items)} {item_type}")
+            if all_unprocessed_items:
+                logger.error(
+                    f"Failed to write {len(all_unprocessed_items)} {item_type} "
+                    f"after all retries"
+                )
 
             result = {"UnprocessedItems": {}}
-            if unprocessed_items:
-                result["UnprocessedItems"] = {self.table_name: unprocessed_items}
+            if all_unprocessed_items:
+                result["UnprocessedItems"] = {self.table_name: all_unprocessed_items}
 
             return result
 

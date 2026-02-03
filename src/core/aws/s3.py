@@ -29,36 +29,8 @@ class S3Operations:
         self.config = _get_s3_config()
         self.client = boto3.client("s3", **self.config)
         self.bucket_name = bucket_name or os.getenv(
-            "BOILERPLATE_S3_BUCKET", "aura-historia-boilerplate"
+            "BOILERPLATE_S3_BUCKET", "aura-historia-crawler-markdown-boilerplate"
         )
-
-        # Ensure the bucket exists on initialization
-        try:
-            self.ensure_bucket_exists()
-        except Exception as e:
-            # We log but don't raise here to allow the app to start
-            # even if S3 is momentarily unreachable
-            logger.warning(
-                f"Initial S3 bucket check failed for {self.bucket_name}: {e}"
-            )
-
-    def ensure_bucket_exists(self) -> None:
-        """Create the bucket if it doesn't exist."""
-        try:
-            self.client.head_bucket(Bucket=self.bucket_name)
-        except ClientError as e:
-            error_code = e.response["Error"]["Code"]
-            if error_code == "404":
-                logger.info(f"Creating S3 bucket: {self.bucket_name}")
-                kwargs = {"Bucket": self.bucket_name}
-                if self.config.get("region_name") != "us-east-1":
-                    kwargs["CreateBucketConfiguration"] = {
-                        "LocationConstraint": self.config["region_name"]
-                    }
-                self.client.create_bucket(**kwargs)
-            else:
-                logger.error(f"Error checking S3 bucket: {e}")
-                raise
 
     def upload_json(self, key: str, data: Any) -> None:
         """Upload data as JSON to S3."""

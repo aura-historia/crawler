@@ -26,35 +26,6 @@ class TestS3Operations:
             assert s3_ops.bucket_name == "env-bucket"
 
     @patch("src.core.aws.s3.boto3.client")
-    def test_ensure_bucket_exists_creates_bucket(self, mock_boto_client):
-        """Test that ensure_bucket_exists creates bucket if it doesn't exist."""
-        mock_client = MagicMock()
-        mock_boto_client.return_value = mock_client
-
-        # Simulate bucket not found
-        error_response = {"Error": {"Code": "404"}}
-        mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
-
-        S3Operations(bucket_name="new-bucket")
-
-        # Should have called create_bucket
-        assert mock_client.create_bucket.called
-
-    @patch("src.core.aws.s3.boto3.client")
-    def test_ensure_bucket_exists_skips_if_exists(self, mock_boto_client):
-        """Test that ensure_bucket_exists doesn't create if bucket exists."""
-        mock_client = MagicMock()
-        mock_boto_client.return_value = mock_client
-
-        # Bucket exists - no exception
-        mock_client.head_bucket.return_value = {}
-
-        S3Operations(bucket_name="existing-bucket")
-
-        # Should not have called create_bucket beyond initial setup
-        assert mock_client.create_bucket.call_count <= 1
-
-    @patch("src.core.aws.s3.boto3.client")
     def test_upload_json_success(self, mock_boto_client):
         """Test successful JSON upload to S3."""
         mock_client = MagicMock()
