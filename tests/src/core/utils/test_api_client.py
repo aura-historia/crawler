@@ -5,7 +5,8 @@ import importlib
 
 def test_api_client_initialization():
     with patch.dict(
-        os.environ, {"API_KEY": "test_api_key", "API_BASE_URL": "https://api.test.com"}
+        os.environ,
+        {"API_KEY": "test_api_key", "BACKEND_API_URL": "https://api.test.com"},
     ):
         from src.core.utils import api_client
 
@@ -15,7 +16,7 @@ def test_api_client_initialization():
 
 
 def test_api_client_missing_base_url():
-    with patch.dict(os.environ, {"API_BASE_URL": ""}):
+    with patch.dict(os.environ, {"BACKEND_API_URL": ""}):
         from src.core.utils import api_client
 
         importlib.reload(api_client)
