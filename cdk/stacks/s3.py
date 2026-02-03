@@ -23,7 +23,7 @@ class S3Stack(Stack):
         self.boilerplate_bucket = s3.Bucket(
             self,
             "BoilerplateBucket",
-            bucket_name="aura-historia-boilerplate",
+            bucket_name="aura-historia-crawler-markdown-boilerplate",
             versioned=True,
             encryption=s3.BucketEncryption.S3_MANAGED,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
