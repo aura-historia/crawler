@@ -1,9 +1,26 @@
+import socket
+from typing import Any, Dict, cast
 import pytest
 
 from unittest.mock import Mock, patch
 from botocore.exceptions import ClientError
 
-from src.core.aws.database.operations import DynamoDBOperations
+from src.core.aws.database.operations import DynamoDBOperations, parse_gsi_sk
+from src.core.aws.database.constants import STATE_DONE, STATE_NEVER, STATE_PROGRESS
+from src.core.aws.database.models import ShopMetadata
+
+
+def _client_error_response(message: str) -> Dict[str, Any]:
+    return {
+        "Error": {"Code": "ValidationException", "Message": message},
+        "ResponseMetadata": {
+            "RequestId": "1",
+            "HTTPStatusCode": 400,
+            "HTTPHeaders": {},
+            "RetryAttempts": 0,
+            "HostId": "host",
+        },
+    }
 
 
 @pytest.fixture
@@ -201,10 +218,15 @@ class TestFindShopsByCoreName:
         self, db_ops, mock_boto_client
     ):
         """Test that missing GSI4 error is re-raised after logging."""
-        error_response = {
-            "Error": {"Message": "The table does not have the specified index: GSI4"}
-        }
-        mock_boto_client.query.side_effect = ClientError(error_response, "Query")
+        mock_boto_client.query.side_effect = ClientError(
+            cast(
+                Any,
+                _client_error_response(
+                    "The table does not have the specified index: GSI4"
+                ),
+            ),
+            "Query",
+        )
 
         with pytest.raises(ClientError):
             db_ops.find_all_domains_by_core_domain_name("example")
@@ -259,3 +281,185 @@ class TestInternalHandlersAndEdgeCases:
         assert "last_scraped_end =" in expr
         assert "gsi2_sk =" in expr
         assert "gsi3_sk =" in expr
+
+
+class TestParseGsiSk:
+    def test_parses_never_state(self):
+        state, timestamp = parse_gsi_sk("NEVER#")
+
+        assert state == STATE_NEVER
+        assert timestamp is None
+
+    def test_parses_progress_state(self):
+        state, timestamp = parse_gsi_sk("PROGRESS#2026-01-15T12:00:00Z")
+
+        assert state == STATE_PROGRESS
+        assert timestamp == "2026-01-15T12:00:00Z"
+
+    def test_parses_done_state(self):
+        state, timestamp = parse_gsi_sk("DONE#2026-01-15T12:00:00Z")
+
+        assert state == STATE_DONE
+        assert timestamp == "2026-01-15T12:00:00Z"
+
+    def test_raises_for_invalid_state(self):
+        with pytest.raises(ValueError, match="Invalid GSI SK"):
+            parse_gsi_sk("INVALID#")
+
+
+class TestUpdateUrlHash:
+    def test_updates_hash_with_expected_expression(self, db_ops, mock_boto_client):
+        mock_boto_client.update_item.return_value = {"Attributes": {"hash": {"S": "h"}}}
+
+        result = db_ops.update_url_hash("shop.com", "https://shop.com/p", "h")
+
+        assert result == {"hash": {"S": "h"}}
+        called_kwargs = mock_boto_client.update_item.call_args.kwargs
+        assert called_kwargs["TableName"] == db_ops.table_name
+        assert called_kwargs["Key"] == {
+            "pk": {"S": "SHOP#shop.com"},
+            "sk": {"S": "URL#https://shop.com/p"},
+        }
+        assert called_kwargs["UpdateExpression"] == "SET #h = :new_hash"
+        assert called_kwargs["ExpressionAttributeNames"] == {"#h": "hash"}
+        assert called_kwargs["ExpressionAttributeValues"] == {":new_hash": {"S": "h"}}
+
+    def test_propagates_client_error(self, db_ops, mock_boto_client):
+        mock_boto_client.update_item.side_effect = ClientError(
+            cast(Any, _client_error_response("Update failed")),
+            "UpdateItem",
+        )
+
+        with pytest.raises(ClientError):
+            db_ops.update_url_hash("shop.com", "https://shop.com/p", "h")
+
+
+class TestUpsertShopMetadata:
+    def test_sets_country_from_dns_lookup(self, db_ops, mock_boto_client):
+        metadata = ShopMetadata(domain="shop.com", shop_country=None)
+
+        with (
+            patch(
+                "src.core.aws.database.operations.socket.gethostbyname",
+                return_value="1.2.3.4",
+            ),
+            patch(
+                "src.core.aws.database.operations.get_country_code",
+                return_value="DE",
+            ),
+        ):
+            db_ops.upsert_shop_metadata(metadata)
+
+        assert metadata.shop_country == "DE"
+        mock_boto_client.put_item.assert_called_once()
+
+    def test_handles_dns_failure_without_country(self, db_ops, mock_boto_client):
+        metadata = ShopMetadata(domain="shop.com", shop_country=None)
+
+        with patch(
+            "src.core.aws.database.operations.socket.gethostbyname",
+            side_effect=socket.gaierror(),
+        ):
+            db_ops.upsert_shop_metadata(metadata)
+
+        assert metadata.shop_country is None
+        mock_boto_client.put_item.assert_called_once()
+
+
+class TestGetShopMetadata:
+    def test_returns_shop_metadata_when_found(self, db_ops, mock_boto_client):
+        mock_boto_client.get_item.return_value = {
+            "Item": {
+                "pk": {"S": "SHOP#a.com"},
+                "sk": {"S": "META#"},
+                "domain": {"S": "a.com"},
+            }
+        }
+
+        with patch(
+            "src.core.aws.database.models.ShopMetadata.from_dynamodb_item",
+            return_value=Mock(domain="a.com"),
+        ):
+            result = db_ops.get_shop_metadata("a.com")
+
+        assert result.domain == "a.com"
+
+    def test_returns_none_when_missing(self, db_ops, mock_boto_client):
+        mock_boto_client.get_item.return_value = {}
+
+        result = db_ops.get_shop_metadata("a.com")
+
+        assert result is None
+
+
+class TestGetUrlEntry:
+    def test_returns_url_entry_when_found(self, db_ops, mock_boto_client):
+        mock_boto_client.get_item.return_value = {
+            "Item": {
+                "pk": {"S": "SHOP#a.com"},
+                "sk": {"S": "URL#https://a.com/p"},
+                "url": {"S": "https://a.com/p"},
+            }
+        }
+
+        with patch(
+            "src.core.aws.database.models.URLEntry.from_dynamodb_item",
+            return_value=Mock(url="https://a.com/p"),
+        ):
+            result = db_ops.get_url_entry("a.com", "https://a.com/p")
+
+        assert result.url == "https://a.com/p"
+
+    def test_returns_none_when_missing(self, db_ops, mock_boto_client):
+        mock_boto_client.get_item.return_value = {}
+
+        result = db_ops.get_url_entry("a.com", "https://a.com/p")
+
+        assert result is None
+
+
+class TestGetShopsForOrchestration:
+    def test_fetches_never_and_done_shops_for_country(self, db_ops, mock_boto_client):
+        mock_boto_client.query.side_effect = [
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#a.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "a.com"},
+                    }
+                ]
+            },
+            {
+                "Items": [
+                    {
+                        "pk": {"S": "SHOP#b.com"},
+                        "sk": {"S": "META#"},
+                        "domain": {"S": "b.com"},
+                    }
+                ]
+            },
+        ]
+
+        with patch(
+            "src.core.aws.database.models.ShopMetadata.from_dynamodb_item",
+            side_effect=[Mock(domain="a.com"), Mock(domain="b.com")],
+        ):
+            result = db_ops.get_shops_for_orchestration(
+                operation_type="crawl",
+                cutoff_date="2026-01-02T00:00:00Z",
+                country="DE",
+            )
+
+        assert [shop.domain for shop in result] == ["a.com", "b.com"]
+        assert mock_boto_client.query.call_count == 2
+        first_call = mock_boto_client.query.call_args_list[0].kwargs
+        second_call = mock_boto_client.query.call_args_list[1].kwargs
+        assert first_call["IndexName"] == "GSI2"
+        assert second_call["IndexName"] == "GSI2"
+
+    def test_rejects_invalid_operation_type(self, db_ops):
+        with pytest.raises(
+            ValueError, match="operation_type must be 'crawl' or 'scrape'"
+        ):
+            db_ops.get_shops_for_orchestration("index", "2026-01-02T00:00:00Z")

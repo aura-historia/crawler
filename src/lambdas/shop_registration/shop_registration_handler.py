@@ -2,12 +2,18 @@ import logging
 import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple
-import requests
-from requests import Session
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+
 import tldextract
 from pythonjsonlogger import json as pythonjson
+
+from aura_historia_backend_api_client.client import Client
+from aura_historia_backend_api_client.api.shops import (
+    create_shop,
+    update_shop_by_domain,
+)
+from aura_historia_backend_api_client.models import PostShopData, PatchShopData
+from aura_historia_backend_api_client.models.shop_type_data import ShopTypeData
+from aura_historia_backend_api_client.models.api_error import ApiError
 
 from src.core.aws.database.models import METADATA_SK, ShopMetadata
 from src.core.aws.database.operations import db_operations
@@ -24,137 +30,51 @@ if not logger.handlers:
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 
-BACKEND_API_URL = os.getenv("BACKEND_API_URL")
+API_BASE_URL = os.getenv("BACKEND_API_URL")
+
+
+class ShopRegistrationError(Exception):
+    """Exception raised when shop registration or update fails."""
+
+    pass
+
 
 extract_with_cache = tldextract.TLDExtract(cache_dir="/tmp/.tld_cache")
 
-RETRY_STATUSES = {429, 500, 502, 503, 504}
-
-# Reusable session to benefit from connection pooling across warm Lambda
-_GLOBAL_SESSION: Optional[Session] = None
+# Reusable client to benefit from connection pooling across warm Lambda
+_GLOBAL_CLIENT: Optional[Client] = None
 
 
-def _build_retry_session(
-    retry_attempts: int = 3, backoff_factor: float = 1.0
-) -> Session:
-    """Create a requests.Session configured with urllib3 Retry for resilient calls.
+def _get_client() -> Client | None:
+    """Return a module-level API client for making shop API calls.
 
-    Args:
-        retry_attempts (int): Number of retry attempts.
-        backoff_factor (float): Backoff factor for exponential backoff.
-
-    Returns:
-        requests.Session: Configured session instance.
-    """
-    session = requests.Session()
-    retry = Retry(
-        total=retry_attempts,
-        backoff_factor=backoff_factor,
-        status_forcelist=list(RETRY_STATUSES),
-        allowed_methods={"GET", "POST", "PUT", "PATCH"},
-        raise_on_status=False,
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    session.headers.update({"User-Agent": "aura-shop-registration/1.0"})
-    return session
-
-
-def _get_session() -> Session:
-    """Return a module-level requests.Session configured for retries.
-
-    This reuses TCP connections between Lambda invocations when the
+    This reuses connections between Lambda invocations when the
     execution environment is reused (warm starts), improving latency.
     """
-    global _GLOBAL_SESSION
-    if _GLOBAL_SESSION is None:
-        _GLOBAL_SESSION = _build_retry_session()
-    return _GLOBAL_SESSION
+    global _GLOBAL_CLIENT
+    if _GLOBAL_CLIENT is None:
+        if not API_BASE_URL:
+            raise ValueError("API_BASE_URL environment variable is not set.")
+        _GLOBAL_CLIENT = Client(base_url=API_BASE_URL)
+    return _GLOBAL_CLIENT
 
 
-def resilient_http_request_sync(
-    url: str,
-    session: Session,
-    method: str = "GET",
-    headers: Optional[dict] = None,
-    params: Optional[dict] = None,
-    json_data: Optional[dict] = None,
-    data: Any = None,
-    timeout_seconds: float = 30.0,
-    return_json: bool = False,
-) -> Any:
+def _shop_type_from_string(shop_type_str: str) -> ShopTypeData:
+    """Convert shop type string to ShopTypeData enum.
+
+    Args:
+        shop_type_str: String representation of shop type
+
+    Returns:
+        ShopTypeData enum value
     """
-    Perform a synchronous HTTP request with retries using requests + urllib3 Retry.
-
-    Raises on non-2xx responses after retries.
-    """
-    logger.info(
-        "Making HTTP request",
-        extra={
-            "method": method.upper(),
-            "url": url,
-            "has_json_payload": json_data is not None,
-            "payload": json_data,
-        },
-    )
-
-    try:
-        # Merge headers with session defaults so callers can override/extend
-        request_headers = (
-            dict(session.headers) if getattr(session, "headers", None) else {}
-        )
-        if headers:
-            request_headers.update(headers)
-
-        response = session.request(
-            method=method.upper(),
-            url=url,
-            headers=request_headers,
-            params=params or {},
-            json=json_data,
-            data=data,
-            timeout=timeout_seconds,
-        )
-
-        logger.info(
-            "HTTP request completed",
-            extra={
-                "method": method.upper(),
-                "url": url,
-                "status": response.status_code,
-                "response_preview": response.text[:200] if response.text else None,
-            },
-        )
-
-        response.raise_for_status()
-
-        if return_json:
-            try:
-                return response.json()
-            except ValueError:
-                logger.error(f"Invalid JSON from {url}")
-                raise
-        return response.text
-
-    except requests.RequestException as exc:
-        status = getattr(exc.response, "status_code", None)
-        body = getattr(exc.response, "text", None)
-        logger.error(
-            "HTTP request failed",
-            extra={
-                "method": method.upper(),
-                "url": url,
-                "status": status,
-                "body": body,
-            },
-        )
-        raise
-    except Exception as exc:
-        logger.error(
-            "Unexpected error during HTTP request",
-            extra={"method": method.upper(), "url": url, "error": str(exc)},
-        )
-        raise
+    shop_type_map = {
+        "AUCTION_HOUSE": ShopTypeData.AUCTION_HOUSE,
+        "AUCTION_PLATFORM": ShopTypeData.AUCTION_PLATFORM,
+        "COMMERCIAL_DEALER": ShopTypeData.COMMERCIAL_DEALER,
+        "MARKETPLACE": ShopTypeData.MARKETPLACE,
+    }
+    return shop_type_map.get(shop_type_str, ShopTypeData.COMMERCIAL_DEALER)
 
 
 def find_existing_shop(
@@ -207,36 +127,29 @@ def find_existing_shop(
     return existing_domains[0], existing_domains
 
 
-def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
+def register_or_update_shop(shop: ShopMetadata, client: Client) -> None:
     """
     Registers a new shop or updates an existing one with a new domain using
-    a synchronous resilient HTTP client.
+    the OpenAPI client.
 
     Args:
         shop: The shop data from the DynamoDB stream (ShopMetadata must contain
             shop_name if present in the stream).
-        session: requests.Session to perform HTTP calls (will be configured for
-            retries by the caller).
+        client: OpenAPI Client to perform API calls.
 
     Raises:
-        ValueError: If BACKEND_API_URL is not set.
-        requests.RequestException: If HTTP calls fail after retries.
+        ValueError: If API_BASE_URL is not set.
+        Exception: If API calls fail.
     """
     logger.info(
         "Starting shop registration/update process",
         extra={
             "domain": shop.domain,
             "shop_name": shop.shop_name,
+            "shop_type": shop.shop_type,
             "core_domain_name": shop.core_domain_name,
         },
     )
-
-    if not BACKEND_API_URL:
-        logger.error("BACKEND_API_URL environment variable is not set.")
-        raise ValueError("Backend API URL is not configured.")
-
-    shops_endpoint = f"{BACKEND_API_URL.rstrip('/')}/shops"
-    headers = {"Content-Type": "application/json"}
 
     existing_shop_info = find_existing_shop(
         shop.domain, core_domain_name=shop.core_domain_name
@@ -250,8 +163,9 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
         # Add the new domain to the complete list for the backend
         all_domains_for_backend = all_existing_domains + [shop.domain]
 
-        payload = {"domains": all_domains_for_backend}
-        patch_url = f"{shops_endpoint}/{shop_identifier}"
+        patch_data = PatchShopData(
+            domains=all_domains_for_backend,
+        )
 
         logger.info(
             "Adding domain to existing shop",
@@ -264,16 +178,24 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
             },
         )
 
-        # Backend PATCH endpoint is idempotent:
-        # sending the full domains list replaces state, so retries are safe.
-        resilient_http_request_sync(
-            patch_url,
-            session,
-            method="PATCH",
-            json_data=payload,
-            headers=headers,
-            timeout_seconds=10,
+        response = update_shop_by_domain.sync(
+            shop_domain=shop_identifier,
+            client=client,
+            body=patch_data,
         )
+
+        if isinstance(response, ApiError):
+            logger.error(
+                "Failed to update shop",
+                extra={
+                    "domain": shop.domain,
+                    "shop_identifier": shop_identifier,
+                    "error_title": response.title,
+                    "error_detail": response.detail,
+                },
+            )
+            raise ShopRegistrationError(f"Failed to update shop: {response.detail}")
+
         logger.info(
             "Successfully added domain to existing shop",
             extra={"domain": shop.domain, "shop_identifier": shop_identifier},
@@ -283,14 +205,16 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
         if not shop_name:
             shop_name = shop.core_domain_name if shop.core_domain_name else None
         if not shop_name:
-            import tldextract
-
             shop_name = tldextract.extract(shop.domain).domain
 
-        payload = {
-            "name": shop_name,
-            "domains": [shop.domain],
-        }
+        shop_type_enum = _shop_type_from_string(shop.shop_type)
+
+        post_data = PostShopData(
+            name=shop_name,
+            shop_type=shop_type_enum,
+            domains=[shop.domain],
+            image=shop.shop_image,
+        )
 
         logger.info(
             "Creating new shop",
@@ -298,17 +222,26 @@ def register_or_update_shop(shop: ShopMetadata, session: Session) -> None:
                 "operation": "POST",
                 "domain": shop.domain,
                 "shop_name": shop_name,
-                "payload": payload,
+                "shop_type": shop.shop_type,
             },
         )
-        resilient_http_request_sync(
-            shops_endpoint,
-            session,
-            method="POST",
-            json_data=payload,
-            headers=headers,
-            timeout_seconds=10,
+
+        response = create_shop.sync(
+            client=client,
+            body=post_data,
         )
+
+        if isinstance(response, ApiError):
+            logger.error(
+                "Failed to create shop",
+                extra={
+                    "domain": shop.domain,
+                    "error_title": response.title,
+                    "error_detail": response.detail,
+                },
+            )
+            raise ShopRegistrationError(f"Failed to create shop: {response.detail}")
+
         logger.info(
             "Successfully created new shop",
             extra={"domain": shop.domain, "shop_name": shop_name},
@@ -341,6 +274,16 @@ def _extract_minimal_shop_from_image(
     shop_name = (
         new_image.get("shop_name", {}).get("S") if new_image.get("shop_name") else None
     )
+    shop_image = (
+        new_image.get("shop_image", {}).get("S")
+        if new_image.get("shop_image")
+        else None
+    )
+    shop_type = (
+        new_image.get("shop_type", {}).get("S")
+        if new_image.get("shop_type")
+        else "COMMERCIAL_DEALER"
+    )
     core_domain_name = (
         new_image.get("core_domain_name", {}).get("S")
         if new_image.get("core_domain_name")
@@ -348,13 +291,17 @@ def _extract_minimal_shop_from_image(
     )
 
     shop = ShopMetadata(
-        domain=domain, shop_name=shop_name, core_domain_name=core_domain_name
+        domain=domain,
+        shop_name=shop_name,
+        shop_image=shop_image,
+        shop_type=shop_type,
+        core_domain_name=core_domain_name,
     )
 
     return shop
 
 
-def _process_record(record: Dict[str, Any], session: Session) -> Optional[str]:
+def _process_record(record: Dict[str, Any], client: Client) -> Optional[str]:
     """Process a single DynamoDB stream record.
 
     Returns a SequenceNumber string when processing failed (to be used as
@@ -402,13 +349,14 @@ def _process_record(record: Dict[str, Any], session: Session) -> Optional[str]:
         extra={
             "domain": shop.domain,
             "shop_name": shop.shop_name,
+            "shop_type": shop.shop_type,
             "core_domain_name": shop.core_domain_name,
             "sequence_number": seq,
         },
     )
 
     try:
-        register_or_update_shop(shop, session)
+        register_or_update_shop(shop, client)
         logger.info(
             "Successfully processed record",
             extra={"domain": shop.domain, "sequence_number": seq},
@@ -446,11 +394,11 @@ def handler(event: Dict[str, Any], context: object) -> Dict[str, Any]:
 
     batch_item_failures: List[Dict[str, str]] = []
 
-    session = _get_session()
+    client = _get_client()
 
     for idx, record in enumerate(records, 1):
         logger.info(f"Processing record {idx}/{len(records)}")
-        seq = _process_record(record, session)
+        seq = _process_record(record, client)
         if seq:
             batch_item_failures.append({"itemIdentifier": seq})
 

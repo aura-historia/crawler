@@ -120,6 +120,7 @@ class ShopRegistrationLambdaConstruct(Construct):
                     "src/lambdas/orchestration_spider",
                     "local_development",
                     "scripts",
+                    "src/apps",
                 ],
             ),
             role=role,

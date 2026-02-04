@@ -264,7 +264,6 @@ def _filter_eligible_shops_for_crawl(
                 "Skipping shop - crawl in progress",
                 extra={
                     "domain": shop.domain,
-                    "last_crawled_start": shop.last_crawled_start,
                     "last_crawled_end": shop.last_crawled_end,
                 },
             )
@@ -317,13 +316,12 @@ def _filter_eligible_shops_for_scrape(
 
     for shop in shops:
         # Check if scrape already in progress
-        if shop.last_scraped_end.startswith(STATE_PROGRESS):
+        if shop.last_scraped_end and shop.last_scraped_end.startswith(STATE_PROGRESS):
             stats["in_progress"] += 1
             logger.debug(
                 "Skipping shop - scrape in progress",
                 extra={
                     "domain": shop.domain,
-                    "last_scraped_start": shop.last_scraped_start,
                     "last_scraped_end": shop.last_scraped_end,
                 },
             )

@@ -38,8 +38,8 @@ if not os.getenv("AWS_SECRET_ACCESS_KEY"):
 if not os.getenv("API_KEY"):
     os.environ["API_KEY"] = "test-key"
 
-if not os.getenv("API_BASE_URL"):
-    os.environ["API_BASE_URL"] = "http://localhost:8080"
+if not os.getenv("BACKEND_API_URL"):
+    os.environ["BACKEND_API_URL"] = "http://localhost:8080"
 
 
 @pytest.fixture(scope="session", autouse=True)

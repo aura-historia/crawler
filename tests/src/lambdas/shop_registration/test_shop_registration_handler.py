@@ -1,6 +1,5 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 import pytest
-import requests
 
 from src.core.aws.database.models import METADATA_SK
 from src.core.aws.database.operations import ShopMetadata
@@ -8,8 +7,10 @@ from src.lambdas.shop_registration.shop_registration_handler import (
     find_existing_shop,
     handler,
     register_or_update_shop,
-    resilient_http_request_sync,
+    _shop_type_from_string,
 )
+
+from aura_historia_backend_api_client.models.shop_type_data import ShopTypeData
 
 
 @pytest.fixture
@@ -17,6 +18,7 @@ def sample_shop_metadata():
     return ShopMetadata(
         domain="shop.com",
         shop_country="DE",
+        shop_type="COMMERCIAL_DEALER",
     )
 
 
@@ -27,7 +29,30 @@ def sample_dynamodb_item():
         "sk": {"S": METADATA_SK},
         "domain": {"S": "shop.com"},
         "core_domain_name": {"S": "shop"},
+        "shop_type": {"S": "COMMERCIAL_DEALER"},
     }
+
+
+class TestShopTypeFromString:
+    def test_commercial_dealer(self):
+        assert (
+            _shop_type_from_string("COMMERCIAL_DEALER")
+            == ShopTypeData.COMMERCIAL_DEALER
+        )
+
+    def test_auction_house(self):
+        assert _shop_type_from_string("AUCTION_HOUSE") == ShopTypeData.AUCTION_HOUSE
+
+    def test_auction_platform(self):
+        assert (
+            _shop_type_from_string("AUCTION_PLATFORM") == ShopTypeData.AUCTION_PLATFORM
+        )
+
+    def test_marketplace(self):
+        assert _shop_type_from_string("MARKETPLACE") == ShopTypeData.MARKETPLACE
+
+    def test_unknown_defaults_to_commercial_dealer(self):
+        assert _shop_type_from_string("UNKNOWN") == ShopTypeData.COMMERCIAL_DEALER
 
 
 class TestFindExistingShop:
@@ -73,72 +98,66 @@ class TestFindExistingShop:
 
 
 class TestRegisterOrUpdateShop:
-    @patch(
-        "src.lambdas.shop_registration.shop_registration_handler.resilient_http_request_sync",
-        new_callable=Mock,
-    )
+    @patch("src.lambdas.shop_registration.shop_registration_handler.create_shop")
     @patch("src.lambdas.shop_registration.shop_registration_handler.find_existing_shop")
-    @patch(
-        "src.lambdas.shop_registration.shop_registration_handler.BACKEND_API_URL",
-        "http://test-backend",
-    )
     def test_register_new_shop(
-        self, mock_find_existing, mock_resilient, sample_shop_metadata
+        self, mock_find_existing, mock_create_shop, sample_shop_metadata
     ):
         mock_find_existing.return_value = None
-        session = Mock()
+        mock_response = MagicMock()
+        mock_response.__class__ = Mock  # Not an ApiError
+        mock_create_shop.sync.return_value = mock_response
+        client = Mock()
 
-        register_or_update_shop(sample_shop_metadata, session)
+        register_or_update_shop(sample_shop_metadata, client)
 
-        mock_resilient.assert_called_once()
-        _, kwargs = mock_resilient.call_args
-        assert kwargs["method"] == "POST"
-        assert "name" in kwargs["json_data"]
-        assert kwargs["json_data"]["domains"] == [sample_shop_metadata.domain]
+        mock_create_shop.sync.assert_called_once()
+        call_kwargs = mock_create_shop.sync.call_args
+        assert call_kwargs.kwargs["client"] == client
+        body = call_kwargs.kwargs["body"]
+        assert body.name == "shop"  # core_domain_name derived from domain
+        assert body.shop_type == ShopTypeData.COMMERCIAL_DEALER
+        assert body.domains == [sample_shop_metadata.domain]
 
     @patch(
-        "src.lambdas.shop_registration.shop_registration_handler.resilient_http_request_sync",
-        new_callable=Mock,
+        "src.lambdas.shop_registration.shop_registration_handler.update_shop_by_domain"
     )
     @patch("src.lambdas.shop_registration.shop_registration_handler.find_existing_shop")
-    @patch(
-        "src.lambdas.shop_registration.shop_registration_handler.BACKEND_API_URL",
-        "http://test-backend",
-    )
     def test_update_existing_shop(
-        self, mock_find_existing, mock_resilient, sample_shop_metadata
+        self, mock_find_existing, mock_update_shop, sample_shop_metadata
     ):
         mock_find_existing.return_value = ("shop.com", ["shop.com", "shop.de"])
-        session = Mock()
+        mock_response = MagicMock()
+        mock_response.__class__ = Mock  # Not an ApiError
+        mock_update_shop.sync.return_value = mock_response
+        client = Mock()
 
-        register_or_update_shop(sample_shop_metadata, session)
+        register_or_update_shop(sample_shop_metadata, client)
 
-        mock_resilient.assert_called_once()
-        _, kwargs = mock_resilient.call_args
-        assert kwargs["method"] == "PATCH"
-        assert "domains" in kwargs["json_data"]
-        assert sample_shop_metadata.domain in kwargs["json_data"]["domains"]
+        mock_update_shop.sync.assert_called_once()
+        call_kwargs = mock_update_shop.sync.call_args
+        assert call_kwargs.kwargs["shop_domain"] == "shop.com"
+        assert call_kwargs.kwargs["client"] == client
+        body = call_kwargs.kwargs["body"]
+        assert sample_shop_metadata.domain in body.domains
 
-    def test_backend_api_url_missing(self, sample_shop_metadata):
-        # Temporarily patch BACKEND_API_URL to None
-        with patch(
-            "src.lambdas.shop_registration.shop_registration_handler.BACKEND_API_URL",
-            None,
-        ):
-            session = Mock()
-            with pytest.raises(ValueError):
-                register_or_update_shop(sample_shop_metadata, session)
-
-    @patch(
-        "src.lambdas.shop_registration.shop_registration_handler.resilient_http_request_sync",
-        new_callable=Mock,
-    )
+    @patch("src.lambdas.shop_registration.shop_registration_handler.create_shop")
     @patch("src.lambdas.shop_registration.shop_registration_handler.find_existing_shop")
-    def test_handles_invalid_shop_metadata(self, mock_find_existing, mock_resilient):
+    def test_handles_invalid_shop_metadata(self, mock_find_existing, mock_create_shop):
+        from aura_historia_backend_api_client.models.api_error import ApiError
+
+        mock_find_existing.return_value = None
+        mock_error = Mock(spec=ApiError)
+        mock_error.title = "Bad Request"
+        mock_error.detail = "Invalid domain"
+        mock_create_shop.sync.return_value = mock_error
+
         shop = ShopMetadata(domain="", shop_country="DE")
-        session = Mock()
-        with pytest.raises(Exception):
-            register_or_update_shop(shop, session)
+        client = Mock()
+
+        with pytest.raises(Exception) as exc_info:
+            register_or_update_shop(shop, client)
+        assert "Failed to create shop" in str(exc_info.value)
 
 
 class TestHandler:
@@ -146,9 +165,13 @@ class TestHandler:
         "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
+    @patch(
+        "src.lambdas.shop_registration.shop_registration_handler._get_client",
+    )
     def test_processes_insert_event_successfully(
-        self, mock_register, sample_dynamodb_item
+        self, mock_get_client, mock_register, sample_dynamodb_item
     ):
+        mock_get_client.return_value = Mock()
         event = {
             "Records": [
                 {
@@ -169,14 +192,19 @@ class TestHandler:
         shop_arg = args[0]
         assert hasattr(shop_arg, "core_domain_name")
         assert shop_arg.core_domain_name == "shop"
+        assert shop_arg.shop_type == "COMMERCIAL_DEALER"
 
     @patch(
         "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
+    @patch(
+        "src.lambdas.shop_registration.shop_registration_handler._get_client",
+    )
     def test_partial_batch_failure_mixed_results(
-        self, mock_register, sample_dynamodb_item
+        self, mock_get_client, mock_register, sample_dynamodb_item
     ):
+        mock_get_client.return_value = Mock()
         mock_register.side_effect = [Exception("First record failed"), None]
         item2 = sample_dynamodb_item.copy()
         item2["domain"] = {"S": "success-shop.com"}
@@ -214,7 +242,13 @@ class TestHandler:
         "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
-    def test_skips_modify_events(self, mock_register, sample_dynamodb_item):
+    @patch(
+        "src.lambdas.shop_registration.shop_registration_handler._get_client",
+    )
+    def test_skips_modify_events(
+        self, mock_get_client, mock_register, sample_dynamodb_item
+    ):
+        mock_get_client.return_value = Mock()
         event = {
             "Records": [
                 {
@@ -236,7 +270,11 @@ class TestHandler:
         "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
-    def test_handles_missing_new_image(self, mock_register):
+    @patch(
+        "src.lambdas.shop_registration.shop_registration_handler._get_client",
+    )
+    def test_handles_missing_new_image(self, mock_get_client, mock_register):
+        mock_get_client.return_value = Mock()
         event = {
             "Records": [
                 {
@@ -256,7 +294,11 @@ class TestHandler:
         "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
         new_callable=Mock,
     )
-    def test_handles_empty_records(self, mock_register):
+    @patch(
+        "src.lambdas.shop_registration.shop_registration_handler._get_client",
+    )
+    def test_handles_empty_records(self, mock_get_client, mock_register):
+        mock_get_client.return_value = Mock()
         result = handler({"Records": []}, None)
         assert result == {"batchItemFailures": []}
         result2 = handler({}, None)
@@ -264,76 +306,77 @@ class TestHandler:
         mock_register.assert_not_called()
 
 
-class TestResilientHttpRequestSync:
-    def test_returns_text_on_200(self):
-        """Returns response.text when status is 200 and return_json is False."""
-        session = Mock()
-        response = Mock()
-        response.raise_for_status = Mock()
-        response.text = "ok"
-        response.json = Mock(side_effect=RuntimeError("json should not be called"))
+class TestShopTypeExtraction:
+    @patch(
+        "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
+        new_callable=Mock,
+    )
+    @patch(
+        "src.lambdas.shop_registration.shop_registration_handler._get_client",
+    )
+    def test_extracts_shop_type_from_stream(self, mock_get_client, mock_register):
+        """Test that shop_type is correctly extracted from DynamoDB stream."""
+        mock_get_client.return_value = Mock()
+        mock_register.return_value = None
 
-        session.headers = {"User-Agent": "aura-shop-registration/1.0"}
-        session.request = Mock(return_value=response)
+        dynamodb_item = {
+            "pk": {"S": "SHOP#test.com"},
+            "sk": {"S": METADATA_SK},
+            "domain": {"S": "test.com"},
+            "shop_type": {"S": "AUCTION_HOUSE"},
+        }
 
-        result = resilient_http_request_sync(
-            "http://example.test/", session, method="GET", return_json=False
-        )
+        event = {
+            "Records": [
+                {
+                    "eventName": "INSERT",
+                    "dynamodb": {
+                        "NewImage": dynamodb_item,
+                        "SequenceNumber": "seq-type",
+                    },
+                }
+            ]
+        }
 
-        assert result == "ok"
-        session.request.assert_called_once()
-        _, kwargs = session.request.call_args
-        assert kwargs["method"] == "GET"
-        assert kwargs["url"] == "http://example.test/"
+        handler(event, None)
 
-    def test_returns_json_on_200_and_return_json_true(self):
-        """Returns parsed JSON when return_json=True."""
-        session = Mock()
-        response = Mock()
-        response.raise_for_status = Mock()
-        response.text = '{"a": 1}'
-        response.json = Mock(return_value={"a": 1})
+        mock_register.assert_called_once()
+        shop_arg = mock_register.call_args[0][0]
+        assert shop_arg.shop_type == "AUCTION_HOUSE"
 
-        session.headers = {}
-        session.request = Mock(return_value=response)
+    @patch(
+        "src.lambdas.shop_registration.shop_registration_handler.register_or_update_shop",
+        new_callable=Mock,
+    )
+    @patch(
+        "src.lambdas.shop_registration.shop_registration_handler._get_client",
+    )
+    def test_defaults_shop_type_when_missing(self, mock_get_client, mock_register):
+        """Test that shop_type defaults to COMMERCIAL_DEALER when not in stream."""
+        mock_get_client.return_value = Mock()
+        mock_register.return_value = None
 
-        result = resilient_http_request_sync(
-            "http://example.test/", session, method="POST", return_json=True
-        )
+        dynamodb_item = {
+            "pk": {"S": "SHOP#test.com"},
+            "sk": {"S": METADATA_SK},
+            "domain": {"S": "test.com"},
+            # No shop_type field
+        }
 
-        assert result == {"a": 1}
+        event = {
+            "Records": [
+                {
+                    "eventName": "INSERT",
+                    "dynamodb": {
+                        "NewImage": dynamodb_item,
+                        "SequenceNumber": "seq-default",
+                    },
+                }
+            ]
+        }
 
-    def test_invalid_json_raises_when_return_json_true(self):
-        """If response.json() raises ValueError, the error is propagated."""
-        session = Mock()
-        response = Mock()
-        response.raise_for_status = Mock()
-        response.text = "not json"
-        response.json = Mock(side_effect=ValueError("Invalid JSON"))
+        handler(event, None)
 
-        session.headers = {}
-        session.request = Mock(return_value=response)
-
-        with pytest.raises(ValueError):
-            resilient_http_request_sync(
-                "http://example.test/", session, return_json=True
-            )
-
-    def test_non_2xx_raises_http_error_after_raise_for_status(self):
-        """HTTP errors raised by raise_for_status are propagated."""
-        session = Mock()
-        response = Mock()
-        response.status_code = 500
-        response.text = "Internal Server Error"
-
-        # Create HTTPError with response attribute for logging
-        http_error = requests.HTTPError("Server error")
-        http_error.response = response
-
-        response.raise_for_status = Mock(side_effect=http_error)
-
-        session.headers = {}
-        session.request = Mock(return_value=response)
-
-        with pytest.raises(requests.HTTPError):
-            resilient_http_request_sync("http://example.test/", session)
+        mock_register.assert_called_once()
+        shop_arg = mock_register.call_args[0][0]
+        assert shop_arg.shop_type == "COMMERCIAL_DEALER"
