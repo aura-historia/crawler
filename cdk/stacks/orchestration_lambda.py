@@ -174,6 +174,7 @@ class OrchestrationLambdaConstruct(Construct):
                     "local_development",
                     "scripts",
                     "src/apps",
+                    "aura-historia-backend-api-client",
                 ],
             ),
             role=role,

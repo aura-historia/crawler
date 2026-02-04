@@ -1,6 +1,9 @@
 import os
 
+from dotenv import load_dotenv
 from aura_historia_backend_api_client.client import Client
+
+load_dotenv()
 
 api_key = os.getenv("API_KEY")
 headers = {"X-API-Key": api_key}

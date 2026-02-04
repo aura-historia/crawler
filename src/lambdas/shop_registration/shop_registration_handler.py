@@ -45,7 +45,7 @@ extract_with_cache = tldextract.TLDExtract(cache_dir="/tmp/.tld_cache")
 _GLOBAL_CLIENT: Optional[Client] = None
 
 
-def _get_client() -> Client:
+def _get_client() -> Client | None:
     """Return a module-level API client for making shop API calls.
 
     This reuses connections between Lambda invocations when the
@@ -165,7 +165,6 @@ def register_or_update_shop(shop: ShopMetadata, client: Client) -> None:
 
         patch_data = PatchShopData(
             domains=all_domains_for_backend,
-            image=shop.shop_image,
         )
 
         logger.info(
