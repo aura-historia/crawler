@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from stacks.database import DatabaseStack
 from stacks.orchestration_lambda import OrchestrationStack
 from stacks.queues import QueueStack
+from stacks.s3 import S3Stack
 from stacks.shop_registration_lambda import CrawlerStack
 
 load_dotenv(verbose=True)
@@ -19,6 +20,8 @@ env_config = cdk.Environment(
 db_stack = DatabaseStack(app, "DatabaseStack", env=env_config)
 
 queue_stack = QueueStack(app, "QueueStack", env=env_config)
+
+s3_stack = S3Stack(app, "S3Stack", env=env_config)
 
 shop_registration_lambda_stack = CrawlerStack(
     app,
