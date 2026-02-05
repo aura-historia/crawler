@@ -38,8 +38,8 @@ ScrapedData = PutProductData
 
 QUEUE_NAME = os.getenv("SQS_QUEUE_NAME")
 
-REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "50"))
-LOG_METRICS_INTERVAL = int(os.getenv("LOG_METRICS_INTERVAL", "50"))
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "0"))
+LOG_METRICS_INTERVAL = int(os.getenv("LOG_METRICS_INTERVAL", "2"))
 
 _metrics = {
     "processed": 0,
