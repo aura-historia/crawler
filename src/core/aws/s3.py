@@ -4,8 +4,11 @@ import json
 from typing import Any, Optional
 import boto3
 from botocore.exceptions import ClientError
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
+
+load_dotenv(verbose=True)
 
 
 def _get_s3_config() -> dict:
@@ -74,9 +77,25 @@ class S3Operations:
             logger.error(f"Error listing objects in S3: {e}")
             return []
 
+    def ensure_bucket_exists(self) -> None:
+        """Create the bucket if it doesn't exist."""
+        try:
+            self.client.head_bucket(Bucket=self.bucket_name)
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            if error_code == "404":
+                logger.info(f"Creating S3 bucket: {self.bucket_name}")
+                kwargs = {"Bucket": self.bucket_name}
+                if self.config.get("region_name") != "us-east-1":
+                    kwargs["CreateBucketConfiguration"] = {
+                        "LocationConstraint": self.config["region_name"]
+                    }
+                self.client.create_bucket(**kwargs)
+            else:
+                logger.error(f"Error checking S3 bucket: {e}")
+                raise
+
 
 if __name__ == "__main__":
-    # Simple test to verify S3 operations
-    s3_ops = S3Operations()
-    test_key = "test/boilerplate.json"
-    test_data = {"blocks": ["sample block 1", "sample block 2"]}
+    s3 = S3Operations()
+    s3.ensure_bucket_exists()
