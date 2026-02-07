@@ -134,6 +134,18 @@ class TestBoilerplateRemover:
             assert blocks3 == [["s3_block"]]
             assert mock_thread.call_count == 2
 
+    @pytest.mark.asyncio
+    async def test_load_for_shop_missing_data(self, mock_s3):
+        """Verify load_for_shop returns None when S3 data is missing."""
+        remover = BoilerplateRemover()
+
+        with patch(
+            "src.core.scraper.cleaning.boilerplate_remover.asyncio.to_thread",
+            return_value=None,
+        ):
+            blocks = await remover.load_for_shop("missing.com")
+            assert blocks is None
+
     def test_clean_exact_output(self, mock_s3):
         """Verify boilerplate removal preserves content integrity and removes exact blocks."""
         remover = BoilerplateRemover()

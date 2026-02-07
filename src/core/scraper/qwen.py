@@ -122,7 +122,7 @@ async def _apply_boilerplate_removal(markdown: str, domain: str) -> str:
         blocks = await boilerplate_remover.load_for_shop(domain)
 
         # Check if we need to discover (blocks missing)
-        if not blocks:
+        if blocks is None:
             logger.info(f"Triggering boilerplate discovery for {domain}")
             blocks = await boilerplate_discovery.discover_and_save(domain)
 

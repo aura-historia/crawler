@@ -99,12 +99,15 @@ class BoilerplateDiscovery:
 
         if blocks:
             logger.info(f"Discovered {len(blocks)} boilerplate blocks for {domain}")
-            # 4. Save to S3
-            await asyncio.to_thread(
-                self.s3.upload_json, f"boilerplate/{domain}.json", {"blocks": blocks}
-            )
         else:
-            logger.info(f"No common boilerplate blocks found for {domain}")
+            logger.info(
+                f"No common boilerplate blocks found for {domain}. Saving empty state."
+            )
+
+        # 4. Save to S3 (even if empty, to mark as "checked")
+        await asyncio.to_thread(
+            self.s3.upload_json, f"boilerplate/{domain}.json", {"blocks": blocks}
+        )
 
         return blocks
 
