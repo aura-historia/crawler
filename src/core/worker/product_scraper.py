@@ -165,7 +165,7 @@ async def scrape(
     results_q = asyncio.Queue()
     consumer_task = asyncio.create_task(batch_sender(results_q, backend_batch_size))
 
-    stats = PerformanceStats(total_urls=len(urls))
+    stats = PerformanceStats(total_urls=len(urls), domains_processed=domain)
 
     # We process in chunks so we can "checkpoint" the next_url frequently
     for i in range(0, len(urls), vllm_batch_size):
@@ -215,7 +215,6 @@ async def scrape(
                 if product.is_product:
                     stats.extracted_successfully += 1
                     product = map_extracted_product_to_api(product, url)
-                    print(json.dumps(product.to_dict(), indent=2, ensure_ascii=False))
                     await results_q.put(product)
                 else:
                     # It's valid JSON, but the LLM correctly identified it's NOT a product
@@ -223,6 +222,12 @@ async def scrape(
 
         # 4. Update Progress
         processed_count += len(url_chunk)
+        stats.processed_urls = processed_count
+
+        if processed_count % 50 == 0:
+            stats.report(type="current")
+
+    stats.report(type="total")
 
     await results_q.put(None)
     await consumer_task
