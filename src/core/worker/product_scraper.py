@@ -214,7 +214,9 @@ async def scrape(
                 # Case C: Absolute Success
                 if product.is_product:
                     stats.extracted_successfully += 1
-                    await results_q.put(map_extracted_product_to_api(product, url))
+                    product = map_extracted_product_to_api(product, url)
+                    print(json.dumps(product.to_dict(), indent=2, ensure_ascii=False))
+                    await results_q.put(product)
                 else:
                     # It's valid JSON, but the LLM correctly identified it's NOT a product
                     stats.filtered_non_products += 1

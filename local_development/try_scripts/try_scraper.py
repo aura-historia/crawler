@@ -27,10 +27,11 @@ async def run_test():
     logger.info("Starting scraper test run...")
 
     # --- Configuration ---
-    test_domains = ["antixx.de", "antik-shop.de", "antik-und-stil.com"]
+    test_domains = ["antik-shop.de"]
     queue_name = "product_scraper_queue"
     n_shops = 2
-    batch_size = 200
+    backend_batch_size = 100
+    vllm_batch_size = 5
 
     # --- Initialization and Message Sending ---
     try:
@@ -77,7 +78,11 @@ async def run_test():
 
         # Create tasks for the scraper worker and the termination simulator
         worker_task = asyncio.create_task(
-            product_scraper_main(n_workers=n_shops, batch_size=batch_size)
+            product_scraper_main(
+                n_workers=n_shops,
+                backend_batch_size=backend_batch_size,
+                vllm_batch_size=vllm_batch_size,
+            )
         )
 
         # Wait for either the worker to finish or the termination to be triggered

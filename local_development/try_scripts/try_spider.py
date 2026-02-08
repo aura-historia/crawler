@@ -41,7 +41,7 @@ async def run_test():
 
     # --- Configuration ---
     test_domains = [
-        "antik-und-stil.com",
+        "antiquitaeten-tuebingen.de",
     ]
     queue_name = "spider_product_queue"
     batch_size = 50

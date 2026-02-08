@@ -774,3 +774,14 @@ class DynamoDBOperations:
 
 
 db_operations = DynamoDBOperations()
+
+if __name__ == "__main__":
+    shop = ShopMetadata(
+        domain="antiquitaeten-tuebingen.de",
+        shop_country="COUNTRY#DE",
+        last_crawled_end="NEVER#",
+        last_scraped_end="NEVER#",
+        core_domain_name="antiquitaeten-tuebingen.de",
+    )
+
+    db_operations.upsert_shop_metadata(shop)

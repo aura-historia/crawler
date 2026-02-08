@@ -7,6 +7,7 @@ from core.scraper.schemas.extracted_product import ExtractedProduct
 from src.core.utils.configs import build_product_scraper_components
 
 logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.ERROR)
 
 # Shared async client for OpenAI-compatible vLLM server
 client = AsyncOpenAI(
