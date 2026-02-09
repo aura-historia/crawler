@@ -13,7 +13,6 @@ from src.core.worker.product_scraper import (
     handle_domain_message,
     main,
     worker,
-    log_metrics_if_needed,
     process_single_url,
 )
 
@@ -51,6 +50,21 @@ class FakeCrawler:
             return self._results.pop(0)
         return FakeResult(url=url)
 
+    async def arun_many(self, urls, **_kwargs):
+        """Mock batch crawl method matching AsyncWebCrawler.arun_many signature."""
+        await asyncio.sleep(0)
+        results = []
+        for url in urls:
+            if url in self.raise_on:
+                results.append(
+                    FakeResult(url=url, success=False, error_message="crawl fail")
+                )
+            elif self._results:
+                results.append(self._results.pop(0))
+            else:
+                results.append(FakeResult(url=url))
+        return results
+
     async def __aenter__(self):
         return self
 
@@ -60,7 +74,7 @@ class FakeCrawler:
 
 @pytest.fixture
 def mock_qwen_extract():
-    """Mock qwen_extract function."""
+    """Mock qwen_extract and extract functions."""
     from src.core.scraper.schemas.extracted_product import (
         ExtractedProduct,
         LocalizedText,
@@ -79,10 +93,13 @@ def mock_qwen_extract():
             images=["https://example.com/image.jpg"],
         )
 
-    with patch(
-        "src.core.worker.product_scraper.qwen_extract", new=fake_qwen_extract
-    ) as mock:
-        yield mock
+    mock_extract = AsyncMock(side_effect=fake_qwen_extract)
+
+    with (
+        patch("src.core.worker.product_scraper.qwen_extract", new=mock_extract),
+        patch("src.core.worker.product_scraper.extract", new=mock_extract),
+    ):
+        yield mock_extract
 
 
 @pytest.fixture
@@ -238,66 +255,34 @@ class TestBatchSender:
         assert mock_put_products.call_count == 0
 
 
-class TestLogMetricsIfNeeded:
-    """Tests for _log_metrics_if_needed function."""
-
-    def test_log_metrics_at_interval(self):
-        """Test that metrics are logged at the configured interval."""
-
-        # Set processed to a multiple of LOG_METRICS_INTERVAL
-        product_scraper._metrics["processed"] = 50
-        product_scraper.LOG_METRICS_INTERVAL = 50
-
-        with patch("src.core.worker.product_scraper.logger") as mock_logger:
-            log_metrics_if_needed("example.com")
-
-            mock_logger.info.assert_called_once()
-            call_args = mock_logger.info.call_args
-            assert "Metrics:" in call_args[0][0]
-
-    def test_no_log_between_intervals(self):
-        """Test that metrics are not logged between intervals."""
-        from src.core.worker import product_scraper
-
-        # Set processed to a non-multiple of LOG_METRICS_INTERVAL
-        product_scraper._metrics["processed"] = 49
-        product_scraper.LOG_METRICS_INTERVAL = 50
-
-        with patch("src.core.worker.product_scraper.logger") as mock_logger:
-            log_metrics_if_needed("example.com")
-
-            mock_logger.info.assert_not_called()
-
-
 class TestProcessSingleUrl:
     """Tests for _process_single_url function."""
 
+    @patch("src.core.worker.product_scraper.PerformanceStats")
     @pytest.mark.asyncio
     async def test_process_single_url_success(
-        self, mock_qwen_extract, mock_put_products, mock_update_hash
+        self, mock_stats_cls, mock_qwen_extract, mock_put_products, mock_update_hash
     ):
         """Test successful processing of a single URL."""
-        from src.core.worker import product_scraper
 
-        crawler = FakeCrawler(results=[FakeResult(url="https://example.com/1")])
+        # Mock PerformanceStats instance
+        mock_stats = Mock()
+        mock_stats_cls.return_value = mock_stats
+
+        crawler = FakeCrawler(
+            results=[FakeResult(url="https://example.com/product", success=True)]
+        )
+        domain = "example.com"
+        run_config = {}
         result_queue = asyncio.Queue()
 
-        # Reset metrics
-        product_scraper._metrics["processed"] = 0
-        product_scraper._metrics["extracted"] = 0
-
         await process_single_url(
-            "https://example.com/1",
-            cast(AsyncWebCrawler, cast(object, crawler)),
-            "example.com",
-            {},
-            result_queue,
+            "https://example.com/product", crawler, domain, run_config, result_queue
         )
 
-        assert product_scraper._metrics["processed"] == 1
-        assert product_scraper._metrics["extracted"] == 1
         assert result_queue.qsize() == 1
         item = await result_queue.get()
+        assert item.shops_product_id == "test-123"
         from aura_historia_backend_api_client.models import (
             LocalizedTextData,
             LanguageData,
@@ -310,7 +295,6 @@ class TestProcessSingleUrl:
     @pytest.mark.asyncio
     async def test_process_single_url_timeout(self):
         """Test processing a URL that times out."""
-        from src.core.worker import product_scraper
 
         async def slow_arun(*args, **kwargs):
             await asyncio.sleep(100)  # Simulate timeout
@@ -318,10 +302,6 @@ class TestProcessSingleUrl:
         crawler = Mock()
         crawler.arun = slow_arun
         result_queue = asyncio.Queue()
-
-        # Reset metrics
-        product_scraper._metrics["processed"] = 0
-        product_scraper._metrics["timeout"] = 0
 
         with patch("src.core.worker.product_scraper.REQUEST_TIMEOUT", 0.1):
             await process_single_url(
@@ -332,21 +312,18 @@ class TestProcessSingleUrl:
                 result_queue,
             )
 
-        assert product_scraper._metrics["processed"] == 1
-        assert product_scraper._metrics["timeout"] == 1
         assert result_queue.qsize() == 0
 
+    @patch("src.core.worker.product_scraper.PerformanceStats")
     @pytest.mark.asyncio
-    async def test_process_single_url_error(self):
+    async def test_process_single_url_error(self, mock_stats_cls):
         """Test processing a URL that raises an exception."""
-        from src.core.worker import product_scraper
+
+        mock_stats = Mock()
+        mock_stats_cls.return_value = mock_stats
 
         crawler = FakeCrawler(raise_on={"https://example.com/error"})
         result_queue = asyncio.Queue()
-
-        # Reset metrics
-        product_scraper._metrics["processed"] = 0
-        product_scraper._metrics["error"] = 0
 
         await process_single_url(
             "https://example.com/error",
@@ -356,8 +333,6 @@ class TestProcessSingleUrl:
             result_queue,
         )
 
-        assert product_scraper._metrics["processed"] == 1
-        assert product_scraper._metrics["error"] == 1
         assert result_queue.qsize() == 0
 
 
@@ -372,10 +347,11 @@ class TestScrape:
         from typing import cast
         from crawl4ai import AsyncWebCrawler
 
+        # Setup FakeCrawler with results for 2 URLs
         crawler = FakeCrawler(
             results=[
-                FakeResult(url="https://example.com/1"),
-                FakeResult(url="https://example.com/2"),
+                FakeResult(url="https://example.com/1", markdown="# P1"),
+                FakeResult(url="https://example.com/2", markdown="# P2"),
             ]
         )
 
@@ -388,20 +364,25 @@ class TestScrape:
             urls,
             shutdown_event,
             run_config={},
-            batch_size=2,
+            vllm_batch_size=2,
+            backend_batch_size=2,
         )
 
         assert count == 2
         assert mock_put_products.call_count >= 1
+        assert mock_update_hash.call_count == 2
+        assert mock_qwen_extract.call_count == 2
 
     @pytest.mark.asyncio
     async def test_scrape_with_crawl_errors(
         self, mock_qwen_extract, mock_put_products, mock_update_hash
     ):
         """Test scraping with some URLs failing to crawl."""
+        from typing import cast
+        from crawl4ai import AsyncWebCrawler
 
         crawler = FakeCrawler(
-            results=[FakeResult(url="https://example.com/1")],
+            results=[FakeResult(url="https://example.com/1", markdown="# P1")],
             raise_on={"https://example.com/2"},
         )
 
@@ -414,16 +395,22 @@ class TestScrape:
             urls,
             shutdown_event,
             run_config={},
-            batch_size=10,
+            vllm_batch_size=10,
+            backend_batch_size=10,
         )
 
         assert count == 2
+        assert mock_update_hash.call_count == 1
+        assert mock_qwen_extract.call_count == 1
+        assert mock_put_products.call_count >= 1
 
     @pytest.mark.asyncio
     async def test_scrape_with_shutdown(
         self, mock_qwen_extract, mock_put_products, mock_update_hash
     ):
         """Test scraping interrupted by shutdown event."""
+        from typing import cast
+        from crawl4ai import AsyncWebCrawler
 
         crawler = FakeCrawler(
             results=[
@@ -438,7 +425,7 @@ class TestScrape:
             "https://example.com/3",
         ]
         shutdown_event = asyncio.Event()
-        shutdown_event.set()
+        shutdown_event.set()  # Set immediate shutdown
 
         count = await scrape(
             cast(AsyncWebCrawler, cast(object, crawler)),
@@ -446,10 +433,12 @@ class TestScrape:
             urls,
             shutdown_event,
             run_config={},
-            batch_size=10,
+            vllm_batch_size=10,
+            backend_batch_size=10,
         )
 
         assert count == 0
+        assert mock_put_products.call_count == 0
 
 
 class TestHandleDomainMessage:
@@ -508,11 +497,15 @@ class TestHandleDomainMessage:
             )
 
             await handle_domain_message(
-                message, db, shutdown_event, queue, batch_size=10
+                message,
+                db,
+                shutdown_event,
+                queue,
+                backend_batch_size=10,
+                vllm_batch_size=4,
             )
 
             db.get_all_product_urls_by_domain.assert_called_once_with("example.com")
-            # Should be called twice: once at start, once at end
             assert db.update_shop_metadata.call_count == 2
             mock_delete.assert_called_once_with(message)
 
@@ -545,7 +538,12 @@ class TestHandleDomainMessage:
             )
 
             await handle_domain_message(
-                message, db, shutdown_event, queue, batch_size=10
+                message,
+                db,
+                shutdown_event,
+                queue,
+                backend_batch_size=10,
+                vllm_batch_size=4,
             )
 
             mock_delete.assert_called_once_with(message)
@@ -579,7 +577,12 @@ class TestHandleDomainMessage:
             )
 
             await handle_domain_message(
-                message, db, shutdown_event, queue, batch_size=10
+                message,
+                db,
+                shutdown_event,
+                queue,
+                backend_batch_size=10,
+                vllm_batch_size=4,
             )
 
             mock_delete.assert_called_once_with(message)
@@ -602,7 +605,7 @@ class TestMain:
             patch("src.core.worker.product_scraper.DynamoDBOperations") as mock_db,
             patch("src.core.worker.product_scraper.run_worker_pool") as mock_run_pool,
         ):
-            await main(n_workers=1, batch_size=5)
+            await main(n_workers=1, backend_batch_size=5, vllm_batch_size=4)
 
             mock_get_queue.assert_called_once()
             mock_db.assert_not_called()
@@ -636,7 +639,7 @@ class TestMain:
             # Reset shutdown event for this test
             ps.shutdown_event = asyncio.Event()
 
-            await main(n_workers=2, batch_size=5)
+            await main(n_workers=2, backend_batch_size=5, vllm_batch_size=4)
 
             assert mock_get_queue.call_count == 1
             mock_db_cls.assert_called_once()
@@ -755,12 +758,12 @@ class TestWorker:
         worker_id = 1
         queue = Mock()
         db = Mock()
-        batch_size = 10
+        backend_batch_size = 10
 
         with patch(
             "src.core.worker.product_scraper.generic_worker", new_callable=AsyncMock
         ) as mock_generic_worker:
-            await worker(worker_id, queue, db, batch_size)
+            await worker(worker_id, queue, db, backend_batch_size, vllm_batch_size=4)
 
             mock_generic_worker.assert_called_once()
             call_kwargs = mock_generic_worker.call_args[1]

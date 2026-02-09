@@ -174,3 +174,72 @@ class TestS3Operations:
         keys = s3_ops.list_objects()
 
         assert keys == []
+
+    @patch("src.core.aws.s3.boto3.client")
+    def test_ensure_bucket_exists_when_bucket_exists(self, mock_boto_client):
+        """Test that ensure_bucket_exists does nothing when bucket already exists."""
+        mock_client = MagicMock()
+        mock_boto_client.return_value = mock_client
+
+        # head_bucket succeeds, meaning bucket exists
+        mock_client.head_bucket.return_value = {}
+
+        s3_ops = S3Operations(bucket_name="existing-bucket")
+        s3_ops.ensure_bucket_exists()
+
+        mock_client.head_bucket.assert_called_once_with(Bucket="existing-bucket")
+        mock_client.create_bucket.assert_not_called()
+
+    @patch("src.core.aws.s3.boto3.client")
+    def test_ensure_bucket_exists_creates_bucket_on_404(self, mock_boto_client):
+        """Test that ensure_bucket_exists creates bucket when it doesn't exist."""
+        mock_client = MagicMock()
+        mock_boto_client.return_value = mock_client
+
+        # head_bucket raises 404 error
+        error_response = {"Error": {"Code": "404"}}
+        mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
+
+        s3_ops = S3Operations(bucket_name="new-bucket")
+        s3_ops.ensure_bucket_exists()
+
+        mock_client.head_bucket.assert_called_once_with(Bucket="new-bucket")
+        mock_client.create_bucket.assert_called_once()
+        call_kwargs = mock_client.create_bucket.call_args[1]
+        assert call_kwargs["Bucket"] == "new-bucket"
+
+    @patch("src.core.aws.s3.boto3.client")
+    def test_ensure_bucket_exists_creates_with_location_constraint(
+        self, mock_boto_client
+    ):
+        """Test that ensure_bucket_exists adds LocationConstraint for non-us-east-1 regions."""
+        mock_client = MagicMock()
+        mock_boto_client.return_value = mock_client
+
+        error_response = {"Error": {"Code": "404"}}
+        mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
+
+        with patch.dict("os.environ", {"AWS_REGION": "eu-central-1"}):
+            s3_ops = S3Operations(bucket_name="eu-bucket")
+            s3_ops.ensure_bucket_exists()
+
+        call_kwargs = mock_client.create_bucket.call_args[1]
+        assert "CreateBucketConfiguration" in call_kwargs
+        assert (
+            call_kwargs["CreateBucketConfiguration"]["LocationConstraint"]
+            == "eu-central-1"
+        )
+
+    @patch("src.core.aws.s3.boto3.client")
+    def test_ensure_bucket_exists_raises_on_other_errors(self, mock_boto_client):
+        """Test that ensure_bucket_exists raises error for non-404 errors."""
+        mock_client = MagicMock()
+        mock_boto_client.return_value = mock_client
+
+        error_response = {"Error": {"Code": "AccessDenied", "Message": "Access Denied"}}
+        mock_client.head_bucket.side_effect = ClientError(error_response, "HeadBucket")
+
+        s3_ops = S3Operations(bucket_name="denied-bucket")
+
+        with pytest.raises(ClientError):
+            s3_ops.ensure_bucket_exists()

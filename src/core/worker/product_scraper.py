@@ -227,9 +227,9 @@ async def scrape(
         stats.processed_urls = processed_count
 
         if processed_count % 50 == 0:
-            stats.report(type="current")
+            stats.report(mode="current")
 
-    stats.report(type="total")
+    stats.report(mode="total")
 
     await results_q.put(None)
     await consumer_task
