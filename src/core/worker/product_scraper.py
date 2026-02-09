@@ -188,6 +188,8 @@ async def scrape(
                 if await update_hash(res.markdown, domain, res.url):
                     valid_tasks.append(extract(res.markdown, domain))
                     valid_urls.append(res.url)
+                else:
+                    stats.unchanged_urls += 1
 
         # 3. Parallel Extraction (Concurrent Requests to vLLM)
         if valid_tasks:
