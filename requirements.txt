@@ -28,6 +28,7 @@ groq
 boto3
 python-dotenv
 pydantic_settings
+asyncssh
 torch
 transformers
 pandas==2.2.2
