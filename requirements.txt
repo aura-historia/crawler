@@ -1,4 +1,4 @@
-svllm
+vllm
 aiohttp-retry
 testcontainers
 responses
