@@ -7,6 +7,7 @@ from typing import Any, List, Optional
 
 from dotenv import load_dotenv
 
+from core.scraper.schemas.perfomance_tracker import PerformanceStats
 from src.core.aws.database.constants import STATE_PROGRESS, STATE_DONE
 from src.core.aws.database.operations import DynamoDBOperations, URLEntry
 from src.core.aws.sqs.message_wrapper import (
@@ -30,7 +31,7 @@ from src.core.utils.configs import (
 )
 from src.core.worker.base_worker import generic_worker, run_worker_pool
 from crawl4ai import AsyncWebCrawler
-from src.core.scraper.qwen import extract as qwen_extract
+from src.core.scraper.qwen import extract as qwen_extract, extract
 
 load_dotenv()
 
@@ -38,17 +39,9 @@ ScrapedData = PutProductData
 
 QUEUE_NAME = os.getenv("SQS_QUEUE_NAME")
 
-REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "50"))
-LOG_METRICS_INTERVAL = int(os.getenv("LOG_METRICS_INTERVAL", "50"))
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "2"))
+LOG_METRICS_INTERVAL = int(os.getenv("LOG_METRICS_INTERVAL", "2"))
 
-_metrics = {
-    "processed": 0,
-    "success": 0,
-    "timeout": 0,
-    "error": 0,
-    "extracted": 0,
-    "sent_batches": 0,
-}
 
 shutdown_event: asyncio.Event = asyncio.Event()
 
@@ -74,6 +67,7 @@ async def process_result_async(result: Any, domain) -> Optional[PutProductData]:
         start_ts = time.perf_counter()
 
         qwen_out = await qwen_extract(markdown, domain)
+        print(len(markdown))
 
         end_ts = time.perf_counter()
         elapsed_s = end_ts - start_ts
@@ -113,7 +107,6 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
                 try:
                     collection = PutProductsCollectionData(items=batch)
                     await put_products.asyncio(client=api_client, body=collection)
-                    _metrics["sent_batches"] += 1
                 except Exception as e:
                     logger.exception("Failed to send final batch: %s", e)
             break
@@ -123,24 +116,9 @@ async def batch_sender(q: asyncio.Queue, batch_size: int) -> None:
             try:
                 collection = PutProductsCollectionData(items=batch)
                 await put_products.asyncio(client=api_client, body=collection)
-                _metrics["sent_batches"] += 1
                 batch = []
             except Exception as e:
                 logger.exception("Failed to send batch: %s", e)
-
-
-def log_metrics_if_needed(domain: str) -> None:
-    """Log metrics periodically based on LOG_METRICS_INTERVAL."""
-    if _metrics["processed"] % LOG_METRICS_INTERVAL == 0:
-        logger.info(
-            "Metrics: processed=%s, extracted=%s, timeouts=%s, errors=%s, sent_batches=%s",
-            _metrics["processed"],
-            _metrics["extracted"],
-            _metrics["timeout"],
-            _metrics["error"],
-            _metrics["sent_batches"],
-            extra={"domain": domain},
-        )
 
 
 async def process_single_url(
@@ -160,11 +138,10 @@ async def process_single_url(
         if result and getattr(result, "success", False):
             extracted = await process_result_async(result, domain)
             if extracted:
-                _metrics["extracted"] += 1
+                print(json.dumps(extracted.to_dict()))
                 await result_queue.put(extracted)
 
     except asyncio.TimeoutError:
-        _metrics["timeout"] += 1
         logger.warning(
             "Timeout processing %s after %ds",
             url,
@@ -172,11 +149,7 @@ async def process_single_url(
             extra={"domain": domain},
         )
     except Exception as e:
-        _metrics["error"] += 1
         logger.exception("Error processing %s: %s", url, e, extra={"domain": domain})
-    finally:
-        _metrics["processed"] += 1
-        log_metrics_if_needed(domain)
 
 
 async def scrape(
@@ -185,48 +158,81 @@ async def scrape(
     urls: List[str],
     shutdown_event: asyncio.Event,
     run_config: Any,
-    batch_size: int = 500,
+    vllm_batch_size: int = 4,  # Parallel LLM requests
+    backend_batch_size: int = 50,
 ) -> int:
-    """
-    Crawl and extract URLs sequentially with inline processing.
-
-    Each URL is processed one by one:
-    1. Fetches HTML
-    2. Extracts data
-    3. Queues result immediately
-
-    Args:
-        crawler: AsyncWebCrawler instance
-        domain: Domain being scraped
-        urls: List of URLs to scrape
-        shutdown_event: Event to signal shutdown
-        run_config: Crawler run configuration
-        batch_size: Batch size for sending items
-
-    Returns:
-        Number of URLs processed
-    """
     processed_count = 0
-    q: asyncio.Queue = asyncio.Queue()
+    results_q = asyncio.Queue()
+    consumer_task = asyncio.create_task(batch_sender(results_q, backend_batch_size))
 
-    # Start batch sender task
-    consumer_task = asyncio.create_task(batch_sender(q, batch_size))
+    stats = PerformanceStats(total_urls=len(urls), domains_processed=domain)
 
-    # Process URLs one by one
-    for url in urls:
+    # We process in chunks so we can "checkpoint" the next_url frequently
+    for i in range(0, len(urls), vllm_batch_size):
         if shutdown_event.is_set():
-            logger.info("Shutdown detected, stopping scrape loop.")
+            logger.info("Shutdown signal received. Stopping at current chunk.")
             break
-        await process_single_url(url, crawler, domain, run_config, q)
-        processed_count += 1
 
-    # Signal consumer to finish and wait for it
-    await q.put(None)
-    try:
-        await consumer_task
-    except Exception as ce:
-        logger.exception("Error in batch sender: %s", ce, extra={"domain": domain})
+        url_chunk = urls[i : i + vllm_batch_size]
 
+        # 1. Parallel Crawl for the chunk
+        crawl_results = await crawler.arun_many(url_chunk, config=run_config)
+
+        valid_tasks = []
+        valid_urls = []
+
+        # 2. Prepare Parallel Extraction
+        for res in crawl_results:
+            if res.success:
+                # Deduplicate before sending to GPU
+                if await update_hash(res.markdown, domain, res.url):
+                    valid_tasks.append(extract(res.markdown, domain))
+                    valid_urls.append(res.url)
+                else:
+                    stats.n_unchanged_urls += 1
+
+        # 3. Parallel Extraction (Concurrent Requests to vLLM)
+        if valid_tasks:
+            # This triggers vLLM's continuous batching
+            extractions = await asyncio.gather(*valid_tasks, return_exceptions=True)
+
+            for product, url in zip(extractions, valid_urls):
+                # Case A: System / Network / Token Limit Error
+                if isinstance(product, Exception):
+                    if "LengthFinishReasonError" in str(product):
+                        stats.token_limit_errors += 1
+                        logger.warning(f"Truncated JSON (Token Limit) for {url}")
+                    else:
+                        logger.error(f"LLM Transport Error for {url}: {product}")
+                    stats.system_errors += 1
+                    continue
+
+                # Case B: LLM returned text, but it's not a valid Product (or validation failed)
+                if product is None:
+                    stats.validation_errors += 1
+                    logger.warning(f"Validation failed or non-product page at {url}")
+                    continue
+
+                # Case C: Absolute Success
+                if product.is_product:
+                    stats.extracted_successfully += 1
+                    product = map_extracted_product_to_api(product, url)
+                    await results_q.put(product)
+                else:
+                    # It's valid JSON, but the LLM correctly identified it's NOT a product
+                    stats.filtered_non_products += 1
+
+        # 4. Update Progress
+        processed_count += len(url_chunk)
+        stats.processed_urls = processed_count
+
+        if processed_count % 50 == 0:
+            stats.report(mode="current")
+
+    stats.report(mode="total")
+
+    await results_q.put(None)
+    await consumer_task
     return processed_count
 
 
@@ -262,7 +268,8 @@ async def handle_domain_message(
     db: DynamoDBOperations,
     shutdown_event: asyncio.Event,
     queue: Any,
-    batch_size: int = 10,
+    backend_batch_size: int,
+    vllm_batch_size: int,
 ) -> None:
     """Handles the full lifecycle of a single domain message.
 
@@ -271,7 +278,8 @@ async def handle_domain_message(
         db (DynamoDBOperations): Database operations instance.
         shutdown_event (asyncio.Event): Shutdown event.
         queue (Any): SQS queue.
-        batch_size (int): Batch size for sending items.
+        backend_batch_size (int): Batch size for sending items.
+        vllm_batch_size (int): Batch size for sending to vllm.
     """
     domain, next_url = parse_message_body(message)
 
@@ -335,7 +343,8 @@ async def handle_domain_message(
                     urls=urls_to_crawl,
                     shutdown_event=shutdown_event,
                     run_config=run_config,
-                    batch_size=batch_size,
+                    backend_batch_size=backend_batch_size,
+                    vllm_batch_size=vllm_batch_size,
                 )
 
             if shutdown_event.is_set():
@@ -360,7 +369,11 @@ async def handle_domain_message(
 
 
 async def worker(
-    worker_id: int, queue: Any, db: DynamoDBOperations, batch_size: int
+    worker_id: int,
+    queue: Any,
+    db: DynamoDBOperations,
+    backend_batch_size: int,
+    vllm_batch_size: int,
 ) -> None:
     """Worker function for processing domain messages from SQS queue.
 
@@ -372,7 +385,9 @@ async def worker(
     """
 
     async def handler(message: Any) -> None:
-        await handle_domain_message(message, db, shutdown_event, queue, batch_size)
+        await handle_domain_message(
+            message, db, shutdown_event, queue, backend_batch_size, vllm_batch_size
+        )
 
     await generic_worker(
         worker_id=worker_id,
@@ -384,12 +399,15 @@ async def worker(
     )
 
 
-async def main(n_workers: int = 2, batch_size: int = 10) -> None:
+async def main(
+    n_workers: int = 2, backend_batch_size: int = 10, vllm_batch_size: int = 10
+) -> None:
     """Main entry point managing the graceful exit of event-driven workers.
 
     Args:
         n_workers (int): Number of concurrent workers. Defaults to 2.
-        batch_size (int): Items to batch before sending. Defaults to 10.
+        backend_batch_size (int): Number of items to batch before sending.
+        vllm_batch_size (int): Number of markdowns per request to vllm.
     """
     try:
         queue = get_queue(QUEUE_NAME)
@@ -401,7 +419,7 @@ async def main(n_workers: int = 2, batch_size: int = 10) -> None:
 
     # Worker factory function
     async def create_worker(worker_id: int) -> None:
-        await worker(worker_id, queue, db, batch_size)
+        await worker(worker_id, queue, db, backend_batch_size, vllm_batch_size)
 
     await run_worker_pool(
         n_workers=n_workers,
@@ -412,4 +430,4 @@ async def main(n_workers: int = 2, batch_size: int = 10) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(n_workers=2, batch_size=50))
+    asyncio.run(main(n_workers=2))

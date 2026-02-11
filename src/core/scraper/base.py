@@ -3,9 +3,11 @@ from typing import List
 from openai import AsyncOpenAI
 from crawl4ai import AsyncWebCrawler
 
+from core.scraper.schemas.extracted_product import ExtractedProduct
 from src.core.utils.configs import build_product_scraper_components
 
 logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.ERROR)
 
 # Shared async client for OpenAI-compatible vLLM server
 client = AsyncOpenAI(
@@ -18,15 +20,16 @@ MODEL_NAME = "Qwen/Qwen3-8B-AWQ"
 async def chat_completion(task: str, prompt: str) -> str:
     """Send an async chat completion request to the vLLM server."""
     try:
-        response = await client.chat.completions.create(
+        response = await client.beta.chat.completions.parse(
             model=MODEL_NAME,
             messages=[
                 {"role": "system", "content": task},
                 {"role": "user", "content": prompt},
             ],
             temperature=0,
-            max_tokens=2048,
+            max_tokens=2500,
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            response_format=ExtractedProduct,
         )
         return response.choices[0].message.content or ""
     except Exception as e:

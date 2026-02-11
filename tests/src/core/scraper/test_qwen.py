@@ -7,9 +7,9 @@ from src.core.scraper.qwen import (
     _find_balanced_brace_object,
     _parse_llm_response,
     extract,
-    get_markdown,
     _apply_boilerplate_removal,
 )
+from src.core.scraper.base import get_markdown
 from src.core.scraper.schemas.extracted_product import ExtractedProduct
 
 
@@ -21,7 +21,7 @@ class TestChatCompletion:
         mock_response.choices[0].message.content = '{"test": "value"}'
 
         with patch(
-            "src.core.scraper.base.client.chat.completions.create",
+            "src.core.scraper.base.client.beta.chat.completions.parse",
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
@@ -32,7 +32,7 @@ class TestChatCompletion:
     @pytest.mark.asyncio
     async def test_chat_completion_error_returns_empty_json(self):
         with patch(
-            "src.core.scraper.base.client.chat.completions.create",
+            "src.core.scraper.base.client.beta.chat.completions.parse",
             new_callable=AsyncMock,
             side_effect=Exception("API Error"),
         ):

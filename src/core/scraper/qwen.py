@@ -1,11 +1,10 @@
-import asyncio
 import json
 import logging
 from typing import Optional
 from datetime import datetime, timezone
 
 from src.core.scraper.prompts.system import SYSTEM_PROMPT_TEMPLATE
-from src.core.scraper.base import chat_completion, get_markdown
+from src.core.scraper.base import chat_completion
 
 from pydantic import ValidationError
 
@@ -161,6 +160,7 @@ async def extract(
     # Apply Boilerplate Removal if domain is provided
     if domain:
         markdown = await _apply_boilerplate_removal(markdown, domain)
+        markdown = markdown[:10000]  # Ensure we don't exceed token limits
 
     if current_time is None:
         current_time = datetime.now(timezone.utc)
@@ -196,17 +196,3 @@ async def extract(
 
     logger.warning(f"Extraction validation failed: {last_exception}")
     return None
-
-
-async def main(url: str):
-    """Fetch a URL and run extraction on its markdown; used for manual testing."""
-    markdown = await get_markdown(url)
-    print(markdown)
-
-
-if __name__ == "__main__":
-    asyncio.run(
-        main(
-            "https://www.lot-tissimo.com/de-de/auction-catalogues/bieberle/catalogue-id-auktio37-10038/lot-e143db6d-3dc7-4e74-8dba-b35600ea7536"
-        )
-    )
