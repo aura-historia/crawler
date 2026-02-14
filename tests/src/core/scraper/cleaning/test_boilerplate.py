@@ -1,5 +1,7 @@
+from unittest.mock import MagicMock, AsyncMock
 import pytest
-from unittest.mock import patch, MagicMock
+import asyncio
+from unittest.mock import patch
 from src.core.scraper.cleaning.boilerplate_discovery import BoilerplateDiscovery
 from src.core.scraper.cleaning.boilerplate_remover import BoilerplateRemover
 
@@ -8,8 +10,11 @@ from src.core.scraper.cleaning.boilerplate_remover import BoilerplateRemover
 @patch("src.core.scraper.cleaning.boilerplate_discovery.S3Operations")
 class TestBoilerplateDiscovery:
     @pytest.mark.asyncio
-    @patch("src.core.scraper.cleaning.boilerplate_discovery.get_markdown")
-    @patch("src.core.scraper.qwen.extract")
+    @patch(
+        "src.core.scraper.cleaning.boilerplate_discovery.get_markdown",
+        new_callable=AsyncMock,
+    )
+    @patch("src.core.scraper.qwen.extract", new_callable=AsyncMock)
     async def test_get_valid_product_markdowns_integrated(
         self, mock_extract, mock_markdown, mock_s3, mock_db
     ):
@@ -20,6 +25,7 @@ class TestBoilerplateDiscovery:
         )
 
         # 1. Too short, 2. Valid Product, 3. Valid but Not a Product
+        # AsyncMock with iterable side_effect automatically wraps values in coroutines
         mock_markdown.side_effect = [
             "short",
             "md_valid_prod" * 100,
@@ -105,6 +111,71 @@ class TestBoilerplateDiscovery:
         assert ["Common Header Block Text"] in blocks
         assert ["Common Footer Block Text"] in blocks
 
+    @pytest.mark.asyncio
+    async def test_discover_and_save_locking_behavior(self, mock_s3, mock_db):
+        """
+        Verify that concurrent calls for the SAME domain are serialized.
+        The first one should perform discovery, and the second one should
+        pick up the result from S3 (Double-Checked Locking) without running discovery.
+        """
+        discovery = BoilerplateDiscovery()
+        domain = "locked-domain.com"
+
+        discovery.get_valid_product_markdowns = MagicMock()
+
+        async def delayed_get_markdowns(*args, **kwargs):
+            await asyncio.sleep(0.1)
+            return ["md1", "md2"]
+
+        discovery.get_valid_product_markdowns.side_effect = delayed_get_markdowns
+
+        discovery.find_common_blocks_detailed = MagicMock(return_value=[["block1"]])
+
+        s3_data = {}  # Simulating S3 bucket
+
+        def mock_upload_json(key, data):
+            s3_data[key] = data
+
+        def mock_download_json(key):
+            return s3_data.get(key)
+
+        discovery.s3.upload_json = MagicMock(side_effect=mock_upload_json)
+        discovery.s3.download_json = MagicMock(side_effect=mock_download_json)
+
+        task1 = asyncio.create_task(discovery.discover_and_save(domain))
+        task2 = asyncio.create_task(discovery.discover_and_save(domain))
+
+        results = await asyncio.gather(task1, task2)
+
+        assert results[0] == [["block1"]]
+        assert results[1] == [["block1"]]
+
+        assert discovery.find_common_blocks_detailed.call_count == 1
+        assert discovery.s3.upload_json.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_discover_and_save_independent_domains(self, mock_s3, mock_db):
+        """Verify that concurrent calls for DIFFERENT domains run in parallel."""
+        discovery = BoilerplateDiscovery()
+
+        discovery.get_valid_product_markdowns = AsyncMock(return_value=["md1", "md2"])
+        discovery.find_common_blocks_detailed = MagicMock(
+            side_effect=[[["A"]], [["B"]]]
+        )
+
+        discovery.s3.download_json = MagicMock(return_value=None)
+        discovery.s3.upload_json = MagicMock()
+
+        task1 = asyncio.create_task(discovery.discover_and_save("domain-a.com"))
+        task2 = asyncio.create_task(discovery.discover_and_save("domain-b.com"))
+
+        results = await asyncio.gather(task1, task2)
+
+        assert results[0] == [["A"]]
+        assert results[1] == [["B"]]
+
+        assert discovery.find_common_blocks_detailed.call_count == 2
+
 
 @patch("src.core.scraper.cleaning.boilerplate_remover.S3Operations")
 class TestBoilerplateRemover:
@@ -133,6 +204,18 @@ class TestBoilerplateRemover:
             blocks3 = await remover.load_for_shop(domain, force_refresh=True)
             assert blocks3 == [["s3_block"]]
             assert mock_thread.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_load_for_shop_missing_data(self, mock_s3):
+        """Verify load_for_shop returns None when S3 data is missing."""
+        remover = BoilerplateRemover()
+
+        with patch(
+            "src.core.scraper.cleaning.boilerplate_remover.asyncio.to_thread",
+            return_value=None,
+        ):
+            blocks = await remover.load_for_shop("missing.com")
+            assert blocks is None
 
     def test_clean_exact_output(self, mock_s3):
         """Verify boilerplate removal preserves content integrity and removes exact blocks."""

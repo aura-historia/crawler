@@ -32,7 +32,7 @@ class BoilerplateRemover:
 
     async def load_for_shop(
         self, domain: str, force_refresh: bool = False
-    ) -> List[List[str]]:
+    ) -> Optional[List[List[str]]]:
         """Load boilerplate blocks from S3 with local caching."""
         if not force_refresh:
             cached = self._get_from_cache(domain)
@@ -46,7 +46,7 @@ class BoilerplateRemover:
             self._save_to_cache(domain, data["blocks"])
             return data["blocks"]
 
-        return []
+        return None
 
     def clean(
         self, markdown: str, blocks: List[List[str]], remove_noise: bool = True
