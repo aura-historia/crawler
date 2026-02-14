@@ -51,7 +51,7 @@ class URLBertClassifier(torch.nn.Module):
         else:
             config_path = Path(config_path)
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cpu")
         logger.info(f"Using device: {self.device}")
 
         # Load tokenizer
