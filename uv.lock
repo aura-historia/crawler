@@ -755,7 +755,7 @@ requires-dist = [
     { name = "extruct", specifier = ">=0.18.0" },
     { name = "google-search-results", specifier = ">=2.4.2" },
     { name = "groq", specifier = ">=1.0.0" },
-    { name = "iptocc", specifier = ">=1.1.2" },
+    { name = "iptocc" },
     { name = "langdetect", specifier = ">=1.0.9" },
     { name = "lxml", specifier = ">=5.4.0" },
     { name = "nest-asyncio", specifier = ">=1.6.0" },
@@ -774,7 +774,7 @@ requires-dist = [
     { name = "ruff", specifier = ">=0.15.1" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "selenium", specifier = ">=4.40.0" },
-    { name = "six", specifier = ">=1.10.0" },
+    { name = "six", specifier = ">=1.17.0" },
     { name = "streamlit", specifier = ">=1.54.0" },
     { name = "testcontainers", specifier = ">=4.14.1" },
     { name = "tldextract", specifier = ">=5.3.1" },
@@ -1523,14 +1523,13 @@ wheels = [
 
 [[package]]
 name = "iptocc"
-version = "1.1.2"
+version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "six" },
     { name = "tinydb" },
     { name = "ujson" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/97/402133b4c44db78af20fac6d0f16748dd710a7002442f45f5b68a79161f8/IPToCC-1.1.2.tar.gz", hash = "sha256:175a9267bd66491412da8d4a440c7ddcafcae656e8dd2ade4649bb9380036b3a", size = 1999986, upload-time = "2018-05-24T06:14:20.564Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/cd/bc2ab91c1ce35284f12221a2ea4911849daa36ea15d26aad1094d8bf952b/IPToCC-1.0.8.tar.gz", hash = "sha256:b7904b3bff59b4728e02b9e72611fe50344b68d7e93496852f8235636a36e882", size = 1312591, upload-time = "2017-05-22T06:36:21.915Z" }
 
 [[package]]
 name = "jinja2"
@@ -3814,11 +3813,11 @@ wheels = [
 
 [[package]]
 name = "six"
-version = "1.10.0"
+version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b3/b2/238e2590826bfdd113244a40d9d3eb26918bd798fc187e2360a8367068db/six-1.10.0.tar.gz", hash = "sha256:105f8d68616f8248e24bf0e9372ef04d3cc10104f1980f54d57b2ce73a5ad56a", size = 29630, upload-time = "2015-10-07T03:17:49.113Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/0a/b6723e1bc4c516cb687841499455a8505b44607ab535be01091c0f24f079/six-1.10.0-py2.py3-none-any.whl", hash = "sha256:0ff78c403d9bccf5a425a6d31a12aa6b47f1c21ca4dc2573a7e2f32a97335eb1", size = 10341, upload-time = "2015-10-07T03:17:20.304Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
 ]
 
 [[package]]
