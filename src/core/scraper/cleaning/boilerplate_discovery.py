@@ -2,7 +2,7 @@ import logging
 import difflib
 import re
 import asyncio
-from typing import List
+from typing import List, Optional
 
 from src.core.aws.database.operations import DynamoDBOperations
 from src.core.aws.s3 import S3Operations
@@ -24,6 +24,7 @@ class BoilerplateDiscovery:
             r"(?i)\b(verfügbarkeit|vorrätig|availability|stock|zustand)\b"
         )
         self.currency_pattern = re.compile(r"[\$€£]\s*\d|\d\s*[\$€£]")
+        self._locks = {}  # Stores asyncio.Lock() per domain
 
     async def get_valid_product_markdowns(
         self, domain: str, target_count: int = 3
@@ -69,47 +70,68 @@ class BoilerplateDiscovery:
         """
         Full workflow: Check S3 -> Fetch 3 products -> Discover -> Save to S3.
         Returns the discovered blocks.
+        Ensures only one discovery process runs per domain at a time (in-process).
         """
-        # 1. Check S3 first
+        # 0. Initialize lock for this domain if not present
+        if domain not in self._locks:
+            self._locks[domain] = asyncio.Lock()
+
+        # 1. Check S3 first (fast path)
+        # If data exists, we don't even need to wait for the lock.
+        existing_blocks = await self._check_s3_for_blocks(domain)
+        if existing_blocks is not None:
+            return existing_blocks
+
+        # 2. Acquire Lock
+        async with self._locks[domain]:
+            # 3. DOUBLE-CHECK: Check S3 again inside the lock
+            # Another request might have finished while we were waiting.
+            existing_blocks = await self._check_s3_for_blocks(domain)
+            if existing_blocks is not None:
+                return existing_blocks
+
+            # 4. Fetch valid products
+            logger.info(f"Starting boilerplate discovery for {domain}...")
+            markdowns = await self.get_valid_product_markdowns(domain, target_count=3)
+
+            if len(markdowns) < 2:
+                logger.warning(
+                    f"Not enough valid markdowns found for {domain} to discover boilerplate. Saving empty state to prevent re-discovery."
+                )
+                blocks = []
+            else:
+                # 5. Discover blocks
+                blocks = self.find_common_blocks_detailed(markdowns)
+
+            if blocks:
+                logger.info(f"Discovered {len(blocks)} boilerplate blocks for {domain}")
+            else:
+                logger.info(
+                    f"No common boilerplate blocks found (or not enough markdowns) for {domain}. Saving empty state."
+                )
+
+            # 6. Save to S3 (even if empty, to mark as "checked")
+            await asyncio.to_thread(
+                self.s3.upload_json, f"boilerplate/{domain}.json", {"blocks": blocks}
+            )
+
+            return blocks
+
+    async def _check_s3_for_blocks(self, domain: str) -> Optional[List[List[str]]]:
+        """Helper to check S3 for existing boilerplate blocks."""
         try:
             existing_data = await asyncio.to_thread(
                 self.s3.download_json, f"boilerplate/{domain}.json"
             )
-            if existing_data and "blocks" in existing_data and existing_data["blocks"]:
+            if existing_data and "blocks" in existing_data:
                 logger.info(
-                    f"Boilerplate blocks already exist for {domain}, skipping discovery."
+                    f"Boilerplate blocks already exist for {domain} (S3 found), skipping discovery."
                 )
                 return existing_data["blocks"]
         except Exception:
             # Ignore S3 errors (doesn't exist etc) and proceed
             pass
-
-        # 2. Fetch valid products
-        logger.info(f"Starting boilerplate discovery for {domain}...")
-        markdowns = await self.get_valid_product_markdowns(domain, target_count=3)
-
-        if len(markdowns) < 2:
-            logger.warning(
-                f"Not enough valid markdowns found for {domain} to discover boilerplate."
-            )
-            return []
-
-        # 3. Discover blocks
-        blocks = self.find_common_blocks_detailed(markdowns)
-
-        if blocks:
-            logger.info(f"Discovered {len(blocks)} boilerplate blocks for {domain}")
-        else:
-            logger.info(
-                f"No common boilerplate blocks found for {domain}. Saving empty state."
-            )
-
-        # 4. Save to S3 (even if empty, to mark as "checked")
-        await asyncio.to_thread(
-            self.s3.upload_json, f"boilerplate/{domain}.json", {"blocks": blocks}
-        )
-
-        return blocks
+        return None
 
     def find_common_blocks_detailed(self, markdowns: List[str]) -> List[List[str]]:
         """
