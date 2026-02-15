@@ -2,7 +2,7 @@ name: CI/CD
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
 
 jobs:
@@ -18,16 +18,17 @@ jobs:
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: uv sync --frozen
 
       - name: Run tests with coverage
         run: |
-          pytest -v --cov=src --cov-report=xml --cov-report=term
+          uv run pytest -v --cov=src --cov-report=xml --cov-report=term
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -48,7 +49,7 @@ jobs:
 
   sonarqube:
     runs-on: self-hosted
-    needs: [test, ruff]
+    needs: [ test, ruff ]
     permissions:
       contents: read
     steps:
