@@ -45,10 +45,10 @@ dependencies = [
     "testcontainers>=4.14.1",
     "tinydb>=4.8.2",
     "tldextract>=5.3.1",
-    "torch>=2.4.0",
-    "transformers>=5.1.0",
+    "torch>=2.9.1",
+    "transformers>=4.56.0",
     "ujson>=5.9.0",
+    "vllm>=0.15.1",
     "urllib3>=2.6.3",
-    "vllm>=0.6.0",
     "w3lib>=2.4.0",
 ]
