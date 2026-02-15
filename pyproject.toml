@@ -48,7 +48,11 @@ dependencies = [
     "torch>=2.9.1",
     "transformers>=4.56.0",
     "ujson>=5.9.0",
-    "vllm>=0.15.1",
     "urllib3>=2.6.3",
     "w3lib>=2.4.0",
+]
+
+[project.optional-dependencies]
+gpu = [
+    "vllm>=0.15.1; sys_platform != 'win32' or platform_machine != 'AMD64'"
 ]

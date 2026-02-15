@@ -903,8 +903,12 @@ dependencies = [
     { name = "transformers" },
     { name = "ujson" },
     { name = "urllib3" },
-    { name = "vllm" },
     { name = "w3lib" },
+]
+
+[package.optional-dependencies]
+gpu = [
+    { name = "vllm", marker = "platform_machine != 'AMD64' or sys_platform != 'win32'" },
 ]
 
 [package.metadata]
@@ -954,9 +958,10 @@ requires-dist = [
     { name = "transformers", specifier = ">=4.56.0" },
     { name = "ujson", specifier = ">=5.9.0" },
     { name = "urllib3", specifier = ">=2.6.3" },
-    { name = "vllm", specifier = ">=0.15.1" },
+    { name = "vllm", marker = "(platform_machine != 'AMD64' and extra == 'gpu') or (sys_platform != 'win32' and extra == 'gpu')", specifier = ">=0.15.1" },
     { name = "w3lib", specifier = ">=2.4.0" },
 ]
+provides-extras = ["gpu"]
 
 [[package]]
 name = "crawl4ai"
