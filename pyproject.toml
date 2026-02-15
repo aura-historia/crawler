@@ -1,7 +1,7 @@
 [project]
 name = "cralwer"
 version = "0.1.0"
-description = "Crawler-Framework für asynchrones Web-Scraping, Datenextraktion und Analyse mit Python. Unterstützt moderne Bibliotheken, AWS-Integration und modulare Erweiterbarkeit."
+description = "Crawler framework for asynchronous web scraping, data extraction, and analysis with Python. Supports modern libraries, AWS integration, and modular extensibility."
 requires-python = ">=3.12"
 dependencies = [
     "aiofiles>=25.1.0",
